@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}PIP CRM{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <nav class="bg-blue-700 text-white p-4 flex justify-between items-center">
+        <div class="text-xl font-semibold">PIP CRM</div>
+        {% if current_user.is_authenticated %}
+            <div>
+                Logged in as <strong>{{ current_user.username }}</strong>
+                <a href="{{ url_for('logout') }}" class="ml-4 underline">Logout</a>
+            </div>
+        {% endif %}
+    </nav>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="bg-yellow-100 text-yellow-800 p-3 m-4 rounded">
+          {% for message in messages %}
+            <div>{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <main class="p-6">
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>
