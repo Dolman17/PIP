@@ -148,7 +148,7 @@ def add_employee():
         db.session.add(new_employee)
         db.session.commit()
         flash("New employee added.")
-        return redirect(url_for('employee_detail'))  # ✅ Ensure this route exists or change it
+        return redirect(url_for('employee_list'))  # ✅ Ensure this route exists or change it
 
     return render_template('add_employee.html', form=form)
 
@@ -161,5 +161,8 @@ def employee_list():
     return render_template("employee_list.html", employees=employees)
 
 
-if __name__ == '__main__':
-    app.run(debug=True)
+
+import os
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
