@@ -35,4 +35,18 @@
     ✏️ Edit PIP
 </a>
 
+<h3 class="text-lg font-semibold mt-6 mb-2">Timeline</h3>
+<ul class="border rounded p-4 bg-gray-50">
+  {% for event in pip.timeline %}
+    <li class="mb-2">
+      <strong>{{ event.timestamp.strftime('%Y-%m-%d %H:%M') }}</strong> – 
+      <em>{{ event.event_type }}</em> by {{ event.updated_by }}<br>
+      {{ event.notes }}
+    </li>
+  {% else %}
+    <li>No timeline events yet.</li>
+  {% endfor %}
+</ul>
+
+
 {% endblock %}

@@ -32,6 +32,15 @@
         {{ form.meeting_notes(class="w-full p-2 border rounded") }}
     </div>
 
+<div class="mb-4">
+  <label for="status" class="block mb-1 font-semibold">Status</label>
+  <select id="status" name="status" class="w-full border rounded p-2">
+    <option value="Open" {% if pip.status == 'Open' %}selected{% endif %}>Open</option>
+    <option value="Completed" {% if pip.status == 'Completed' %}selected{% endif %}>Completed</option>
+    <option value="Closed" {% if pip.status == 'Closed' %}selected{% endif %}>Closed</option>
+  </select>
+</div>
+
     <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">{{ form.submit.label.text }}</button>
     <a href="{{ url_for('pip_detail', pip_id=pip.id) }}" class="ml-4 text-gray-600 underline">Cancel</a>
 </form>

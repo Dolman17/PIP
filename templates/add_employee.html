@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="text-xl font-bold mb-4">Add New Employee</h2>
+<form method="POST">
+    {{ form.hidden_tag() }}
+    <div class="space-y-4">
+        {{ form.first_name.label }} {{ form.first_name(class="form-input") }}
+        {{ form.last_name.label }} {{ form.last_name(class="form-input") }}
+        {{ form.job_title.label }} {{ form.job_title(class="form-input") }}
+        {{ form.line_manager.label }} {{ form.line_manager(class="form-input") }}
+        {{ form.service.label }} {{ form.service(class="form-input") }}
+        {{ form.start_date.label }} {{ form.start_date(class="form-input") }}
+        {{ form.team_id.label }} {{ form.team_id(class="form-input") }}
+    </div>
+    <button type="submit" class="btn btn-primary mt-4">Add Employee</button>
+</form>
+{% endblock %}

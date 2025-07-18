@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}Employee List{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold mb-6">All Employees</h1>
+
+<table class="min-w-full bg-white shadow-md rounded-lg overflow-hidden">
+    <thead class="bg-gray-100">
+        <tr>
+            <th class="text-left py-3 px-4">Name</th>
+            <th class="text-left py-3 px-4">Job Title</th>
+            <th class="text-left py-3 px-4">Service</th>
+            <th class="text-left py-3 px-4">Start Date</th>
+            <th class="text-left py-3 px-4">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for emp in employees %}
+        <tr class="border-t hover:bg-gray-50">
+            <td class="py-3 px-4">{{ emp.first_name }} {{ emp.last_name }}</td>
+            <td class="py-3 px-4">{{ emp.job_title }}</td>
+            <td class="py-3 px-4">{{ emp.service }}</td>
+            <td class="py-3 px-4">{{ emp.start_date.strftime('%Y-%m-%d') }}</td>
+            <td class="py-3 px-4">
+                <a href="{{ url_for('employee_detail', employee_id=emp.id) }}" class="text-blue-600 hover:underline">View</a>
+            </td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="5" class="text-center py-4 text-gray-500">No employees found.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<a href="{{ url_for('add_employee') }}" class="mt-6 inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+    ➕ Add New Employee
+</a>
+{% endblock %}

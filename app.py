@@ -3,9 +3,9 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-from models import db, User, Employee, PIPRecord, TimelineEvent
-from forms import PIPForm
 
+from models import db, User, Employee, PIPRecord, TimelineEvent
+from forms import PIPForm, EmployeeForm  # ✅ FIXED: Added EmployeeForm import
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key'
@@ -16,6 +16,7 @@ db.init_app(app)
 login_manager = LoginManager()
 login_manager.login_view = 'login'
 login_manager.init_app(app)
+
 
 # ----- User Loader -----
 @login_manager.user_loader
@@ -28,7 +29,6 @@ def load_user(user_id):
 @login_required
 def home():
     return render_template('landing.html')
-
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -60,27 +60,49 @@ def employee_detail(employee_id):
     return render_template('employee_detail.html', employee=employee)
 
 
-@app.route('/pip/<int:pip_id>')
+@app.route('/pip/edit/<int:pip_id>', methods=['GET', 'POST'])
 @login_required
-def pip_detail(pip_id):
+def edit_pip(pip_id):
     pip = PIPRecord.query.get_or_404(pip_id)
     employee = pip.employee
-    if current_user.admin_level == 0 and employee.team_id != current_user.team_id:
-        flash('Access denied')
-        return redirect(url_for('dashboard'))
-    return render_template('pip_detail.html', pip=pip, employee=employee)
+    form = PIPForm(obj=pip)
+    original_status = pip.status
+
+    if form.validate_on_submit():
+        pip.concerns = form.concerns.data
+        pip.start_date = form.start_date.data
+        pip.review_date = form.review_date.data
+        pip.action_plan = form.action_plan.data
+        pip.meeting_notes = form.meeting_notes.data
+        pip.status = request.form.get("status") or "Open"
+        pip.last_updated = datetime.utcnow()
+        db.session.commit()
+
+        if pip.status != original_status:
+            status_event = TimelineEvent(
+                pip_id=pip.id,
+                event_type="Status Change",
+                notes=f"Status changed from {original_status} to {pip.status}",
+                updated_by=current_user.username
+            )
+            db.session.add(status_event)
+            db.session.commit()
+
+        flash("PIP updated.")
+        return redirect(url_for('employee_detail', employee_id=employee.id))
+
+    return render_template('edit_pip.html', form=form, pip=pip, employee=employee)
+
 
 @app.route('/pip/create/<int:employee_id>', methods=['GET', 'POST'])
 @login_required
 def create_pip(employee_id):
     employee = Employee.query.get_or_404(employee_id)
-
     if current_user.admin_level == 0 and employee.team_id != current_user.team_id:
         flash("Access denied.")
         return redirect(url_for('dashboard'))
 
     form = PIPForm()
-
     if form.validate_on_submit():
         pip = PIPRecord(
             employee_id=employee.id,
@@ -98,36 +120,46 @@ def create_pip(employee_id):
 
     return render_template('create_pip.html', form=form, employee=employee)
 
-@app.route('/pip/<int:pip_id>/edit', methods=['GET', 'POST'])
-@login_required
-def edit_pip(pip_id):
-    pip = PIPRecord.query.get_or_404(pip_id)
-    employee = pip.employee
 
-    if current_user.admin_level == 0 and employee.team_id != current_user.team_id:
-        flash("Access denied.")
-        return redirect(url_for('dashboard'))
-
-    form = PIPForm(obj=pip)  # Pre-fill with current data
-
-    if form.validate_on_submit():
-        pip.concerns = form.concerns.data
-        pip.start_date = form.start_date.data
-        pip.review_date = form.review_date.data
-        pip.action_plan = form.action_plan.data
-        pip.meeting_notes = form.meeting_notes.data
-        pip.last_updated = datetime.utcnow()
-        db.session.commit()
-
-        flash("PIP updated successfully.")
-        return redirect(url_for('pip_detail', pip_id=pip.id))
-
-    return render_template('edit_pip.html', form=form, pip=pip, employee=employee)
-
-@app.route("/dashboard")
+@app.route('/dashboard')
 @login_required
 def dashboard():
     return render_template("dashboard.html")
+
+
+@app.route('/employee/add', methods=['GET', 'POST'])
+@login_required
+def add_employee():
+    if current_user.admin_level < 1:
+        flash("Access denied.")
+        return redirect(url_for('home'))
+
+    form = EmployeeForm()
+    if form.validate_on_submit():
+        new_employee = Employee(
+            first_name=form.first_name.data,
+            last_name=form.last_name.data,
+            job_title=form.job_title.data,
+            line_manager=form.line_manager.data,
+            service=form.service.data,
+            start_date=form.start_date.data,
+            team_id=form.team_id.data
+        )
+        db.session.add(new_employee)
+        db.session.commit()
+        flash("New employee added.")
+        return redirect(url_for('employee_detail'))  # ✅ Ensure this route exists or change it
+
+    return render_template('add_employee.html', form=form)
+
+
+# Optional placeholder to prevent crash if not yet implemented
+@app.route('/employee/list')
+@login_required
+def employee_list():
+    employees = Employee.query.all()
+    return render_template("employee_list.html", employees=employees)
+
 
 if __name__ == '__main__':
     app.run(debug=True)
