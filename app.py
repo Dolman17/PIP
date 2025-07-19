@@ -160,9 +160,11 @@ def employee_list():
     employees = Employee.query.all()
     return render_template("employee_list.html", employees=employees)
 
-
-
 import os
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
+@app.route("/ping")
+def ping():
+    return "Pong!"
