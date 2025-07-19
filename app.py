@@ -162,9 +162,17 @@ def employee_list():
 
 import os
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+with app.app_context():
+    if not os.path.exists("pip_crm.db"):
+        db.create_all()
+        print("✅ Database created")
+
 
 @app.route("/ping")
 def ping():
     return "Pong!"
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
