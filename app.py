@@ -5,7 +5,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 
 from models import db, User, Employee, PIPRecord, TimelineEvent
-from forms import PIPForm, EmployeeForm  # ✅ FIXED: Added EmployeeForm import
+from forms import PIPForm, EmployeeForm
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key'
@@ -17,7 +17,6 @@ login_manager = LoginManager()
 login_manager.login_view = 'login'
 login_manager.init_app(app)
 
-
 # ----- User Loader -----
 @login_manager.user_loader
 def load_user(user_id):
@@ -26,13 +25,18 @@ def load_user(user_id):
 
 # ----- Routes -----
 @app.route('/')
-#@login_required
+# @login_required  # Disabled for testing
 def home():
     return render_template('landing.html')
 
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # Temporary plain version to test basic access
+    return "Login placeholder (test mode)"
+
+    # Uncomment below once debugging is complete:
+    """
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form['username']).first()
         if user and check_password_hash(user.password_hash, request.form['password']):
@@ -41,6 +45,7 @@ def login():
         else:
             flash('Invalid username or password')
     return render_template('login.html')
+    """
 
 
 @app.route('/logout')
@@ -148,18 +153,19 @@ def add_employee():
         db.session.add(new_employee)
         db.session.commit()
         flash("New employee added.")
-        return redirect(url_for('employee_list'))  # ✅ Ensure this route exists or change it
+        return redirect(url_for('employee_list'))
 
     return render_template('add_employee.html', form=form)
 
 
-# Optional placeholder to prevent crash if not yet implemented
 @app.route('/employee/list')
 @login_required
 def employee_list():
     employees = Employee.query.all()
     return render_template("employee_list.html", employees=employees)
 
+
+# ✅ Create DB if it doesn't exist (fix for Railway startup crash)
 import os
 
 with app.app_context():
@@ -168,6 +174,7 @@ with app.app_context():
         print("✅ Database created")
 
 
+# ✅ Debug/test route
 @app.route("/ping")
 def ping():
     return "Pong!"
@@ -175,4 +182,3 @@ def ping():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-
