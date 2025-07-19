@@ -25,6 +25,12 @@ def load_user(user_id):
 
 # ----- Routes -----
 
+@app.route('/')
+@login_required
+def home():
+    return render_template('landing.html')
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
