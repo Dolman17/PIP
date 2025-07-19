@@ -24,19 +24,8 @@ def load_user(user_id):
 
 
 # ----- Routes -----
-@app.route('/')
-# @login_required  # Disabled for testing
-def home():
-    return render_template('landing.html')
-
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    # Temporary plain version to test basic access
-    return "Login placeholder (test mode)"
-
-    # Uncomment below once debugging is complete:
-    """
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form['username']).first()
         if user and check_password_hash(user.password_hash, request.form['password']):
@@ -45,7 +34,18 @@ def login():
         else:
             flash('Invalid username or password')
     return render_template('login.html')
-    """
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        user = User.query.filter_by(username=request.form['username']).first()
+        if user and check_password_hash(user.password_hash, request.form['password']):
+            login_user(user)
+            return redirect(url_for('home'))
+        else:
+            flash('Invalid username or password')
+    return render_template('login.html')
 
 
 @app.route('/logout')
