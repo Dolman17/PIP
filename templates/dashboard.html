@@ -1,31 +1,63 @@
-{% extends 'base.html' %}
-{% block title %}Dashboard{% endblock %}
+{% extends "base.html" %}
+{% block title %}Employee Dashboard{% endblock %}
 
 {% block content %}
-<h1 class="text-2xl font-bold mb-6">Employee Dashboard</h1>
+<div class="p-6">
+  <h1 class="text-2xl font-bold mb-6">Employee Dashboard</h1>
 
-<table class="w-full bg-white shadow rounded">
-    <thead class="bg-blue-100 text-left">
-        <tr>
-            <th class="p-3">Name</th>
-            <th class="p-3">Job Title</th>
-            <th class="p-3">Service</th>
-            <th class="p-3">Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for emp in employees %}
-        <tr class="border-t">
-            <td class="p-3">{{ emp.first_name }} {{ emp.last_name }}</td>
-            <td class="p-3">{{ emp.job_title }}</td>
-            <td class="p-3">{{ emp.service }}</td>
-            <td class="p-3">
-                <a href="{{ url_for('employee_detail', employee_id=emp.id) }}" class="text-blue-600 underline">View</a>
-            </td>
-        </tr>
+  <!-- Summary Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white shadow rounded p-4">
+      <div class="text-sm text-gray-500">Total Employees</div>
+      <div class="text-2xl font-semibold">{{ total_employees }}</div>
+    </div>
+    <div class="bg-white shadow rounded p-4">
+      <div class="text-sm text-gray-500">Active PIPs</div>
+      <div class="text-2xl font-semibold">{{ active_pips }}</div>
+    </div>
+    <div class="bg-white shadow rounded p-4">
+      <div class="text-sm text-gray-500">Completed PIPs</div>
+      <div class="text-2xl font-semibold">{{ completed_pips }}</div>
+    </div>
+    <div class="bg-white shadow rounded p-4">
+      <div class="text-sm text-gray-500">Overdue Reviews</div>
+      <div class="text-2xl font-semibold text-red-600">{{ overdue_reviews }}</div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Recent Timeline Activity -->
+    <div class="bg-white shadow rounded p-4">
+      <h2 class="text-lg font-semibold mb-2">Recent Activity</h2>
+      <ul class="divide-y divide-gray-200">
+        {% for event in recent_activity %}
+          <li class="py-2">
+            <div class="text-sm text-gray-700">{{ event.notes }}</div>
+            <div class="text-xs text-gray-400">{{ event.timestamp.strftime('%d %b %Y %H:%M') }} by {{ event.updated_by }}</div>
+          </li>
         {% else %}
-        <tr><td class="p-3" colspan="4">No employees found.</td></tr>
+          <li class="text-gray-400">No recent activity.</li>
         {% endfor %}
-    </tbody>
-</table>
+      </ul>
+    </div>
+
+    <!-- Upcoming PIP Reviews -->
+    <div class="bg-white shadow rounded p-4">
+      <h2 class="text-lg font-semibold mb-2">Upcoming Reviews (7 Days)</h2>
+      <ul class="divide-y divide-gray-200">
+        {% for pip in upcoming_pips %}
+          <li class="py-2">
+            <div class="text-sm">
+              {{ pip.employee.first_name }} {{ pip.employee.last_name }} — 
+              <span class="text-gray-600 text-sm">{{ pip.review_date.strftime('%d %b %Y') }}</span>
+              <a href="{{ url_for('pip_detail', pip_id=pip.id) }}" class="text-blue-600 text-xs ml-2 underline">View</a>
+            </div>
+          </li>
+        {% else %}
+          <li class="text-gray-400">No upcoming reviews.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
 {% endblock %}

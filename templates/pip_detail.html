@@ -2,51 +2,65 @@
 {% block title %}PIP Details{% endblock %}
 
 {% block content %}
-<h1 class="text-2xl font-bold mb-6">
+<div class="p-6">
+  <h1 class="text-2xl font-semibold text-slate-800 mb-6">
     PIP for {{ employee.first_name }} {{ employee.last_name }}
-</h1>
+  </h1>
 
-<div class="bg-white p-6 rounded shadow max-w-3xl">
-    <p><strong>Status:</strong> {{ pip.status }}</p>
-    <p><strong>Start Date:</strong> {{ pip.start_date }}</p>
-    <p><strong>Review Date:</strong> {{ pip.review_date }}</p>
+  <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm max-w-3xl space-y-4 text-slate-700">
+    <p><span class="font-medium">Status:</span> {{ pip.status }}</p>
+    <p><span class="font-medium">Start Date:</span> {{ pip.start_date.strftime('%d %b %Y') }}</p>
+    <p><span class="font-medium">Review Date:</span> {{ pip.review_date.strftime('%d %b %Y') }}</p>
     {% if pip.end_date %}
-        <p><strong>End Date:</strong> {{ pip.end_date }}</p>
+      <p><span class="font-medium">End Date:</span> {{ pip.end_date.strftime('%d %b %Y') }}</p>
     {% endif %}
 
-    <hr class="my-4">
+    <hr class="my-4 border-slate-200">
 
-    <p><strong>Concerns:</strong></p>
-    <p class="mb-4 whitespace-pre-line">{{ pip.concerns }}</p>
+    <div>
+      <p class="font-medium">Concerns:</p>
+      <p class="whitespace-pre-line">{{ pip.concerns }}</p>
+    </div>
 
-    <p><strong>Action Plan:</strong></p>
-    <p class="mb-4 whitespace-pre-line">{{ pip.action_plan }}</p>
+    <div>
+      <p class="font-medium">Action Plan:</p>
+      <p class="whitespace-pre-line">{{ pip.action_plan }}</p>
+    </div>
 
-    <p><strong>Meeting Notes:</strong></p>
-    <p class="mb-4 whitespace-pre-line">{{ pip.meeting_notes }}</p>
+    <div>
+      <p class="font-medium">Meeting Notes:</p>
+      <p class="whitespace-pre-line">{{ pip.meeting_notes }}</p>
+    </div>
 
-    <p><strong>Outcome:</strong></p>
-    <p class="mb-4 whitespace-pre-line">{{ pip.outcome or '—' }}</p>
+    <div>
+      <p class="font-medium">Outcome:</p>
+      <p class="whitespace-pre-line">{{ pip.outcome or '—' }}</p>
+    </div>
 
-    <p class="text-sm text-gray-500">Created by {{ pip.created_by }} | Last updated {{ pip.last_updated.strftime('%Y-%m-%d %H:%M') }}</p>
-</div>
+    <p class="text-sm text-slate-500">
+      Created by {{ pip.created_by }} |
+      Last updated {{ pip.last_updated.strftime('%d %b %Y %H:%M') }}
+    </p>
+  </div>
 
-<a href="{{ url_for('edit_pip', pip_id=pip.id) }}" class="inline-block bg-yellow-500 text-white px-4 py-2 mt-4 rounded hover:bg-yellow-600">
+  <a href="{{ url_for('edit_pip', pip_id=pip.id) }}"
+     class="inline-block bg-yellow-500 text-white px-4 py-2 mt-4 rounded-lg hover:bg-yellow-600 transition text-sm">
     ✏️ Edit PIP
-</a>
+  </a>
 
-<h3 class="text-lg font-semibold mt-6 mb-2">Timeline</h3>
-<ul class="border rounded p-4 bg-gray-50">
-  {% for event in pip.timeline %}
-    <li class="mb-2">
-      <strong>{{ event.timestamp.strftime('%Y-%m-%d %H:%M') }}</strong> – 
-      <em>{{ event.event_type }}</em> by {{ event.updated_by }}<br>
-      {{ event.notes }}
+  <h3 class="text-lg font-semibold text-slate-800 mt-8 mb-2">Timeline</h3>
+  <ul class="border border-slate-200 rounded-xl p-4 bg-slate-50 text-slate-700 max-w-3xl space-y-3">
+    {% for event in pip.timeline %}
+    <li>
+      <p class="text-sm">
+        <span class="font-semibold">{{ event.timestamp.strftime('%d %b %Y %H:%M') }}</span> – 
+        <em>{{ event.event_type }}</em> by {{ event.updated_by }}
+      </p>
+      <p class="text-sm whitespace-pre-line">{{ event.notes }}</p>
     </li>
-  {% else %}
-    <li>No timeline events yet.</li>
-  {% endfor %}
-</ul>
-
-
+    {% else %}
+    <li class="text-slate-500 text-sm">No timeline events yet.</li>
+    {% endfor %}
+  </ul>
+</div>
 {% endblock %}

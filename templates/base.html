@@ -1,33 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>{% block title %}PIP CRM{% endblock %}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}PIP Web App{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 text-gray-800">
-    <nav class="bg-blue-700 text-white p-4 flex justify-between items-center">
-        <div class="text-xl font-semibold">PIP CRM</div>
-        {% if current_user.is_authenticated %}
-            <div>
-                Logged in as <strong>{{ current_user.username }}</strong>
-                <a href="{{ url_for('logout') }}" class="ml-4 underline">Logout</a>
-            </div>
-        {% endif %}
-    </nav>
+<body class="bg-gray-100 min-h-screen text-slate-800">
+  <div class="flex min-h-screen">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white shadow-md">
+      <div class="p-6 border-b">
+        <h1 class="text-xl font-bold text-[#0160B1]">PIP System</h1>
+      </div>
+      <nav class="p-4 space-y-2">
+        <a href="{{ url_for('home') }}" class="block px-4 py-2 rounded hover:bg-blue-50 text-sm font-medium text-slate-700">🏠 Home</a>
+        <a href="{{ url_for('select_employee_for_pip') }}" class="block px-4 py-2 rounded hover:bg-blue-50 text-sm font-medium text-slate-700">➕ Start New PIP</a>
+        <a href="{{ url_for('employee_list') }}" class="block px-4 py-2 rounded hover:bg-blue-50 text-sm font-medium text-slate-700">👥 All Employees</a>
+        <a href="{{ url_for('dashboard') }}" class="block px-4 py-2 rounded hover:bg-blue-50 text-sm font-medium text-slate-700">📊 Dashboard</a>
+        <a href="{{ url_for('logout') }}" class="block px-4 py-2 rounded hover:bg-blue-50 text-sm font-medium text-slate-700">🚪 Logout</a>
+      </nav>
+    </aside>
 
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        <div class="bg-yellow-100 text-yellow-800 p-3 m-4 rounded">
-          {% for message in messages %}
-            <div>{{ message }}</div>
-          {% endfor %}
-        </div>
-      {% endif %}
-    {% endwith %}
-
-    <main class="p-6">
+    <!-- Main content -->
+    <main class="flex-1">
+      <header class="bg-white shadow p-4 flex justify-between items-center">
+        <h2 class="text-lg font-semibold text-[#0160B1]">{% block page_title %}{% endblock %}</h2>
+        <p class="text-sm text-slate-600">Logged in as {{ current_user.username }}</p>
+      </header>
+      <div class="p-6">
         {% block content %}{% endblock %}
+      </div>
     </main>
+  </div>
 </body>
 </html>

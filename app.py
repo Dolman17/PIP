@@ -20,7 +20,8 @@ login_manager.init_app(app)
 # ----- User Loader -----
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    return db.session.get(User, int(user_id))
+
 
 
 # ----- Routes -----
@@ -120,11 +121,66 @@ def create_pip(employee_id):
 
     return render_template('create_pip.html', form=form, employee=employee)
 
+@app.route("/pip/<int:pip_id>")
+@login_required
+def pip_detail(pip_id):
+    pip = PIPRecord.query.options(db.joinedload(PIPRecord.employee)).get_or_404(pip_id)
+    employee = pip.employee
+    timeline = TimelineEvent.query.filter_by(pip_id=pip.id).order_by(TimelineEvent.timestamp.desc()).all()
+    return render_template("pip_detail.html", pip=pip, employee=employee)
+
+
+from sqlalchemy import and_, or_
+from datetime import datetime, timedelta
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    return render_template("dashboard.html")
+    # Top Summary Cards
+    total_employees = Employee.query.count()
+    active_pips = PIPRecord.query.filter_by(status='Open').count()
+    completed_pips = PIPRecord.query.filter_by(status='Completed').count()
+    overdue_reviews = PIPRecord.query.filter(
+        and_(PIPRecord.review_date < datetime.utcnow(), PIPRecord.status == 'Open')
+    ).count()
+
+    # Middle: Recent Timeline Activity (last 10 events)
+    recent_activity = TimelineEvent.query.order_by(TimelineEvent.timestamp.desc()).limit(10).all()
+
+    # Bottom: Upcoming Reviews (next 7 days)
+    today = datetime.utcnow().date()
+    upcoming_deadline = today + timedelta(days=7)
+
+    if current_user.admin_level == 0:
+        # Restrict to team members only
+        upcoming_pips = PIPRecord.query.join(Employee).filter(
+            and_(
+                Employee.team_id == current_user.team_id,
+                PIPRecord.review_date >= today,
+                PIPRecord.review_date <= upcoming_deadline,
+                PIPRecord.status == 'Open'
+            )
+        ).order_by(PIPRecord.review_date).all()
+    else:
+        # Show all
+        upcoming_pips = PIPRecord.query.filter(
+            and_(
+                PIPRecord.review_date >= today,
+                PIPRecord.review_date <= upcoming_deadline,
+                PIPRecord.status == 'Open'
+            )
+        ).order_by(PIPRecord.review_date).all()
+
+    return render_template(
+        "dashboard.html",
+        total_employees=total_employees,
+        active_pips=active_pips,
+        completed_pips=completed_pips,
+        overdue_reviews=overdue_reviews,
+        recent_activity=recent_activity,
+        upcoming_pips=upcoming_pips
+    )
+
 
 
 @app.route('/employee/add', methods=['GET', 'POST'])
@@ -158,6 +214,16 @@ def add_employee():
 def employee_list():
     employees = Employee.query.all()
     return render_template("employee_list.html", employees=employees)
+
+
+@app.route("/pip/select-employee", methods=["GET", "POST"])
+@login_required
+def select_employee_for_pip():
+    employees = Employee.query.order_by(Employee.last_name).all()
+    if request.method == "POST":
+        selected_id = request.form.get("employee_id")
+        return redirect(url_for("create_pip", employee_id=selected_id))
+    return render_template("pip_select_employee.html", employees=employees)
 
 
 # ✅ Create DB if it doesn't exist (fix for Railway startup crash)
