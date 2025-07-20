@@ -1,11 +1,12 @@
 from flask import Flask, render_template, redirect, url_for, request, flash
+from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-
 from models import db, User, Employee, PIPRecord, TimelineEvent
 from forms import PIPForm, EmployeeForm
+from forms import LoginForm
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key'
@@ -13,6 +14,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///pip_crm.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
+migrate = Migrate(app, db)
 login_manager = LoginManager()
 login_manager.login_view = 'login'
 login_manager.init_app(app)
@@ -34,14 +36,15 @@ def home():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == 'POST':
-        user = User.query.filter_by(username=request.form['username']).first()
-        if user and check_password_hash(user.password_hash, request.form['password']):
+    form = LoginForm()
+    if request.method == 'POST' and form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+        if user and check_password_hash(user.password_hash, form.password.data):
             login_user(user)
             return redirect(url_for('home'))
         else:
-            flash('Invalid username or password')
-    return render_template('login.html')
+            flash('Invalid username or password', 'danger')
+    return render_template('login.html', form=form)
 
 
 @app.route('/logout')
@@ -60,23 +63,48 @@ def employee_detail(employee_id):
         return redirect(url_for('dashboard'))
     return render_template('employee_detail.html', employee=employee)
 
-
 @app.route('/pip/edit/<int:pip_id>', methods=['GET', 'POST'])
 @login_required
 def edit_pip(pip_id):
     pip = PIPRecord.query.get_or_404(pip_id)
     employee = pip.employee
-    form = PIPForm(obj=pip)
+
+    form = PIPForm()
     original_status = pip.status
+
+    if request.method == 'GET':
+        # Populate the form with data from the PIP record
+        form.concerns.data = pip.concerns
+        form.start_date.data = pip.start_date
+        form.review_date.data = pip.review_date
+        form.meeting_notes.data = pip.meeting_notes
+
+        # Populate action items
+        form.actions.entries = []
+        for item in pip.action_items:
+            action_form = PIPActionForm()
+            action_form.description.data = item.description
+            action_form.status.data = item.status
+            form.actions.append_entry(action_form.data)
 
     if form.validate_on_submit():
         pip.concerns = form.concerns.data
         pip.start_date = form.start_date.data
         pip.review_date = form.review_date.data
-        pip.action_plan = form.action_plan.data
         pip.meeting_notes = form.meeting_notes.data
         pip.status = request.form.get("status") or "Open"
         pip.last_updated = datetime.utcnow()
+
+        # Clear and replace existing action items
+        pip.action_items.clear()
+        for action_form in form.actions.entries:
+            new_item = PIPActionItem(
+                description=action_form.form.description.data,
+                status=action_form.form.status.data,
+                pip=pip
+            )
+            db.session.add(new_item)
+
         db.session.commit()
 
         if pip.status != original_status:
@@ -95,6 +123,8 @@ def edit_pip(pip_id):
     return render_template('edit_pip.html', form=form, pip=pip, employee=employee)
 
 
+
+
 @app.route('/pip/create/<int:employee_id>', methods=['GET', 'POST'])
 @login_required
 def create_pip(employee_id):
@@ -110,16 +140,29 @@ def create_pip(employee_id):
             concerns=form.concerns.data,
             start_date=form.start_date.data,
             review_date=form.review_date.data,
-            action_plan=form.action_plan.data,
+            action_plan=form.action_plan.data,  # Can be blank/legacy field
             meeting_notes=form.meeting_notes.data,
             created_by=current_user.username
         )
         db.session.add(pip)
+        db.session.flush()  # Get pip.id before committing
+
+        # Add action items
+        for action_form in form.actions.entries:
+            action = PIPActionItem(
+                pip_id=pip.id,
+                description=action_form.form.description.data,
+                status=action_form.form.status.data
+            )
+            db.session.add(action)
+
         db.session.commit()
         flash("New PIP created.")
         return redirect(url_for('employee_detail', employee_id=employee.id))
 
     return render_template('create_pip.html', form=form, employee=employee)
+
+
 
 @app.route("/pip/<int:pip_id>")
 @login_required
@@ -132,6 +175,13 @@ def pip_detail(pip_id):
 
 from sqlalchemy import and_, or_
 from datetime import datetime, timedelta
+
+@app.route('/pip/list')
+@login_required
+def pip_list():
+    pips = PIPRecord.query.join(Employee).all()
+    return render_template('pip_list.html', pips=pips)
+
 
 @app.route('/dashboard')
 @login_required

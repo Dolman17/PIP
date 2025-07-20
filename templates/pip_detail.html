@@ -11,6 +11,13 @@
     <p><span class="font-medium">Status:</span> {{ pip.status }}</p>
     <p><span class="font-medium">Start Date:</span> {{ pip.start_date.strftime('%d %b %Y') }}</p>
     <p><span class="font-medium">Review Date:</span> {{ pip.review_date.strftime('%d %b %Y') }}</p>
+
+    {% if pip.last_updated %}
+      <p class="text-sm text-gray-500">
+        Last updated: {{ pip.last_updated.strftime('%d %b %Y %H:%M') }}
+      </p>
+    {% endif %}
+
     {% if pip.end_date %}
       <p><span class="font-medium">End Date:</span> {{ pip.end_date.strftime('%d %b %Y') }}</p>
     {% endif %}
@@ -23,8 +30,33 @@
     </div>
 
     <div>
-      <p class="font-medium">Action Plan:</p>
-      <p class="whitespace-pre-line">{{ pip.action_plan }}</p>
+      <p class="font-medium mb-2">Action Plan:</p>
+      {% if pip.action_items %}
+        <table class="min-w-full bg-white text-sm border rounded">
+          <thead class="bg-slate-100 text-slate-600 font-semibold">
+            <tr>
+              <th class="text-left px-4 py-2">Action</th>
+              <th class="text-left px-4 py-2">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in pip.action_items %}
+            <tr class="border-t">
+              <td class="px-4 py-2">{{ item.description }}</td>
+              <td class="px-4 py-2">
+                {% if item.status == 'Completed' %}
+                  <span class="text-green-600 font-semibold">✔ Completed</span>
+                {% else %}
+                  <span class="text-red-600 font-semibold">❗ Outstanding</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="text-slate-500 text-sm">No action items added yet.</p>
+      {% endif %}
     </div>
 
     <div>
@@ -38,8 +70,8 @@
     </div>
 
     <p class="text-sm text-slate-500">
-      Created by {{ pip.created_by }} |
-      Last updated {{ pip.last_updated.strftime('%d %b %Y %H:%M') }}
+      Created by {{ pip.created_by }}
+      {% if pip.last_updated %}| Last updated {{ pip.last_updated.strftime('%d %b %Y %H:%M') }}{% endif %}
     </p>
   </div>
 
@@ -48,19 +80,21 @@
     ✏️ Edit PIP
   </a>
 
-  <h3 class="text-lg font-semibold text-slate-800 mt-8 mb-2">Timeline</h3>
+  <!-- Timeline Section -->
+  <h3 class="text-lg font-semibold text-slate-800 mt-8 mb-2">📜 Timeline History</h3>
+
   <ul class="border border-slate-200 rounded-xl p-4 bg-slate-50 text-slate-700 max-w-3xl space-y-3">
-    {% for event in pip.timeline %}
-    <li>
-      <p class="text-sm">
-        <span class="font-semibold">{{ event.timestamp.strftime('%d %b %Y %H:%M') }}</span> – 
-        <em>{{ event.event_type }}</em> by {{ event.updated_by }}
-      </p>
-      <p class="text-sm whitespace-pre-line">{{ event.notes }}</p>
-    </li>
+    {% if pip.timeline_events %}
+      {% for event in pip.timeline_events|sort(attribute='created_at', reverse=True) %}
+        <li class="border-l-4 border-blue-600 pl-4">
+          <p class="text-sm text-gray-500">{{ event.created_at.strftime('%d %b %Y %H:%M') }}</p>
+          <p class="font-semibold">{{ event.event_type }}</p>
+          <p class="text-sm whitespace-pre-line">{{ event.notes }}</p>
+        </li>
+      {% endfor %}
     {% else %}
-    <li class="text-slate-500 text-sm">No timeline events yet.</li>
-    {% endfor %}
+      <li class="text-slate-500 text-sm">No timeline events yet.</li>
+    {% endif %}
   </ul>
 </div>
 {% endblock %}

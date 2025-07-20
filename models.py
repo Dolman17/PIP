@@ -31,22 +31,28 @@ class Employee(db.Model):
     pips = db.relationship('PIPRecord', backref='employee', lazy=True)
 
 
-
 class PIPRecord(db.Model):
-    __tablename__ = 'pip_record'
     id = db.Column(db.Integer, primary_key=True)
     employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=False)
-    concerns = db.Column(db.Text)
-    start_date = db.Column(db.Date)
-    review_date = db.Column(db.Date)
-    end_date = db.Column(db.Date, nullable=True)
-    action_plan = db.Column(db.Text)
+    concerns = db.Column(db.Text, nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    review_date = db.Column(db.Date, nullable=False)
     meeting_notes = db.Column(db.Text)
-    outcome = db.Column(db.Text)
-    status = db.Column(db.String(50), default='Open')
-    created_by = db.Column(db.String(100))
-    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
-    timeline = db.relationship('TimelineEvent', backref='pip', lazy=True)
+    status = db.Column(db.String(20), default='Open')  # New field
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)  # 👈 NEW
+
+class PIPActionItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    pip_id = db.Column(db.Integer, db.ForeignKey('pip_record.id'), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(20), default='Outstanding')  # or 'Completed'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    pip = db.relationship('PIPRecord', backref=db.backref('action_items', lazy=True, cascade="all, delete-orphan"))
+
+
+
 
 
 class TimelineEvent(db.Model):
@@ -57,3 +63,6 @@ class TimelineEvent(db.Model):
     event_type = db.Column(db.String(100))
     notes = db.Column(db.Text)
     updated_by = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # if not already present
+
+    pip = db.relationship('PIPRecord', backref=db.backref('timeline_events', lazy=True, cascade="all, delete-orphan"))
