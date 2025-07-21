@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}Edit Employee{% endblock %}
+
+{% block content %}
+<div class="p-6">
+  <h2 class="text-2xl font-semibold text-slate-800 mb-6">Edit Employee</h2>
+
+  <form method="POST" class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm max-w-xl space-y-5">
+    {{ form.hidden_tag() }}
+
+    <div>
+      {{ form.first_name.label(class="block text-sm font-medium text-slate-700 mb-1") }}
+      {{ form.first_name(class="w-full rounded-md border border-slate-300 p-2") }}
+    </div>
+
+    <div>
+      {{ form.last_name.label(class="block text-sm font-medium text-slate-700 mb-1") }}
+      {{ form.last_name(class="w-full rounded-md border border-slate-300 p-2") }}
+    </div>
+
+    <div>
+      {{ form.email.label(class="block text-sm font-medium text-slate-700 mb-1") }}
+      {{ form.email(class="w-full rounded-md border border-slate-300 p-2") }}
+    </div>
+
+    <div>
+      {{ form.job_title.label(class="block text-sm font-medium text-slate-700 mb-1") }}
+      {{ form.job_title(class="w-full rounded-md border border-slate-300 p-2") }}
+    </div>
+
+    <div>
+      {{ form.line_manager.label(class="block text-sm font-medium text-slate-700 mb-1") }}
+      {{ form.line_manager(class="w-full rounded-md border border-slate-300 p-2") }}
+    </div>
+
+    <div>
+      {{ form.service.label(class="block text-sm font-medium text-slate-700 mb-1") }}
+      {{ form.service(class="w-full rounded-md border border-slate-300 p-2") }}
+    </div>
+
+    <div>
+      {{ form.start_date.label(class="block text-sm font-medium text-slate-700 mb-1") }}
+      {{ form.start_date(class="w-full rounded-md border border-slate-300 p-2") }}
+    </div>
+
+    <div>
+      {{ form.team_id.label(class="block text-sm font-medium text-slate-700 mb-1") }}
+      {{ form.team_id(class="w-full rounded-md border border-slate-300 p-2") }}
+    </div>
+
+    <button type="submit"
+            class="bg-[#0160B1] text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm">
+      💾 Save Changes
+    </button>
+  </form>
+</div>
+{% endblock %}

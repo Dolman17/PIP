@@ -38,6 +38,20 @@
       {{ form.meeting_notes(class="block w-full rounded border-slate-300") }}
     </div>
 
+    <!-- Capability Meeting Details -->
+    <div class="mb-4">
+      {{ form.capability_meeting_date.label(class="block text-sm font-medium") }}
+      {{ form.capability_meeting_date(class="mt-1 w-full rounded border-gray-300") }}
+    </div>
+    <div class="mb-4">
+      {{ form.capability_meeting_time.label(class="block text-sm font-medium") }}
+      {{ form.capability_meeting_time(class="mt-1 w-full rounded border-gray-300") }}
+    </div>
+    <div class="mb-4">
+      {{ form.capability_meeting_venue.label(class="block text-sm font-medium") }}
+      {{ form.capability_meeting_venue(class="mt-1 w-full rounded border-gray-300") }}
+    </div>
+
     <!-- Action Items -->
     <h2 class="text-lg font-semibold">Action Items</h2>
     {% for action_field in form.actions %}

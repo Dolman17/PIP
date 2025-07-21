@@ -28,6 +28,16 @@
     </div>
   </div>
 
+    <div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-bold text-slate-800">
+    {{ employee.first_name }} {{ employee.last_name }}
+    </h1>
+    <a href="{{ url_for('edit_employee', employee_id=employee.id) }}"
+     class="inline-block bg-[#0160B1] text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm">
+    ✏️ Edit Employee
+    </a>
+  </div>
+
   <!-- PIP Records -->
   <div class="bg-white p-4 shadow rounded">
     <h2 class="text-lg font-semibold mb-3">PIP Records</h2>

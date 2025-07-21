@@ -11,18 +11,25 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from docxtpl import DocxTemplate
 from openai import OpenAI
+from dotenv import load_dotenv
+load_dotenv()
 
 from models import db, User, Employee, PIPRecord, PIPActionItem, TimelineEvent
 from forms import PIPForm, EmployeeForm, LoginForm
+from flask_wtf.csrf import CSRFProtect
+
 
 # Initialize OpenAI v1 client (will pick up OPENAI_API_KEY env var)
-client = OpenAI()
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 # Initialize Flask
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///pip_crm.db'
+basedir = os.path.abspath(os.path.dirname(__file__))
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'pip_crm.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+csrf = CSRFProtect(app)
+
 
 
 db.init_app(app)
@@ -140,6 +147,10 @@ def edit_pip(id):
         pip.review_date   = form.review_date.data
         pip.status        = form.status.data
         pip.meeting_notes = form.meeting_notes.data
+        pip.capability_meeting_date  = form.capability_meeting_date.data
+        pip.capability_meeting_time  = form.capability_meeting_time.data
+        pip.capability_meeting_venue = form.capability_meeting_venue.data
+
 
         pip.action_items.clear()
         for ai_field in form.actions.entries:
@@ -162,6 +173,48 @@ def edit_pip(id):
         employee=employee,
         advice_text=advice_text
     )
+
+@app.route('/pip/<int:id>/generate/advice', methods=['POST'])
+@login_required
+def generate_ai_advice(id):
+    pip = PIPRecord.query.get_or_404(id)
+    employee = pip.employee
+
+    prompt = (
+        "You are an experienced HR Line Manager based in the UK. "
+        "Using the information below, provide three clear and practical suggestions for how a line manager "
+        "can support the employee's performance improvement. Your advice should reflect HR best practice in the UK.\n\n"
+        f"Employee Name: {employee.first_name} {employee.last_name}\n"
+        f"Job Title: {employee.job_title}\n"
+        f"Concerns: {pip.concerns or '[none]'}\n"
+        "Action Items:\n"
+    )
+    for item in pip.action_items:
+        prompt += f"- {item.description or '[no description]'} [{item.status or '[no status]'}]\n"
+
+    prompt += f"Meeting Notes: {pip.meeting_notes or '[none]'}\n\n"
+    prompt += "Provide your advice as a bullet-pointed list."
+
+    resp = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.7,
+    )
+    pip.ai_advice = resp.choices[0].message.content.strip()
+    pip.ai_advice_generated_at = datetime.utcnow()
+
+    # Log timeline event
+    event = TimelineEvent(
+        pip_record_id=pip.id,
+        event_type="AI Advice Generated",
+        notes="Advice generated using OpenAI",
+        updated_by=current_user.username
+    )
+    db.session.add(event)
+
+    db.session.commit()
+    flash('AI advice generated.', 'success')
+    return redirect(url_for('pip_detail', id=pip.id))
 
 
 @app.route('/pip/create/<int:employee_id>', methods=['GET', 'POST'])
@@ -196,6 +249,23 @@ def create_pip(employee_id):
         flash('New PIP created.')
         return redirect(url_for('employee_detail', employee_id=employee.id))
     return render_template('create_pip.html', form=form, employee=employee)
+
+@app.route('/employee/<int:employee_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_employee(employee_id):
+    employee = Employee.query.get_or_404(employee_id)
+    form = EmployeeForm(obj=employee)
+
+    if form.validate_on_submit():
+        form.populate_obj(employee)
+        db.session.commit()
+        flash('Employee updated successfully!', 'success')
+        return redirect(url_for('employee_detail', employee_id=employee.id))
+
+    return render_template('edit_employee.html', form=form, employee=employee)
+
+
+
 
 @app.route('/pip/list')
 @login_required
@@ -250,7 +320,8 @@ def add_employee():
             line_manager= form.line_manager.data,
             service     = form.service.data,
             start_date  = form.start_date.data,
-            team_id     = form.team_id.data
+            team_id     = form.team_id.data,
+            email       = form.email.data
         )
         db.session.add(emp)
         db.session.commit()
@@ -277,11 +348,26 @@ def select_employee_for_pip():
 def generate_invite_letter(id):
     pip = PIPRecord.query.get_or_404(id)
     tpl = DocxTemplate('templates/docx/invite_letter_template.docx')
-    tpl.render({'employee': pip.employee, 'pip': pip, 'current_user': current_user})
-    out = BytesIO(); tpl.save(out); out.seek(0)
-    return send_file(out, as_attachment=True,
-                     download_name=f"Invite_Letter_{pip.employee.last_name}_{pip.id}.docx",
-                     mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+
+    context = {
+        'employee': pip.employee,
+        'pip': pip,
+        'current_user': current_user,
+        'current_date': datetime.utcnow().strftime('%d %B %Y'),
+        'created_by': pip.created_by or current_user.username
+    }
+
+    tpl.render(context)
+    out = BytesIO()
+    tpl.save(out)
+    out.seek(0)
+
+    return send_file(
+        out,
+        as_attachment=True,
+        download_name=f"Invite_Letter_{pip.employee.last_name}_{pip.id}.docx",
+        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
 
 @app.route('/pip/<int:id>/generate/plan')
 @login_required
@@ -309,7 +395,7 @@ def generate_outcome_letter(id):
                      mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
 
 # Create DB if missing
-with app.app_context():
+#with app.app_context():
     if not os.path.exists('pip_crm.db'):
         db.create_all()
         print('✅ Database created')

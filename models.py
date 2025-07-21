@@ -28,6 +28,8 @@ class Employee(db.Model):
     service = db.Column(db.String(100))
     start_date = db.Column(db.Date)
     team_id = db.Column(db.Integer)
+    email = db.Column(db.String(120), nullable=True)
+
 
     pips = db.relationship('PIPRecord', back_populates='employee', lazy=True)
 
@@ -44,6 +46,12 @@ class PIPRecord(db.Model):
     created_by = db.Column(db.String(100))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    ai_advice = db.Column(db.Text)
+    ai_advice_generated_at = db.Column(db.DateTime)
+    capability_meeting_date = db.Column(db.DateTime, nullable=True)
+    capability_meeting_time = db.Column(db.String, nullable=True)
+    capability_meeting_venue = db.Column(db.String, nullable=True)
+
 
     # Relationships
     employee = db.relationship('Employee', back_populates='pips')

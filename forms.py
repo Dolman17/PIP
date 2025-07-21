@@ -11,7 +11,7 @@ from wtforms import (
     PasswordField,
     HiddenField
 )
-from wtforms.validators import DataRequired
+from wtforms.validators import DataRequired, Optional, Email
 
 # ---------------------- PIP Action Subform ----------------------
 
@@ -37,6 +37,9 @@ class PIPForm(FlaskForm):
     meeting_notes = TextAreaField('Meeting Notes')
     status = SelectField('Status', choices=[('Open', 'Open'), ('Completed', 'Completed'), ('Closed', 'Closed')])
     submit = SubmitField('Submit')
+    capability_meeting_date = DateField('Capability Meeting Date', format='%Y-%m-%d', validators=[Optional()])
+    capability_meeting_time = StringField('Capability Meeting Time', validators=[Optional()])
+    capability_meeting_venue = StringField('Meeting Venue', validators=[Optional()])
 
 # ---------------------- Employee Form ----------------------
 
@@ -49,6 +52,7 @@ class EmployeeForm(FlaskForm):
     start_date = DateField('Start Date', validators=[DataRequired()])
     team_id = IntegerField('Team ID')
     submit = SubmitField('Add Employee')
+    email = StringField('Email', validators=[Optional(), Email()])  # 👈 New field
 
 # ---------------------- Login Form ----------------------
 

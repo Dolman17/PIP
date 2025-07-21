@@ -19,6 +19,10 @@
       <p><strong>Review Date:</strong> {{ pip.review_date.strftime('%d %b %Y') }}</p>
       <p><strong>Concerns:</strong><br>{{ pip.concerns }}</p>
       <p><strong>Meeting Notes:</strong><br>{{ pip.meeting_notes or '—' }}</p>
+      <p><strong>Meeting Date:</strong> {{ pip.capability_meeting_date.strftime('%d %b %Y') if pip.capability_meeting_date else '—' }}</p>
+      <p><strong>Meeting Time:</strong> {{ pip.capability_meeting_time or '—' }}</p>
+      <p><strong>Meeting Venue:</strong> {{ pip.capability_meeting_venue or '—' }}</p>
+
 
       <div>
         <strong>Action Plan:</strong>
@@ -52,6 +56,7 @@
   <!-- Document Generation Actions -->
   <aside class="w-1/4 bg-slate-50 p-4 rounded-lg shadow">
     <h2 class="text-lg font-semibold mb-4">Generate Documents</h2>
+
     <a href="{{ url_for('generate_invite_letter', id=pip.id) }}"
        class="block mb-2 bg-blue-600 text-white text-center py-2 rounded hover:bg-blue-700">
       Create Invite Letter
@@ -64,35 +69,66 @@
        class="block bg-purple-600 text-white text-center py-2 rounded hover:bg-purple-700">
       Create Outcome Letter
     </a>
+
+    <!-- Trigger Button -->
+    <button type="button"
+        class="block w-full bg-indigo-600 text-white text-center py-2 rounded hover:bg-indigo-700 mt-4"
+        onclick="openModal()">
+      {% if pip.ai_advice %}
+        Regenerate AI Advice
+      {% else %}
+        Generate AI Advice
+      {% endif %}
+    </button>
+
+    {% if pip.ai_advice %}
+      <div class="mt-4 p-4 bg-white border border-gray-300 rounded shadow-sm">
+        <h3 class="text-md font-semibold mb-2">AI Advice</h3>
+        <p class="text-sm text-gray-700 whitespace-pre-line mb-2">{{ pip.ai_advice }}</p>
+        <p class="text-xs text-gray-500 italic">
+          Generated on {{ pip.ai_advice_generated_at.strftime('%d %b %Y at %H:%M') }}
+        </p>
+      </div>
+    {% endif %}
   </aside>
 </div>
+
+<!-- Modal -->
+<div id="aiModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+  <div class="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+    <h2 class="text-xl font-bold mb-4">Are you sure?</h2>
+    <p class="text-sm text-gray-700 mb-4">
+      {% if pip.ai_advice %}
+        This will overwrite the existing AI advice. Are you sure you want to regenerate it?
+      {% else %}
+        This will generate AI suggestions based on the current PIP data.
+      {% endif %}
+    </p>
+    <div class="flex justify-end space-x-4">
+      <button onclick="closeModal()" class="text-gray-600 hover:underline">Cancel</button>
+      <form action="{{ url_for('generate_ai_advice', id=pip.id) }}" method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit"
+          class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">
+    Yes, Proceed
+  </button>
+</form>
+
+    </div>
+  </div>
+</div>
 {% endblock %}
+
+{% block scripts %}
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
-    const addActionButton = document.getElementById('add-action');
-    const actionPlanContainer = document.getElementById('action-plan-container');
+  function openModal() {
+    document.getElementById('aiModal').classList.remove('hidden');
+    document.getElementById('aiModal').classList.add('flex');
+  }
 
-    addActionButton.addEventListener('click', function(e) {
-      e.preventDefault();
-      const newActionItem = document.createElement('div');
-      newActionItem.className = 'border p-3 rounded mb-3 bg-slate-50 action-item';
-      newActionItem.innerHTML = `
-        <label class="block text-sm font-medium text-slate-700 mb-1">Action Description</label>
-        <input type="text" name="actions[]" class="w-full p-2 border rounded mb-2" placeholder="Describe the action...">
-        <label class="block text-sm font-medium text-slate-700 mb-1">Status</label>
-        <select name="status[]" class="w-full p-2 border rounded">
-          <option value="Not Started">Not Started</option>
-          <option value="In Progress">In Progress</option>
-          <option value="Completed">Completed</option>
-        </select>
-        <button type="button" class="remove-action text-red-600 mt-2 text-sm hover:underline">Delete</button>
-      `;
-      actionPlanContainer.appendChild(newActionItem);
-    });
-
-    actionPlanContainer.addEventListener('click', function(e) {
-      if (e.target.classList.contains('remove-action')) {
-        e.target.closest('.action-item').remove();
-      }
-    });
-  });
+  function closeModal() {
+    document.getElementById('aiModal').classList.remove('flex');
+    document.getElementById('aiModal').classList.add('hidden');
+  }
+</script>
+{% endblock %}
