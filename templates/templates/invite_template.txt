@@ -1,7 +1,0 @@
-Dear {{ employee_name }},
-
-You are invited to a performance improvement meeting on {{ meeting_date }}.
-Concerns: {{ concerns }}
-
-Sincerely,  
-{{ line_manager }}

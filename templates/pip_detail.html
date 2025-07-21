@@ -1,100 +1,98 @@
 {% extends 'base.html' %}
-{% block title %}PIP Details{% endblock %}
+{% block title %}PIP for {{ employee.first_name }} {{ employee.last_name }}{% endblock %}
 
 {% block content %}
-<div class="p-6">
-  <h1 class="text-2xl font-semibold text-slate-800 mb-6">
-    PIP for {{ employee.first_name }} {{ employee.last_name }}
-  </h1>
+<div class="flex space-x-6">
+  <!-- Main details -->
+  <div class="flex-1">
+    <div class="max-w-4xl mx-auto px-4 py-6 bg-white shadow rounded-lg space-y-4">
+      <h1 class="text-2xl font-bold mb-4">PIP for {{ employee.first_name }} {{ employee.last_name }}</h1>
 
-  <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm max-w-3xl space-y-4 text-slate-700">
-    <p><span class="font-medium">Status:</span> {{ pip.status }}</p>
-    <p><span class="font-medium">Start Date:</span> {{ pip.start_date.strftime('%d %b %Y') }}</p>
-    <p><span class="font-medium">Review Date:</span> {{ pip.review_date.strftime('%d %b %Y') }}</p>
+      <p><strong>Job Title:</strong> {{ employee.job_title }}</p>
+      <p><strong>Line Manager:</strong> {{ employee.line_manager }}</p>
+      <p><strong>Service:</strong> {{ employee.service }}</p>
 
-    {% if pip.last_updated %}
-      <p class="text-sm text-gray-500">
-        Last updated: {{ pip.last_updated.strftime('%d %b %Y %H:%M') }}
-      </p>
-    {% endif %}
+      <hr>
 
-    {% if pip.end_date %}
-      <p><span class="font-medium">End Date:</span> {{ pip.end_date.strftime('%d %b %Y') }}</p>
-    {% endif %}
+      <p><strong>Status:</strong> {{ pip.status }}</p>
+      <p><strong>Start Date:</strong> {{ pip.start_date.strftime('%d %b %Y') }}</p>
+      <p><strong>Review Date:</strong> {{ pip.review_date.strftime('%d %b %Y') }}</p>
+      <p><strong>Concerns:</strong><br>{{ pip.concerns }}</p>
+      <p><strong>Meeting Notes:</strong><br>{{ pip.meeting_notes or '—' }}</p>
 
-    <hr class="my-4 border-slate-200">
-
-    <div>
-      <p class="font-medium">Concerns:</p>
-      <p class="whitespace-pre-line">{{ pip.concerns }}</p>
-    </div>
-
-    <div>
-      <p class="font-medium mb-2">Action Plan:</p>
-      {% if pip.action_items %}
-        <table class="min-w-full bg-white text-sm border rounded">
-          <thead class="bg-slate-100 text-slate-600 font-semibold">
-            <tr>
-              <th class="text-left px-4 py-2">Action</th>
-              <th class="text-left px-4 py-2">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for item in pip.action_items %}
-            <tr class="border-t">
-              <td class="px-4 py-2">{{ item.description }}</td>
-              <td class="px-4 py-2">
-                {% if item.status == 'Completed' %}
-                  <span class="text-green-600 font-semibold">✔ Completed</span>
-                {% else %}
-                  <span class="text-red-600 font-semibold">❗ Outstanding</span>
-                {% endif %}
-              </td>
-            </tr>
+      <div>
+        <strong>Action Plan:</strong>
+        {% if pip.action_items %}
+          <ul class="list-disc pl-6 mt-2">
+            {% for action in pip.action_items %}
+              <li>
+                {{ action.description }}
+                <span class="text-sm text-gray-600">[{{ action.status }}]</span>
+              </li>
             {% endfor %}
-          </tbody>
-        </table>
-      {% else %}
-        <p class="text-slate-500 text-sm">No action items added yet.</p>
-      {% endif %}
-    </div>
+          </ul>
+        {% else %}
+          <p>No actions recorded.</p>
+        {% endif %}
+      </div>
 
-    <div>
-      <p class="font-medium">Meeting Notes:</p>
-      <p class="whitespace-pre-line">{{ pip.meeting_notes }}</p>
+      <div class="pt-4">
+        <a href="{{ url_for('edit_pip', id=pip.id) }}"
+           class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+          Edit PIP
+        </a>
+        <a href="{{ url_for('employee_detail', employee_id=employee.id) }}"
+           class="ml-4 text-blue-600 hover:underline">
+          Back to Employee
+        </a>
+      </div>
     </div>
-
-    <div>
-      <p class="font-medium">Outcome:</p>
-      <p class="whitespace-pre-line">{{ pip.outcome or '—' }}</p>
-    </div>
-
-    <p class="text-sm text-slate-500">
-      Created by {{ pip.created_by }}
-      {% if pip.last_updated %}| Last updated {{ pip.last_updated.strftime('%d %b %Y %H:%M') }}{% endif %}
-    </p>
   </div>
 
-  <a href="{{ url_for('edit_pip', pip_id=pip.id) }}"
-     class="inline-block bg-yellow-500 text-white px-4 py-2 mt-4 rounded-lg hover:bg-yellow-600 transition text-sm">
-    ✏️ Edit PIP
-  </a>
-
-  <!-- Timeline Section -->
-  <h3 class="text-lg font-semibold text-slate-800 mt-8 mb-2">📜 Timeline History</h3>
-
-  <ul class="border border-slate-200 rounded-xl p-4 bg-slate-50 text-slate-700 max-w-3xl space-y-3">
-    {% if pip.timeline_events %}
-      {% for event in pip.timeline_events|sort(attribute='created_at', reverse=True) %}
-        <li class="border-l-4 border-blue-600 pl-4">
-          <p class="text-sm text-gray-500">{{ event.created_at.strftime('%d %b %Y %H:%M') }}</p>
-          <p class="font-semibold">{{ event.event_type }}</p>
-          <p class="text-sm whitespace-pre-line">{{ event.notes }}</p>
-        </li>
-      {% endfor %}
-    {% else %}
-      <li class="text-slate-500 text-sm">No timeline events yet.</li>
-    {% endif %}
-  </ul>
+  <!-- Document Generation Actions -->
+  <aside class="w-1/4 bg-slate-50 p-4 rounded-lg shadow">
+    <h2 class="text-lg font-semibold mb-4">Generate Documents</h2>
+    <a href="{{ url_for('generate_invite_letter', id=pip.id) }}"
+       class="block mb-2 bg-blue-600 text-white text-center py-2 rounded hover:bg-blue-700">
+      Create Invite Letter
+    </a>
+    <a href="{{ url_for('generate_plan_document', id=pip.id) }}"
+       class="block mb-2 bg-green-600 text-white text-center py-2 rounded hover:bg-green-700">
+      Create Plan
+    </a>
+    <a href="{{ url_for('generate_outcome_letter', id=pip.id) }}"
+       class="block bg-purple-600 text-white text-center py-2 rounded hover:bg-purple-700">
+      Create Outcome Letter
+    </a>
+  </aside>
 </div>
 {% endblock %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const addActionButton = document.getElementById('add-action');
+    const actionPlanContainer = document.getElementById('action-plan-container');
+
+    addActionButton.addEventListener('click', function(e) {
+      e.preventDefault();
+      const newActionItem = document.createElement('div');
+      newActionItem.className = 'border p-3 rounded mb-3 bg-slate-50 action-item';
+      newActionItem.innerHTML = `
+        <label class="block text-sm font-medium text-slate-700 mb-1">Action Description</label>
+        <input type="text" name="actions[]" class="w-full p-2 border rounded mb-2" placeholder="Describe the action...">
+        <label class="block text-sm font-medium text-slate-700 mb-1">Status</label>
+        <select name="status[]" class="w-full p-2 border rounded">
+          <option value="Not Started">Not Started</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Completed">Completed</option>
+        </select>
+        <button type="button" class="remove-action text-red-600 mt-2 text-sm hover:underline">Delete</button>
+      `;
+      actionPlanContainer.appendChild(newActionItem);
+    });
+
+    actionPlanContainer.addEventListener('click', function(e) {
+      if (e.target.classList.contains('remove-action')) {
+        e.target.closest('.action-item').remove();
+      }
+    });
+  });

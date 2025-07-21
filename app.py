@@ -1,38 +1,49 @@
-from flask import Flask, render_template, redirect, url_for, request, flash
+import os
+from flask import Flask, render_template, redirect, url_for, request, flash, send_file
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, login_user, login_required, logout_user, current_user
+from flask_login import (
+    LoginManager, login_user, login_required,
+    logout_user, current_user
+)
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
-from models import db, User, Employee, PIPRecord, TimelineEvent
-from forms import PIPForm, EmployeeForm
-from forms import LoginForm
+from datetime import datetime, timedelta
+from io import BytesIO
+from docxtpl import DocxTemplate
+from openai import OpenAI
 
+from models import db, User, Employee, PIPRecord, PIPActionItem, TimelineEvent
+from forms import PIPForm, EmployeeForm, LoginForm
+
+# Initialize OpenAI v1 client (will pick up OPENAI_API_KEY env var)
+client = OpenAI()
+
+# Initialize Flask
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///pip_crm.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+
 db.init_app(app)
 migrate = Migrate(app, db)
+
+# Initialize Login
 login_manager = LoginManager()
 login_manager.login_view = 'login'
 login_manager.init_app(app)
+
 
 # ----- User Loader -----
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
-
-
 # ----- Routes -----
-
 @app.route('/')
 @login_required
 def home():
     return render_template('landing.html')
-
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -42,17 +53,14 @@ def login():
         if user and check_password_hash(user.password_hash, form.password.data):
             login_user(user)
             return redirect(url_for('home'))
-        else:
-            flash('Invalid username or password', 'danger')
+        flash('Invalid username or password', 'danger')
     return render_template('login.html', form=form)
-
 
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
     return redirect(url_for('login'))
-
 
 @app.route('/employee/<int:employee_id>')
 @login_required
@@ -63,66 +71,97 @@ def employee_detail(employee_id):
         return redirect(url_for('dashboard'))
     return render_template('employee_detail.html', employee=employee)
 
-@app.route('/pip/edit/<int:pip_id>', methods=['GET', 'POST'])
+@app.route('/pip/<int:id>')
 @login_required
-def edit_pip(pip_id):
-    pip = PIPRecord.query.get_or_404(pip_id)
+def pip_detail(id):
+    pip = PIPRecord.query.get_or_404(id)
+    employee = pip.employee
+    return render_template('pip_detail.html', pip=pip, employee=employee)
+
+@app.route('/pip/edit/<int:id>', methods=['GET', 'POST'])
+@login_required
+def edit_pip(id):
+    pip      = PIPRecord.query.get_or_404(id)
     employee = pip.employee
 
-    form = PIPForm()
-    original_status = pip.status
+    # Bind GET or POST into the form
+    if request.method == 'POST':
+        form = PIPForm()
+        form.process(request.form)
+    else:
+        form = PIPForm(obj=pip)
+        # Pre‐populate action items on GET
+        for _ in range(len(pip.action_items) - len(form.actions.entries)):
+            form.actions.append_entry()
+        for idx, ai in enumerate(pip.action_items):
+            form.actions.entries[idx].form.description.data = ai.description
+            form.actions.entries[idx].form.status.data      = ai.status
 
-    if request.method == 'GET':
-        # Populate the form with data from the PIP record
-        form.concerns.data = pip.concerns
-        form.start_date.data = pip.start_date
-        form.review_date.data = pip.review_date
-        form.meeting_notes.data = pip.meeting_notes
+    advice_text = None
 
-        # Populate action items
-        form.actions.entries = []
-        for item in pip.action_items:
-            action_form = PIPActionForm()
-            action_form.description.data = item.description
-            action_form.status.data = item.status
-            form.actions.append_entry(action_form.data)
+    # 1) AI Advice branch
+    if request.method == 'POST' and 'generate_advice' in request.form:
+        # Build prompt
+        prompt = (
+            f"You are a performance coach.\n"
+            f"Employee: {employee.first_name} {employee.last_name}\n"
+            f"Job Title: {employee.job_title}\n"
+            f"Concerns: {form.concerns.data or '[none]'}\n"
+            "Action Items:\n"
+        )
+        for ai_field in form.actions.entries:
+            desc = ai_field.form.description.data or '[no description]'
+            stat = ai_field.form.status.data      or '[no status]'
+            prompt += f"- {desc} [{stat}]\n"
+        prompt += f"Meeting Notes: {form.meeting_notes.data or '[none]'}\n"
+        prompt += "Provide 3 bulleted actionable tips for the manager to support this employee."
 
+        # Call the new API
+        resp = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role":"user","content":prompt}],
+            temperature=0.7,
+        )
+        # In v1, the choices list still lives under resp.choices
+        advice_text = resp.choices[0].message.content.strip()
+
+        return render_template(
+            'edit_pip.html',
+            form=form,
+            pip=pip,
+            employee=employee,
+            advice_text=advice_text
+        )
+
+    # 2) Save branch
     if form.validate_on_submit():
-        pip.concerns = form.concerns.data
-        pip.start_date = form.start_date.data
-        pip.review_date = form.review_date.data
+        pip.concerns      = form.concerns.data
+        pip.start_date    = form.start_date.data
+        pip.review_date   = form.review_date.data
+        pip.status        = form.status.data
         pip.meeting_notes = form.meeting_notes.data
-        pip.status = request.form.get("status") or "Open"
-        pip.last_updated = datetime.utcnow()
 
-        # Clear and replace existing action items
         pip.action_items.clear()
-        for action_form in form.actions.entries:
-            new_item = PIPActionItem(
-                description=action_form.form.description.data,
-                status=action_form.form.status.data,
-                pip=pip
+        for ai_field in form.actions.entries:
+            pip.action_items.append(
+                PIPActionItem(
+                    description=ai_field.form.description.data,
+                    status     =ai_field.form.status.data
+                )
             )
-            db.session.add(new_item)
 
         db.session.commit()
+        flash('PIP updated successfully.', 'success')
+        return redirect(url_for('pip_detail', id=pip.id))
 
-        if pip.status != original_status:
-            status_event = TimelineEvent(
-                pip_id=pip.id,
-                event_type="Status Change",
-                notes=f"Status changed from {original_status} to {pip.status}",
-                updated_by=current_user.username
-            )
-            db.session.add(status_event)
-            db.session.commit()
-
-        flash("PIP updated.")
-        return redirect(url_for('employee_detail', employee_id=employee.id))
-
-    return render_template('edit_pip.html', form=form, pip=pip, employee=employee)
-
-
+    # 3) Final render
+    return render_template(
+        'edit_pip.html',
+        form=form,
+        pip=pip,
+        employee=employee,
+        advice_text=advice_text
+    )
 
 
 @app.route('/pip/create/<int:employee_id>', methods=['GET', 'POST'])
@@ -130,51 +169,33 @@ def edit_pip(pip_id):
 def create_pip(employee_id):
     employee = Employee.query.get_or_404(employee_id)
     if current_user.admin_level == 0 and employee.team_id != current_user.team_id:
-        flash("Access denied.")
+        flash('Access denied.')
         return redirect(url_for('dashboard'))
-
     form = PIPForm()
+    if request.method == 'POST':
+        action_fields = [k for k in request.form if 'actions-' in k and '-description' in k]
+        form.actions.min_entries = len(set(k.split('-')[1] for k in action_fields))
     if form.validate_on_submit():
         pip = PIPRecord(
-            employee_id=employee.id,
-            concerns=form.concerns.data,
-            start_date=form.start_date.data,
-            review_date=form.review_date.data,
-            action_plan=form.action_plan.data,  # Can be blank/legacy field
-            meeting_notes=form.meeting_notes.data,
-            created_by=current_user.username
+            employee_id   = employee.id,
+            concerns      = form.concerns.data,
+            start_date    = form.start_date.data,
+            review_date   = form.review_date.data,
+            meeting_notes = form.meeting_notes.data
         )
         db.session.add(pip)
-        db.session.flush()  # Get pip.id before committing
-
-        # Add action items
+        db.session.flush()
         for action_form in form.actions.entries:
-            action = PIPActionItem(
-                pip_id=pip.id,
-                description=action_form.form.description.data,
-                status=action_form.form.status.data
+            item = PIPActionItem(
+                pip_record_id = pip.id,
+                description   = action_form.form.description.data,
+                status        = action_form.form.status.data
             )
-            db.session.add(action)
-
+            db.session.add(item)
         db.session.commit()
-        flash("New PIP created.")
+        flash('New PIP created.')
         return redirect(url_for('employee_detail', employee_id=employee.id))
-
     return render_template('create_pip.html', form=form, employee=employee)
-
-
-
-@app.route("/pip/<int:pip_id>")
-@login_required
-def pip_detail(pip_id):
-    pip = PIPRecord.query.options(db.joinedload(PIPRecord.employee)).get_or_404(pip_id)
-    employee = pip.employee
-    timeline = TimelineEvent.query.filter_by(pip_id=pip.id).order_by(TimelineEvent.timestamp.desc()).all()
-    return render_template("pip_detail.html", pip=pip, employee=employee)
-
-
-from sqlalchemy import and_, or_
-from datetime import datetime, timedelta
 
 @app.route('/pip/list')
 @login_required
@@ -182,116 +203,122 @@ def pip_list():
     pips = PIPRecord.query.join(Employee).all()
     return render_template('pip_list.html', pips=pips)
 
-
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    # Top Summary Cards
     total_employees = Employee.query.count()
-    active_pips = PIPRecord.query.filter_by(status='Open').count()
-    completed_pips = PIPRecord.query.filter_by(status='Completed').count()
+    active_pips     = PIPRecord.query.filter_by(status='Open').count()
+    completed_pips  = PIPRecord.query.filter_by(status='Completed').count()
+    today           = datetime.utcnow().date()
     overdue_reviews = PIPRecord.query.filter(
-        and_(PIPRecord.review_date < datetime.utcnow(), PIPRecord.status == 'Open')
+        PIPRecord.review_date < today, PIPRecord.status=='Open'
     ).count()
-
-    # Middle: Recent Timeline Activity (last 10 events)
-    recent_activity = TimelineEvent.query.order_by(TimelineEvent.timestamp.desc()).limit(10).all()
-
-    # Bottom: Upcoming Reviews (next 7 days)
-    today = datetime.utcnow().date()
+    recent_activity   = TimelineEvent.query.order_by(TimelineEvent.timestamp.desc()).limit(10).all()
     upcoming_deadline = today + timedelta(days=7)
-
     if current_user.admin_level == 0:
-        # Restrict to team members only
         upcoming_pips = PIPRecord.query.join(Employee).filter(
-            and_(
-                Employee.team_id == current_user.team_id,
-                PIPRecord.review_date >= today,
-                PIPRecord.review_date <= upcoming_deadline,
-                PIPRecord.status == 'Open'
-            )
+            Employee.team_id==current_user.team_id,
+            PIPRecord.status=='Open',
+            PIPRecord.review_date>=today,
+            PIPRecord.review_date<=upcoming_deadline
         ).order_by(PIPRecord.review_date).all()
     else:
-        # Show all
         upcoming_pips = PIPRecord.query.filter(
-            and_(
-                PIPRecord.review_date >= today,
-                PIPRecord.review_date <= upcoming_deadline,
-                PIPRecord.status == 'Open'
-            )
+            PIPRecord.status=='Open',
+            PIPRecord.review_date>=today,
+            PIPRecord.review_date<=upcoming_deadline
         ).order_by(PIPRecord.review_date).all()
-
     return render_template(
-        "dashboard.html",
-        total_employees=total_employees,
-        active_pips=active_pips,
-        completed_pips=completed_pips,
-        overdue_reviews=overdue_reviews,
-        recent_activity=recent_activity,
+        'dashboard.html', total_employees=total_employees,
+        active_pips=active_pips, completed_pips=completed_pips,
+        overdue_reviews=overdue_reviews, recent_activity=recent_activity,
         upcoming_pips=upcoming_pips
     )
-
-
 
 @app.route('/employee/add', methods=['GET', 'POST'])
 @login_required
 def add_employee():
     if current_user.admin_level < 1:
-        flash("Access denied.")
+        flash('Access denied.')
         return redirect(url_for('home'))
-
     form = EmployeeForm()
     if form.validate_on_submit():
-        new_employee = Employee(
-            first_name=form.first_name.data,
-            last_name=form.last_name.data,
-            job_title=form.job_title.data,
-            line_manager=form.line_manager.data,
-            service=form.service.data,
-            start_date=form.start_date.data,
-            team_id=form.team_id.data
+        emp = Employee(
+            first_name  = form.first_name.data,
+            last_name   = form.last_name.data,
+            job_title   = form.job_title.data,
+            line_manager= form.line_manager.data,
+            service     = form.service.data,
+            start_date  = form.start_date.data,
+            team_id     = form.team_id.data
         )
-        db.session.add(new_employee)
+        db.session.add(emp)
         db.session.commit()
-        flash("New employee added.")
+        flash('New employee added.')
         return redirect(url_for('employee_list'))
-
     return render_template('add_employee.html', form=form)
-
 
 @app.route('/employee/list')
 @login_required
 def employee_list():
-    employees = Employee.query.all()
-    return render_template("employee_list.html", employees=employees)
+    return render_template('employee_list.html', employees=Employee.query.all())
 
-
-@app.route("/pip/select-employee", methods=["GET", "POST"])
+@app.route('/pip/select-employee', methods=['GET', 'POST'])
 @login_required
 def select_employee_for_pip():
     employees = Employee.query.order_by(Employee.last_name).all()
-    if request.method == "POST":
-        selected_id = request.form.get("employee_id")
-        return redirect(url_for("create_pip", employee_id=selected_id))
-    return render_template("pip_select_employee.html", employees=employees)
+    if request.method == 'POST':
+        return redirect(url_for('create_pip', employee_id=request.form.get('employee_id')))
+    return render_template('pip_select_employee.html', employees=employees)
 
+# Document Generation
+@app.route('/pip/<int:id>/generate/invite')
+@login_required
+def generate_invite_letter(id):
+    pip = PIPRecord.query.get_or_404(id)
+    tpl = DocxTemplate('templates/docx/invite_letter_template.docx')
+    tpl.render({'employee': pip.employee, 'pip': pip, 'current_user': current_user})
+    out = BytesIO(); tpl.save(out); out.seek(0)
+    return send_file(out, as_attachment=True,
+                     download_name=f"Invite_Letter_{pip.employee.last_name}_{pip.id}.docx",
+                     mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
 
-# ✅ Create DB if it doesn't exist (fix for Railway startup crash)
-import os
+@app.route('/pip/<int:id>/generate/plan')
+@login_required
+def generate_plan_document(id):
+    pip = PIPRecord.query.get_or_404(id)
+    tpl = DocxTemplate('templates/docx/plan_template.docx')
+    tpl.render({'employee': pip.employee, 'pip': pip, 'current_user': current_user})
+    out = BytesIO(); tpl.save(out); out.seek(0)
+    return send_file(out, as_attachment=True,
+                     download_name=f"PIP_Plan_{pip.employee.last_name}_{pip.id}.docx",
+                     mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
 
+@app.route('/pip/<int:id>/generate/outcome')
+@login_required
+def generate_outcome_letter(id):
+    pip = PIPRecord.query.get_or_404(id)
+    tpl = DocxTemplate('templates/docx/outcome_letter_template.docx')
+    # safe date
+    date_obj = pip.last_updated or pip.created_at or pip.start_date
+    date_str = date_obj.strftime('%d %b %Y')
+    tpl.render({'employee': pip.employee, 'pip': pip, 'current_user': current_user, 'date_str': date_str})
+    out = BytesIO(); tpl.save(out); out.seek(0)
+    return send_file(out, as_attachment=True,
+                     download_name=f"Outcome_Letter_{pip.employee.last_name}_{pip.id}.docx",
+                     mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+
+# Create DB if missing
 with app.app_context():
-    if not os.path.exists("pip_crm.db"):
+    if not os.path.exists('pip_crm.db'):
         db.create_all()
-        print("✅ Database created")
+        print('✅ Database created')
 
-
-# ✅ Debug/test route
-@app.route("/ping")
+@app.route('/ping')
 def ping():
-    return "Pong!"
+    return 'Pong!'
 
-print("✅ Flask app initialized and ready.")
+print('✅ Flask app initialized and ready.')
 
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
