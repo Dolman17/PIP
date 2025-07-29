@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Create Probation Record for {{ employee.first_name }} {{ employee.last_name }}</h2>
+
+<form method="post">
+    {{ form.hidden_tag() }}
+
+    <p>{{ form.start_date.label }}<br>{{ form.start_date() }}</p>
+    <p>{{ form.expected_end_date.label }}<br>{{ form.expected_end_date() }}</p>
+    <p>{{ form.notes.label }}<br>{{ form.notes(rows=5, cols=60) }}</p>
+
+    <p>{{ form.submit(class="btn btn-primary") }}</p>
+</form>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Add Development Plan – {{ probation.employee.first_name }} {{ probation.employee.last_name }}</h2>
+
+<form method="post">
+    {{ form.hidden_tag() }}
+
+    <p>{{ form.objectives.label }}<br>{{ form.objectives(rows=6, cols=60) }}</p>
+    <p>{{ form.deadline.label }}<br>{{ form.deadline() }}</p>
+    <p>{{ form.outcome.label }}<br>{{ form.outcome() }}</p>
+
+    <p>{{ form.submit(class="btn btn-primary") }}</p>
+</form>
+{% endblock %}

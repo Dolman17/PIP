@@ -1,42 +1,58 @@
 {% extends "base.html" %}
-{% block content %}
-<div class="p-6">
-  <h1 class="text-2xl font-bold mb-4">All Employees</h1>
+{% block title %}All Employees{% endblock %}
+{% block page_title %}👥 Employee Directory{% endblock %}
 
-  <div class="overflow-x-auto">
-    <table class="min-w-full bg-white shadow rounded">
-      <thead class="bg-gray-100">
-        <tr>
-          <th class="text-left px-4 py-2">Name</th>
-          <th class="text-left px-4 py-2">Job Title</th>
-          <th class="text-left px-4 py-2">Service</th>
-          <th class="text-left px-4 py-2">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for emp in employees %}
-        <tr class="border-b hover:bg-gray-50">
-          <td class="px-4 py-2">
-            <a href="{{ url_for('employee_detail', employee_id=emp.id) }}" class="text-blue-600 hover:underline">
-              {{ emp.first_name }} {{ emp.last_name }}
-            </a>
-          </td>
-          <td class="px-4 py-2">{{ emp.job_title }}</td>
-          <td class="px-4 py-2">{{ emp.service }}</td>
-          <td class="px-4 py-2">
-            <a href="{{ url_for('employee_detail', employee_id=emp.id) }}"
-               class="text-sm bg-slate-200 hover:bg-slate-300 text-gray-800 px-3 py-1 rounded mr-2">View</a>
-            <a href="{{ url_for('create_pip', employee_id=emp.id) }}"
-               class="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded">Start PIP</a>
-          </td>
-        </tr>
-        {% else %}
-        <tr>
-          <td colspan="4" class="text-center text-gray-400 py-4">No employees found.</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+{% block content %}
+<div class="max-w-6xl mx-auto p-6">
+  <div class="bg-white rounded shadow border border-gray-200 overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+      <h1 class="text-xl font-semibold text-ellipse-teal">All Employees</h1>
+      <a href="{{ url_for('add_employee') }}"
+         class="text-sm bg-ellipse-teal hover:bg-ellipse-hover text-white px-4 py-2 rounded">
+        ➕ Add Employee
+      </a>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-100 text-sm text-left">
+        <thead class="bg-gray-50 text-gray-600 font-medium">
+          <tr>
+            <th class="px-6 py-3">Name</th>
+            <th class="px-6 py-3">Job Title</th>
+            <th class="px-6 py-3">Service</th>
+            <th class="px-6 py-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-100">
+          {% for emp in employees %}
+          <tr class="hover:bg-gray-50 transition">
+            <td class="px-6 py-4 font-medium text-ellipse-gray whitespace-nowrap">
+              <a href="{{ url_for('employee_detail', employee_id=emp.id) }}"
+                 class="text-ellipse-teal hover:underline">
+                {{ emp.first_name }} {{ emp.last_name }}
+              </a>
+            </td>
+            <td class="px-6 py-4 text-gray-700">{{ emp.job_title }}</td>
+            <td class="px-6 py-4 text-gray-700">{{ emp.service }}</td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <a href="{{ url_for('employee_detail', employee_id=emp.id) }}"
+                 class="inline-block text-xs bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-1 rounded mr-2">
+                View
+              </a>
+              <a href="{{ url_for('create_pip', employee_id=emp.id) }}"
+                 class="inline-block text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded">
+                Start PIP
+              </a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="4" class="text-center text-gray-400 py-6">No employees found.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 {% endblock %}

@@ -97,3 +97,38 @@ class TimelineEvent(db.Model):
         'PIPRecord',
         back_populates='timeline_events'
     )
+
+
+class ProbationRecord(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    expected_end_date = db.Column(db.Date, nullable=False)
+    status = db.Column(db.String(50), default="Active")  # Active, Extended, Completed, Failed
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    reviews = db.relationship('ProbationReview', backref='probation', lazy=True, cascade="all, delete-orphan")
+    plans = db.relationship('ProbationPlan', backref='probation', lazy=True, cascade="all, delete-orphan")
+
+    employee = db.relationship('Employee', backref=db.backref('probation_records', lazy=True))
+
+
+class ProbationReview(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    probation_id = db.Column(db.Integer, db.ForeignKey('probation_record.id'), nullable=False)
+    review_date = db.Column(db.Date, nullable=False)
+    reviewer = db.Column(db.String(100))
+    summary = db.Column(db.Text)
+    concerns_flag = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class ProbationPlan(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    probation_id = db.Column(db.Integer, db.ForeignKey('probation_record.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    objectives = db.Column(db.Text)  # Optionally replace with structured fields later
+    deadline = db.Column(db.Date)
+    outcome = db.Column(db.String(100))  # e.g., Met, Not Met, Ongoing

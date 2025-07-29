@@ -14,8 +14,8 @@ from openai import OpenAI
 from dotenv import load_dotenv
 load_dotenv()
 
-from models import db, User, Employee, PIPRecord, PIPActionItem, TimelineEvent
-from forms import PIPForm, EmployeeForm, LoginForm
+from models import db, User, Employee, PIPRecord, PIPActionItem, TimelineEvent, ProbationRecord, ProbationReview, ProbationPlan
+from forms import PIPForm, EmployeeForm, LoginForm, ProbationRecordForm, ProbationReviewForm, ProbationPlanForm
 from flask_wtf.csrf import CSRFProtect
 
 
@@ -50,7 +50,9 @@ def load_user(user_id):
 @app.route('/')
 @login_required
 def home():
-    return render_template('landing.html')
+    return render_template('select_module.html', hide_sidebar=True)
+
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -58,10 +60,11 @@ def login():
     if request.method == 'POST' and form.validate_on_submit():
         user = User.query.filter_by(username=form.username.data).first()
         if user and check_password_hash(user.password_hash, form.password.data):
-            login_user(user)
+            login_user(user, remember=form.remember.data)
             return redirect(url_for('home'))
         flash('Invalid username or password', 'danger')
-    return render_template('login.html', form=form)
+    return render_template('login.html', form=form, hide_sidebar=True, current_year=datetime.now().year)
+
 
 @app.route('/logout')
 @login_required
@@ -224,10 +227,18 @@ def create_pip(employee_id):
     if current_user.admin_level == 0 and employee.team_id != current_user.team_id:
         flash('Access denied.')
         return redirect(url_for('dashboard'))
+
     form = PIPForm()
+
+    # ✅ Append empty action entry on GET to prevent Jinja error
+    if request.method == 'GET' and len(form.actions.entries) == 0:
+        form.actions.append_entry()
+
+    # ✅ Recalculate min_entries for dynamic action field JS handling
     if request.method == 'POST':
         action_fields = [k for k in request.form if 'actions-' in k and '-description' in k]
         form.actions.min_entries = len(set(k.split('-')[1] for k in action_fields))
+
     if form.validate_on_submit():
         pip = PIPRecord(
             employee_id   = employee.id,
@@ -238,6 +249,7 @@ def create_pip(employee_id):
         )
         db.session.add(pip)
         db.session.flush()
+
         for action_form in form.actions.entries:
             item = PIPActionItem(
                 pip_record_id = pip.id,
@@ -245,26 +257,39 @@ def create_pip(employee_id):
                 status        = action_form.form.status.data
             )
             db.session.add(item)
+
         db.session.commit()
         flash('New PIP created.')
         return redirect(url_for('employee_detail', employee_id=employee.id))
+
     return render_template('create_pip.html', form=form, employee=employee)
 
-@app.route('/employee/<int:employee_id>/edit', methods=['GET', 'POST'])
+@app.route('/employee/edit/<int:employee_id>', methods=['GET', 'POST'])
 @login_required
 def edit_employee(employee_id):
     employee = Employee.query.get_or_404(employee_id)
+    
+    if current_user.admin_level == 0 and employee.team_id != current_user.team_id:
+        flash('Access denied.')
+        return redirect(url_for('dashboard'))
+
     form = EmployeeForm(obj=employee)
 
     if form.validate_on_submit():
-        form.populate_obj(employee)
+        employee.first_name   = form.first_name.data
+        employee.last_name    = form.last_name.data
+        employee.job_title    = form.job_title.data
+        employee.line_manager = form.line_manager.data
+        employee.service      = form.service.data
+        employee.start_date   = form.start_date.data
+        employee.team_id      = form.team_id.data
+        employee.email        = form.email.data
+
         db.session.commit()
-        flash('Employee updated successfully!', 'success')
+        flash('Employee details updated.', 'success')
         return redirect(url_for('employee_detail', employee_id=employee.id))
 
     return render_template('edit_employee.html', form=form, employee=employee)
-
-
 
 
 @app.route('/pip/list')
@@ -393,6 +418,153 @@ def generate_outcome_letter(id):
     return send_file(out, as_attachment=True,
                      download_name=f"Outcome_Letter_{pip.employee.last_name}_{pip.id}.docx",
                      mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+
+
+# --- Create a probation record ---
+
+# --- View probation record ---
+@app.route('/probation/<int:id>')
+@login_required
+def view_probation(id):
+    probation = ProbationRecord.query.get_or_404(id)
+    employee = probation.employee
+    return render_template('view_probation.html', probation=probation, employee=employee)
+
+# --- View Probation Review ---
+@app.route('/probation/<int:id>/review/add', methods=['GET', 'POST'])
+@login_required
+def add_probation_review(id):
+    probation = ProbationRecord.query.get_or_404(id)
+    form = ProbationReviewForm()
+
+    if form.validate_on_submit():
+        review = ProbationReview(
+            probation_id = probation.id,
+            review_date  = form.review_date.data,
+            reviewer     = form.reviewer.data,
+            summary      = form.summary.data,
+            concerns_flag = (form.concerns_flag.data.lower() == 'yes')
+        )
+        db.session.add(review)
+
+        # Log to timeline
+        event = TimelineEvent(
+            pip_record_id=None,  # not a PIP
+            event_type="Probation Review",
+            notes=f"Review added by {current_user.username}",
+            updated_by=current_user.username
+        )
+        db.session.add(event)
+
+        db.session.commit()
+        flash('Probation review added.', 'success')
+        return redirect(url_for('view_probation', id=probation.id))
+
+    return render_template('add_probation_review.html', form=form, probation=probation)
+
+@app.route('/probation/<int:id>/plan/add', methods=['GET', 'POST'])
+@login_required
+def add_probation_plan(id):
+    probation = ProbationRecord.query.get_or_404(id)
+    form = ProbationPlanForm()
+
+    if form.validate_on_submit():
+        plan = ProbationPlan(
+            probation_id = probation.id,
+            objectives   = form.objectives.data,
+            deadline     = form.deadline.data,
+            outcome      = form.outcome.data
+        )
+        db.session.add(plan)
+
+        # Log to timeline
+        event = TimelineEvent(
+            pip_record_id=None,
+            event_type="Probation Plan Added",
+            notes=f"Plan created by {current_user.username}",
+            updated_by=current_user.username
+        )
+        db.session.add(event)
+
+        db.session.commit()
+        flash('Development plan added.', 'success')
+        return redirect(url_for('view_probation', id=probation.id))
+
+    return render_template('add_probation_plan.html', form=form, probation=probation)
+
+@app.route('/probation/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_probation(id):
+    probation = ProbationRecord.query.get_or_404(id)
+    form = ProbationRecordForm(obj=probation)
+
+    if form.validate_on_submit():
+        probation.start_date       = form.start_date.data
+        probation.expected_end_date= form.expected_end_date.data
+        probation.notes            = form.notes.data
+        db.session.commit()
+        flash('Probation record updated.', 'success')
+        return redirect(url_for('view_probation', id=probation.id))
+
+    return render_template('edit_probation.html', form=form, probation=probation)
+
+
+@app.route('/probation/<int:id>/status/<new_status>', methods=['POST'])
+@login_required
+def update_probation_status(id, new_status):
+    probation = ProbationRecord.query.get_or_404(id)
+    valid_statuses = ['Completed', 'Extended', 'Failed']
+
+    if new_status not in valid_statuses:
+        flash('Invalid status update.', 'danger')
+        return redirect(url_for('view_probation', id=id))
+
+    probation.status = new_status
+    db.session.add(probation)
+
+    event = TimelineEvent(
+        pip_record_id=None,
+        event_type="Probation Status Updated",
+        notes=f"Status changed to {new_status} by {current_user.username}",
+        updated_by=current_user.username
+    )
+    db.session.add(event)
+
+    db.session.commit()
+    flash(f'Status updated to {new_status}.', 'success')
+    return redirect(url_for('view_probation', id=id))
+
+@app.route('/probation/create/<int:employee_id>', methods=['GET', 'POST'])
+@login_required
+def create_probation(employee_id):
+    employee = Employee.query.get_or_404(employee_id)
+    form = ProbationRecordForm()
+
+    if form.validate_on_submit():
+        probation = ProbationRecord(
+            employee_id=employee.id,
+            start_date=form.start_date.data,
+            expected_end_date=form.expected_end_date.data,
+            notes=form.notes.data
+        )
+        db.session.add(probation)
+        db.session.commit()
+        flash('Probation record created successfully.', 'success')
+        return redirect(url_for('view_probation', id=probation.id))
+
+    return render_template('create_probation.html', form=form, employee=employee)
+
+
+
+@app.route('/probation/dashboard')
+@login_required
+def probation_dashboard():
+    # This will be replaced with the real dashboard later
+    records = ProbationRecord.query.all()
+    return render_template('probation_dashboard.html', records=records)
+
+
+
 
 # Create DB if missing
 #with app.app_context():

@@ -1,57 +1,79 @@
 {% extends 'base.html' %}
 {% block title %}Edit Employee{% endblock %}
+{% block page_title %}✏️ Edit Employee{% endblock %}
 
 {% block content %}
-<div class="p-6">
-  <h2 class="text-2xl font-semibold text-slate-800 mb-6">Edit Employee</h2>
+<div class="max-w-3xl mx-auto p-6">
+  <div class="bg-white rounded-xl shadow border border-gray-200 p-6 sm:p-8">
+    <h2 class="text-xl sm:text-2xl font-semibold text-ellipse-teal mb-6">Update Employee Details</h2>
 
-  <form method="POST" class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm max-w-xl space-y-5">
-    {{ form.hidden_tag() }}
+    <form method="POST" class="space-y-5">
+      {{ form.hidden_tag() }}
 
-    <div>
-      {{ form.first_name.label(class="block text-sm font-medium text-slate-700 mb-1") }}
-      {{ form.first_name(class="w-full rounded-md border border-slate-300 p-2") }}
+      <!-- First Name -->
+      <div>
+        {{ form.first_name.label(class="block text-sm font-medium text-ellipse-gray mb-1") }}
+        {{ form.first_name(class="w-full rounded-md border border-gray-300 px-3 py-2 focus:ring-ellipse-teal focus:border-ellipse-teal") }}
+      </div>
+
+      <!-- Last Name -->
+      <div>
+        {{ form.last_name.label(class="block text-sm font-medium text-ellipse-gray mb-1") }}
+        {{ form.last_name(class="w-full rounded-md border border-gray-300 px-3 py-2 focus:ring-ellipse-teal focus:border-ellipse-teal") }}
+      </div>
+
+      <!-- Email -->
+      <div>
+        {{ form.email.label(class="block text-sm font-medium text-ellipse-gray mb-1") }}
+        {{ form.email(class="w-full rounded-md border border-gray-300 px-3 py-2 focus:ring-ellipse-teal focus:border-ellipse-teal") }}
+      </div>
+
+      <!-- Job Title -->
+      <div>
+        {{ form.job_title.label(class="block text-sm font-medium text-ellipse-gray mb-1") }}
+        {{ form.job_title(class="w-full rounded-md border border-gray-300 px-3 py-2 focus:ring-ellipse-teal focus:border-ellipse-teal") }}
+      </div>
+
+      <!-- Line Manager -->
+      <div>
+        {{ form.line_manager.label(class="block text-sm font-medium text-ellipse-gray mb-1") }}
+        {{ form.line_manager(class="w-full rounded-md border border-gray-300 px-3 py-2 focus:ring-ellipse-teal focus:border-ellipse-teal") }}
+      </div>
+
+      <!-- Service -->
+      <div>
+        {{ form.service.label(class="block text-sm font-medium text-ellipse-gray mb-1") }}
+        {{ form.service(class="w-full rounded-md border border-gray-300 px-3 py-2 focus:ring-ellipse-teal focus:border-ellipse-teal") }}
+      </div>
+
+      <!-- Start Date -->
+      <div>
+        {{ form.start_date.label(class="block text-sm font-medium text-ellipse-gray mb-1") }}
+        {{ form.start_date(class="w-full rounded-md border border-gray-300 px-3 py-2 focus:ring-ellipse-teal focus:border-ellipse-teal") }}
+      </div>
+
+      <!-- Team ID -->
+      <div>
+        {{ form.team_id.label(class="block text-sm font-medium text-ellipse-gray mb-1") }}
+        {{ form.team_id(class="w-full rounded-md border border-gray-300 px-3 py-2 focus:ring-ellipse-teal focus:border-ellipse-teal") }}
+      </div>
+
+      <!-- Submit Button -->
+      <div class="pt-2">
+        <button type="submit"
+                class="w-full sm:w-auto bg-ellipse-teal hover:bg-ellipse-hover text-white font-semibold px-6 py-2 rounded-lg transition text-sm">
+          💾 Save Changes
+        </button>
+      </div>
+    </form>
+
+    <!-- Back Link -->
+    <div class="mt-6">
+      <a href="{{ url_for('employee_detail', employee_id=employee.id) }}"
+         class="text-sm text-ellipse-teal hover:underline inline-flex items-center">
+        ← Back to Employee
+      </a>
     </div>
-
-    <div>
-      {{ form.last_name.label(class="block text-sm font-medium text-slate-700 mb-1") }}
-      {{ form.last_name(class="w-full rounded-md border border-slate-300 p-2") }}
-    </div>
-
-    <div>
-      {{ form.email.label(class="block text-sm font-medium text-slate-700 mb-1") }}
-      {{ form.email(class="w-full rounded-md border border-slate-300 p-2") }}
-    </div>
-
-    <div>
-      {{ form.job_title.label(class="block text-sm font-medium text-slate-700 mb-1") }}
-      {{ form.job_title(class="w-full rounded-md border border-slate-300 p-2") }}
-    </div>
-
-    <div>
-      {{ form.line_manager.label(class="block text-sm font-medium text-slate-700 mb-1") }}
-      {{ form.line_manager(class="w-full rounded-md border border-slate-300 p-2") }}
-    </div>
-
-    <div>
-      {{ form.service.label(class="block text-sm font-medium text-slate-700 mb-1") }}
-      {{ form.service(class="w-full rounded-md border border-slate-300 p-2") }}
-    </div>
-
-    <div>
-      {{ form.start_date.label(class="block text-sm font-medium text-slate-700 mb-1") }}
-      {{ form.start_date(class="w-full rounded-md border border-slate-300 p-2") }}
-    </div>
-
-    <div>
-      {{ form.team_id.label(class="block text-sm font-medium text-slate-700 mb-1") }}
-      {{ form.team_id(class="w-full rounded-md border border-slate-300 p-2") }}
-    </div>
-
-    <button type="submit"
-            class="bg-[#0160B1] text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm">
-      💾 Save Changes
-    </button>
-  </form>
+  </div>
 </div>
 {% endblock %}

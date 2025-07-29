@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Probation Dashboard</h2>
+
+{% if records %}
+    <ul>
+        {% for record in records %}
+            <li>
+                <a href="{{ url_for('view_probation', id=record.id) }}">
+                    {{ record.employee.first_name }} {{ record.employee.last_name }} – Status: {{ record.status }}
+                </a>
+            </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>No probation records found.</p>
+{% endif %}
+{% endblock %}

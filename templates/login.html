@@ -1,25 +1,67 @@
-{% extends "bare.html" %}
-
-{% block title %}Login{% endblock %}
+{% extends 'base.html' %}
+{% block title %}Login - Ellipse HR{% endblock %}
+{% block page_title %}{% endblock %}
 
 {% block content %}
-<div class="bg-white p-8 rounded shadow-md w-full max-w-md">
-  <h2 class="text-2xl font-bold mb-6 text-center">Login</h2>
-  <form method="post">
-    {{ form.hidden_tag() }}
-    <div class="mb-4">
-      {{ form.username.label(class="block text-sm font-medium text-gray-700") }}
-      {{ form.username(class="mt-1 block w-full p-2 border rounded") }}
+<div class="min-h-screen flex items-center justify-center bg-ellipse-light px-4 py-12">
+  <div class="w-full max-w-md bg-white p-8 rounded-2xl shadow-xl border border-gray-200 animate-fade-in">
+
+    <!-- Logo + Title -->
+    <div class="text-center mb-6">
+      <img src="{{ url_for('static', filename='images/logo.avif') }}"
+           alt="Ellipse HR Logo"
+           class="h-14 w-auto mx-auto mb-3">
+      <h1 class="text-2xl font-bold text-ellipse-teal">Ellipse HR Login</h1>
+      <p class="text-sm text-gray-500 mt-1">Sign in to your account</p>
     </div>
-    <div class="mb-4">
-      {{ form.password.label(class="block text-sm font-medium text-gray-700") }}
-      {{ form.password(class="mt-1 block w-full p-2 border rounded") }}
-    </div>
-    <div>
-      <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-        Login
-      </button>
-    </div>
-  </form>
+
+    <form method="post">
+      {{ form.hidden_tag() }}
+
+      <!-- Username -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-ellipse-gray mb-1">{{ form.username.label }}</label>
+        {{ form.username(class_="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-ellipse-teal") }}
+      </div>
+
+      <!-- Password -->
+      <div class="mb-2">
+        <label class="block text-sm font-medium text-ellipse-gray mb-1">{{ form.password.label }}</label>
+        {{ form.password(class_="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-ellipse-teal") }}
+      </div>
+
+      <!-- Remember me + forgot password -->
+      <div class="flex items-center justify-between mb-4">
+        <label class="flex items-center text-sm text-gray-600">
+          {{ form.remember(class_="mr-2 rounded") }}
+          Remember me
+        </label>
+        <a href="#" class="text-sm text-ellipse-teal hover:underline">Forgot password?</a>
+      </div>
+
+      <!-- Flash messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="mb-4 text-sm text-red-600">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <!-- Submit -->
+      <div>
+        <button type="submit"
+                class="w-full bg-ellipse-teal hover:bg-ellipse-hover text-white font-semibold py-2 px-4 rounded-lg transition">
+          Log In
+        </button>
+      </div>
+    </form>
+
+    <p class="text-xs text-center text-gray-400 mt-6">
+      &copy; {{ current_year }} Ellipse HR. All rights reserved.
+    </p>
+  </div>
 </div>
 {% endblock %}

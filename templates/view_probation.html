@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Probation Record for {{ employee.first_name }} {{ employee.last_name }}</h2>
+<p><strong>Start Date:</strong> {{ probation.start_date }}</p>
+<p><strong>Expected End Date:</strong> {{ probation.expected_end_date }}</p>
+<p><strong>Status:</strong> {{ probation.status }}</p>
+<p><strong>Notes:</strong><br>{{ probation.notes }}</p>
+
+
+<h3>Update Status</h3>
+<form method="post" action="{{ url_for('update_probation_status', id=probation.id, new_status='Completed') }}">
+    <button type="submit" class="btn btn-success">✅ Confirm (Complete)</button>
+</form>
+<form method="post" action="{{ url_for('update_probation_status', id=probation.id, new_status='Extended') }}">
+    <button type="submit" class="btn btn-warning">⏳ Extend</button>
+</form>
+<form method="post" action="{{ url_for('update_probation_status', id=probation.id, new_status='Failed') }}">
+    <button type="submit" class="btn btn-danger">❌ Fail</button>
+</form>
+
+{% endblock %}

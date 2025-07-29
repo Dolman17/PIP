@@ -2,58 +2,64 @@
 {% block title %}Start New PIP{% endblock %}
 
 {% block content %}
-<div class="p-6">
-  <h1 class="text-2xl font-semibold text-slate-800 mb-6">
+<div class="p-6 bg-gray-50 min-h-screen">
+  <h1 class="text-2xl font-semibold text-[#005b5a] mb-6">
     Start New PIP for {{ employee.first_name }} {{ employee.last_name }}
   </h1>
 
-  <form method="post" class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm max-w-2xl space-y-5">
+  <form method="post" class="bg-white p-6 rounded-2xl border border-gray-200 shadow max-w-3xl space-y-6">
     {{ form.hidden_tag() }}
 
+    <!-- Concerns -->
     <div>
-      {{ form.concerns.label(class="block text-sm font-medium text-slate-700 mb-1") }}
-      {{ form.concerns(class="w-full rounded-md border border-slate-300 p-2") }}
+      {{ form.concerns.label(class="block text-sm font-medium text-gray-700 mb-1") }}
+      {{ form.concerns(class="w-full rounded-md border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-[#005b5a]") }}
     </div>
 
+    <!-- Start Date -->
     <div>
-      {{ form.start_date.label(class="block text-sm font-medium text-slate-700 mb-1") }}
-      {{ form.start_date(class="w-full rounded-md border border-slate-300 p-2") }}
+      {{ form.start_date.label(class="block text-sm font-medium text-gray-700 mb-1") }}
+      {{ form.start_date(class="w-full rounded-md border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-[#005b5a]") }}
     </div>
 
+    <!-- Review Date -->
     <div>
-      {{ form.review_date.label(class="block text-sm font-medium text-slate-700 mb-1") }}
-      {{ form.review_date(class="w-full rounded-md border border-slate-300 p-2") }}
+      {{ form.review_date.label(class="block text-sm font-medium text-gray-700 mb-1") }}
+      {{ form.review_date(class="w-full rounded-md border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-[#005b5a]") }}
     </div>
 
+    <!-- Action Plan Section -->
     <div>
-      <label class="block text-sm font-medium text-slate-700 mb-1">Action Plan</label>
+      <label class="block text-sm font-medium text-gray-700 mb-2">Action Plan</label>
       <div id="action-plan-container">
-        {% for subform in form.actions %}
-          <div class="border p-3 rounded mb-3 bg-slate-50 action-item">
-            {{ subform.description.label(class="block text-sm font-medium text-slate-700 mb-1") }}
-            {{ subform.description(class="w-full p-2 border rounded mb-2", placeholder="Describe the action...") }}
+        {% for subform in form.actions.entries %}
+          <div class="border border-gray-200 p-4 rounded-lg mb-4 bg-gray-100 action-item">
+            {{ subform.form.description.label(class="block text-sm font-medium text-gray-700 mb-1") }}
+            {{ subform.form.description(class="w-full p-2 border border-gray-300 rounded mb-3", placeholder="Describe the action...") }}
 
-            {{ subform.status.label(class="block text-sm font-medium text-slate-700 mb-1") }}
-            {{ subform.status(class="w-full p-2 border rounded") }}
+            {{ subform.form.status.label(class="block text-sm font-medium text-gray-700 mb-1") }}
+            {{ subform.form.status(class="w-full p-2 border border-gray-300 rounded") }}
 
-            <button type="button" class="remove-action text-red-600 mt-2 text-sm hover:underline">Delete</button>
+            <button type="button" class="remove-action text-red-600 mt-3 text-sm hover:underline">Delete</button>
           </div>
         {% endfor %}
       </div>
 
       <button id="add-action"
-              class="mt-2 bg-slate-200 hover:bg-slate-300 text-sm px-3 py-1 rounded">
+              class="mt-2 bg-[#005b5a] text-white text-sm px-4 py-2 rounded hover:bg-[#007876] transition">
         + Add Action
       </button>
     </div>
 
+    <!-- Meeting Notes -->
     <div>
-      {{ form.meeting_notes.label(class="block text-sm font-medium text-slate-700 mb-1") }}
-      {{ form.meeting_notes(class="w-full rounded-md border border-slate-300 p-2") }}
+      {{ form.meeting_notes.label(class="block text-sm font-medium text-gray-700 mb-1") }}
+      {{ form.meeting_notes(class="w-full rounded-md border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-[#005b5a]") }}
     </div>
 
+    <!-- Submit Button -->
     <button type="submit"
-            class="bg-[#0160B1] text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+            class="bg-[#005b5a] text-white px-5 py-2 rounded-lg hover:bg-[#007876] transition text-sm font-medium">
       {{ form.submit.label.text }}
     </button>
   </form>
@@ -71,18 +77,19 @@
 
       const index = container.querySelectorAll(".action-item").length;
       const newItem = document.createElement("div");
-      newItem.className = "border p-3 rounded mb-3 bg-slate-50 action-item";
+      newItem.className = "border border-gray-200 p-4 rounded-lg mb-4 bg-gray-100 action-item";
       newItem.innerHTML = `
-        <label class="block text-sm font-medium text-slate-700 mb-1">Action Description</label>
-        <input type="text" name="actions-${index}-description" class="w-full p-2 border rounded mb-2" placeholder="Describe the action..." required>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Action Description</label>
+        <input type="text" name="actions-${index}-description" class="w-full p-2 border border-gray-300 rounded mb-3" placeholder="Describe the action..." required>
 
-        <label class="block text-sm font-medium text-slate-700 mb-1">Status</label>
-        <select name="actions-${index}-status" class="w-full p-2 border rounded">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+        <select name="actions-${index}-status" class="w-full p-2 border border-gray-300 rounded">
           <option value="Outstanding">Outstanding</option>
+          <option value="In Progress">In Progress</option>
           <option value="Completed">Completed</option>
         </select>
 
-        <button type="button" class="remove-action text-red-600 mt-2 text-sm hover:underline">Delete</button>
+        <button type="button" class="remove-action text-red-600 mt-3 text-sm hover:underline">Delete</button>
       `;
       container.appendChild(newItem);
     });

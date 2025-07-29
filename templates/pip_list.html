@@ -1,57 +1,71 @@
-{% extends "base.html" %}
-{% block title %}All PIPs{% endblock %}
+{% extends 'base.html' %}
+{% block title %}All PIPs - Ellipse HR{% endblock %}
+{% block page_title %}📋 View All PIPs{% endblock %}
 
 {% block content %}
+<div class="max-w-6xl mx-auto">
 
-<div class="p-6">
-  <h1 class="text-2xl font-semibold mb-6">📋 All Performance Improvement Plans</h1>
-
-  <div class="overflow-x-auto bg-white rounded-xl shadow border border-slate-200">
-    <table class="min-w-full divide-y divide-slate-200">
-      <thead class="bg-slate-100 text-left text-sm font-semibold text-slate-600">
-        <tr>
-          <th class="px-4 py-3">Employee</th>
-          <th class="px-4 py-3">Service</th>
-          <th class="px-4 py-3">Start Date</th>
-          <th class="px-4 py-3">Review Date</th>
-          <th class="px-4 py-3">Status</th>
-          <th class="px-4 py-3">Actions</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-slate-100 text-sm text-slate-700">
-        {% for pip in pips %}
-        <tr class="hover:bg-slate-50">
-          <td class="px-4 py-2">
-            <a href="{{ url_for('employee_detail', employee_id=pip.employee.id) }}" class="text-blue-600 hover:underline">
-              {{ pip.employee.first_name }} {{ pip.employee.last_name }}
-            </a>
-          </td>
-          <td class="px-4 py-2">{{ pip.employee.service }}</td>
-          <td class="px-4 py-2">{{ pip.start_date.strftime('%d %b %Y') }}</td>
-          <td class="px-4 py-2">{{ pip.review_date.strftime('%d %b %Y') }}</td>
-          <td class="px-4 py-2">
-            <span class="inline-block px-2 py-1 rounded text-xs font-semibold
-              {% if pip.status == 'Open' %}bg-blue-100 text-blue-800
-              {% elif pip.status == 'Completed' %}bg-green-100 text-green-800
-              {% elif pip.status == 'Closed' %}bg-gray-200 text-gray-700
-              {% else %}bg-gray-100 text-gray-600
-              {% endif %}">
-              {{ pip.status }}
-            </span>
-          </td>
-          <td class="px-4 py-2">
-            <a href="{{ url_for('pip_detail', id=pip.id) }}" class="text-sm text-blue-600 hover:underline">
-              View PIP
-            </a>
-          </td>
-        </tr>
-        {% else %}
-        <tr>
-          <td colspan="6" class="px-4 py-4 text-center text-slate-500">No PIPs found.</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="mb-6">
+    <h2 class="text-2xl font-bold text-ellipse-teal mb-1">Performance Improvement Plans</h2>
+    <p class="text-sm text-gray-600">Below is a list of all active and historical PIPs in the system.</p>
   </div>
+
+  {% if pips %}
+    <div class="overflow-x-auto bg-white border border-gray-200 shadow rounded-xl">
+      <table class="min-w-full divide-y divide-gray-200 text-sm">
+        <thead class="bg-ellipse-light text-left text-gray-700 text-xs uppercase tracking-wider">
+          <tr>
+            <th class="px-4 py-3">Employee</th>
+            <th class="px-4 py-3">Job Title</th>
+            <th class="px-4 py-3">Status</th>
+            <th class="px-4 py-3">Start Date</th>
+            <th class="px-4 py-3">Review Date</th>
+            <th class="px-4 py-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100 bg-white">
+          {% for pip in pips %}
+            <tr class="hover:bg-ellipse-light/40 transition">
+              <td class="px-4 py-3 font-medium text-gray-800">
+                {{ pip.employee.first_name }} {{ pip.employee.last_name }}
+              </td>
+              <td class="px-4 py-3 text-gray-700">{{ pip.employee.job_title }}</td>
+              <td class="px-4 py-3">
+                {% if pip.status == 'Open' %}
+                  <span class="inline-block px-3 py-1 text-xs font-semibold text-white bg-yellow-500 rounded-full">
+                    Open
+                  </span>
+                {% elif pip.status == 'Completed' %}
+                  <span class="inline-block px-3 py-1 text-xs font-semibold text-white bg-green-600 rounded-full">
+                    Completed
+                  </span>
+                {% elif pip.status == 'Overdue' %}
+                  <span class="inline-block px-3 py-1 text-xs font-semibold text-white bg-red-600 rounded-full">
+                    Overdue
+                  </span>
+                {% else %}
+                  <span class="inline-block px-3 py-1 text-xs font-semibold text-white bg-gray-400 rounded-full">
+                    {{ pip.status }}
+                  </span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3 text-gray-600">{{ pip.start_date.strftime('%d %b %Y') }}</td>
+              <td class="px-4 py-3 text-gray-600">{{ pip.review_date.strftime('%d %b %Y') }}</td>
+              <td class="px-4 py-3">
+                <a href="{{ url_for('pip_detail', id=pip.id) }}"
+                   class="text-sm font-medium text-ellipse-teal hover:underline">
+                  View
+                </a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="bg-white p-6 rounded-xl shadow border border-gray-200 text-center">
+      <p class="text-gray-600">No PIPs found.</p>
+    </div>
+  {% endif %}
 </div>
 {% endblock %}

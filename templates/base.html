@@ -3,36 +3,79 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{% block title %}PIP Web App{% endblock %}</title>
+  <title>{% block title %}Ellipse HR System{% endblock %}</title>
+
+  <!-- Google Font + Tailwind + Ellipse config -->
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Open Sans"', 'sans-serif'],
+          },
+          colors: {
+            ellipse: {
+              teal: '#005b5a',
+              gray: '#404041',
+              light: '#f7f7f7',
+              hover: '#3a8c8b',
+            }
+          },
+          animation: {
+            'gradient-x': 'gradient-x 20s ease infinite',
+          },
+          keyframes: {
+            'gradient-x': {
+              '0%, 100%': { backgroundPosition: '0% 50%' },
+              '50%': { backgroundPosition: '100% 50%' },
+            },
+          },
+          backgroundImage: {
+            sunset: 'linear-gradient(-45deg, #ff9a9e, #fad0c4, #fbc2eb, #a18cd1)',
+          }
+        }
+      }
+    }
+  </script>
 </head>
-<body class="bg-gray-100 min-h-screen text-slate-800">
+
+<body class="bg-ellipse-light min-h-screen text-ellipse-gray font-sans m-0 p-0 overflow-x-hidden">
   <div class="flex min-h-screen">
+
+    {% if not hide_sidebar %}
     <!-- Sidebar -->
     <aside class="w-64 bg-white shadow-md">
-      <div class="p-6 border-b">
-        <h1 class="text-xl font-bold text-[#0160B1]">PIP System</h1>
+      <div class="p-6 border-b border-ellipse-light text-center">
+        <!-- Logo Image -->
+        <img src="{{ url_for('static', filename='images/logo.avif') }}"
+             alt="Ellipse HR Logo"
+             class="h-12 w-auto mx-auto mb-3" />
+        <h1 class="text-lg font-semibold text-ellipse-teal">Ellipse HR</h1>
       </div>
-      <nav class="p-4 space-y-2">
-        <a href="{{ url_for('home') }}" class="block px-4 py-2 rounded hover:bg-blue-50 text-sm font-medium text-slate-700">🏠 Home</a>
-        <a href="{{ url_for('select_employee_for_pip') }}" class="block px-4 py-2 rounded hover:bg-blue-50 text-sm font-medium text-slate-700">➕ Start New PIP</a>
-        <a href="{{ url_for('employee_list') }}" class="block px-4 py-2 rounded hover:bg-blue-50 text-sm font-medium text-slate-700">👥 All Employees</a>
-        <a href="{{ url_for('pip_list') }}" class="block px-4 py-2 rounded hover:bg-blue-50 text-sm font-medium text-slate-700">📋 View All PIPs</a>
-        <a href="{{ url_for('dashboard') }}" class="block px-4 py-2 rounded hover:bg-blue-50 text-sm font-medium text-slate-700">📊 Dashboard</a>
-        <a href="{{ url_for('logout') }}" class="block px-4 py-2 rounded hover:bg-blue-50 text-sm font-medium text-slate-700">🚪 Logout</a>
+      <nav class="p-4 space-y-2 text-sm font-medium">
+        <a href="{{ url_for('home') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">🏠 Home</a>
+        <a href="{{ url_for('select_employee_for_pip') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">➕ Start New PIP</a>
+        <a href="{{ url_for('employee_list') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">👥 All Employees</a>
+        <a href="{{ url_for('pip_list') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">📋 View All PIPs</a>
+        <a href="{{ url_for('dashboard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">📊 Dashboard</a>
+        <a href="{{ url_for('logout') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">🚪 Logout</a>
       </nav>
     </aside>
+    {% endif %}
 
     <!-- Main content -->
     <main class="flex-1">
-      <header class="bg-white shadow p-4 flex justify-between items-center">
-        <h2 class="text-lg font-semibold text-[#0160B1]">{% block page_title %}{% endblock %}</h2>
-        <p class="text-sm text-slate-600">Logged in as {{ current_user.username }}</p>
+      <header class="bg-white shadow p-4 flex justify-between items-center border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-ellipse-teal">{% block page_title %}{% endblock %}</h2>
+        <p class="text-sm text-gray-500">Logged in as {{ current_user.username }}</p>
       </header>
       <div class="p-6">
         {% block content %}{% endblock %}
       </div>
     </main>
+
   </div>
 
   {% block scripts %}{% endblock %}

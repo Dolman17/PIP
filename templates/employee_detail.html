@@ -1,52 +1,51 @@
 {% extends "base.html" %}
+{% block title %}Employee: {{ employee.first_name }} {{ employee.last_name }}{% endblock %}
+{% block page_title %}👤 Employee Details{% endblock %}
+
 {% block content %}
-<div class="p-6">
-  <div class="flex justify-between items-center mb-4">
-    <h1 class="text-2xl font-bold">{{ employee.first_name }} {{ employee.last_name }}</h1>
-    <!-- Trigger Button -->
-    <button onclick="openPipModal()" class="inline-flex items-center bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-      </svg>
-      Start New PIP
-    </button>
+<div class="max-w-5xl mx-auto p-6 space-y-6">
+
+  <!-- Header + Actions -->
+  <div class="flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-ellipse-teal">
+      {{ employee.first_name }} {{ employee.last_name }}
+    </h1>
+    <div class="flex gap-3">
+      <a href="{{ url_for('edit_employee', employee_id=employee.id) }}"
+         class="inline-flex items-center bg-ellipse-teal text-white px-4 py-2 rounded hover:bg-ellipse-hover text-sm">
+        ✏️ Edit Employee
+      </a>
+      <button onclick="openPipModal()" class="inline-flex items-center bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm">
+        ➕ Start New PIP
+      </button>
+    </div>
   </div>
 
   <!-- Basic Info -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-    <div class="bg-white p-4 shadow rounded">
-      <p class="text-sm text-gray-500">Job Title</p>
-      <p class="font-medium">{{ employee.job_title }}</p>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="bg-white p-4 rounded shadow border">
+      <p class="text-xs text-gray-500">Job Title</p>
+      <p class="text-base font-semibold">{{ employee.job_title }}</p>
     </div>
-    <div class="bg-white p-4 shadow rounded">
-      <p class="text-sm text-gray-500">Service</p>
-      <p class="font-medium">{{ employee.service }}</p>
+    <div class="bg-white p-4 rounded shadow border">
+      <p class="text-xs text-gray-500">Service</p>
+      <p class="text-base font-semibold">{{ employee.service }}</p>
     </div>
-    <div class="bg-white p-4 shadow rounded">
-      <p class="text-sm text-gray-500">Start Date</p>
-      <p class="font-medium">{{ employee.start_date.strftime('%d %b %Y') }}</p>
+    <div class="bg-white p-4 rounded shadow border">
+      <p class="text-xs text-gray-500">Start Date</p>
+      <p class="text-base font-semibold">{{ employee.start_date.strftime('%d %b %Y') }}</p>
     </div>
-  </div>
-
-    <div class="flex justify-between items-center mb-6">
-    <h1 class="text-2xl font-bold text-slate-800">
-    {{ employee.first_name }} {{ employee.last_name }}
-    </h1>
-    <a href="{{ url_for('edit_employee', employee_id=employee.id) }}"
-     class="inline-block bg-[#0160B1] text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm">
-    ✏️ Edit Employee
-    </a>
   </div>
 
   <!-- PIP Records -->
-  <div class="bg-white p-4 shadow rounded">
-    <h2 class="text-lg font-semibold mb-3">PIP Records</h2>
+  <div class="bg-white p-6 rounded shadow border">
+    <h2 class="text-lg font-semibold text-ellipse-teal mb-4">📋 PIP Records</h2>
     <ul class="divide-y divide-gray-200">
       {% for pip in employee.pips %}
-        <li class="py-2">
+        <li class="py-3">
           <div class="flex justify-between items-center">
             <div>
-              <p class="text-sm font-medium">Started: {{ pip.start_date.strftime('%d %b %Y') }}</p>
+              <p class="text-sm font-medium text-gray-800">Started: {{ pip.start_date.strftime('%d %b %Y') }}</p>
               <p class="text-sm text-gray-600">
                 Review: {{ pip.review_date.strftime('%d %b %Y') }} |
                 Status:
@@ -61,16 +60,46 @@
               </p>
             </div>
             <a href="{{ url_for('pip_detail', id=pip.id) }}"
-               class="text-blue-600 text-sm hover:underline">
+               class="text-sm text-ellipse-teal hover:underline font-medium">
               View
             </a>
           </div>
         </li>
       {% else %}
-        <li class="text-gray-400">No PIPs for this employee.</li>
+        <li class="py-3 text-gray-400">No PIPs for this employee.</li>
       {% endfor %}
     </ul>
   </div>
+
+  <!-- Probation Records -->
+  <div class="bg-white p-6 rounded shadow border">
+    <h2 class="text-lg font-semibold text-ellipse-teal mb-4">📆 Probation Records</h2>
+    {% if employee.probation_records %}
+      <ul class="space-y-2">
+        {% for probation in employee.probation_records %}
+          <li class="flex justify-between items-center border p-3 rounded hover:bg-ellipse-light transition">
+            <span>
+              Start: {{ probation.start_date.strftime('%d %b %Y') }} —
+              Status:
+              <span class="text-sm font-medium text-gray-700">{{ probation.status }}</span>
+            </span>
+            <a href="{{ url_for('view_probation', id=probation.id) }}"
+               class="text-sm text-ellipse-teal hover:underline font-medium">
+              View
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-gray-400 text-sm">No probation records found.</p>
+    {% endif %}
+
+    <a href="{{ url_for('create_probation', employee_id=employee.id) }}"
+       class="inline-block mt-4 bg-ellipse-teal text-white px-4 py-2 rounded hover:bg-ellipse-hover text-sm">
+      ➕ Start New Probation
+    </a>
+  </div>
+
 </div>
 
 <!-- Modal -->
@@ -112,5 +141,3 @@
   }
 </script>
 {% endblock %}
-
-  

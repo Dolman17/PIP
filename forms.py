@@ -9,7 +9,8 @@ from wtforms import (
     FieldList,
     FormField,
     PasswordField,
-    HiddenField
+    HiddenField,
+    BooleanField
 )
 from wtforms.validators import DataRequired, Optional, Email
 
@@ -59,4 +60,28 @@ class EmployeeForm(FlaskForm):
 class LoginForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])
     password = PasswordField('Password', validators=[DataRequired()])
+    remember = BooleanField('Remember Me')
     submit = SubmitField('Login')
+
+# ---------------------- Probation Record Form ----------------------
+
+
+class ProbationRecordForm(FlaskForm):
+    start_date = DateField('Start Date', validators=[DataRequired()])
+    expected_end_date = DateField('Expected End Date', validators=[DataRequired()])
+    notes = TextAreaField('Notes', validators=[Optional()])
+    submit = SubmitField('Create Probation Record')
+
+
+class ProbationReviewForm(FlaskForm):
+    review_date = DateField('Review Date', validators=[DataRequired()])
+    reviewer = StringField('Reviewer', validators=[DataRequired()])
+    summary = TextAreaField('Review Summary', validators=[DataRequired()])
+    concerns_flag = StringField('Concerns (Yes/No)', validators=[Optional()])  # can convert to Boolean later
+    submit = SubmitField('Submit Review')
+
+class ProbationPlanForm(FlaskForm):
+    objectives = TextAreaField('Objectives', validators=[DataRequired()])
+    deadline = DateField('Deadline', validators=[DataRequired()])
+    outcome = StringField('Outcome (e.g. Met, Not Met)', validators=[Optional()])
+    submit = SubmitField('Save Plan')
