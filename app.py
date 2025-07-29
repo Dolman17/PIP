@@ -91,6 +91,73 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+
+@app.route('/admin/dashboard')
+@login_required
+def admin_dashboard():
+    if not current_user.is_superuser():
+        flash('You do not have permission to access the admin dashboard.', 'danger')
+        return redirect(url_for('home'))
+    return render_template('admin_dashboard.html')
+
+@app.route('/admin/backup')
+@login_required
+def backup_database():
+    if not current_user.is_superuser():
+        flash('Access denied: Superuser only.', 'danger')
+        return redirect(url_for('home'))
+
+    db_path = os.path.join(os.getcwd(), 'pip_crm.db')
+    if os.path.exists(db_path):
+        return send_file(db_path, as_attachment=True)
+    else:
+        flash('Database file not found.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+import zipfile
+import tempfile
+import csv
+
+@app.route('/admin/export')
+@login_required
+def export_data():
+    if not current_user.is_superuser():
+        flash('Access denied: Superuser only.', 'danger')
+        return redirect(url_for('home'))
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Define export targets
+        export_map = {
+            'employees.csv': Employee.query.all(),
+            'pips.csv': PIPRecord.query.all(),
+            'pip_action_items.csv': PIPActionItem.query.all(),
+            'timeline.csv': TimelineEvent.query.all(),
+            'users.csv': User.query.all(),
+            'probations.csv': ProbationRecord.query.all(),
+            'probation_reviews.csv': ProbationReview.query.all(),
+            'probation_plans.csv': ProbationPlan.query.all(),
+        }
+
+        for filename, records in export_map.items():
+            file_path = os.path.join(tmpdir, filename)
+            with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                if records:
+                    writer.writerow(vars(records[0]).keys())
+                    for record in records:
+                        writer.writerow(vars(record).values())
+                else:
+                    writer.writerow(['No records'])
+
+        # Create ZIP file
+        zip_path = os.path.join(tmpdir, 'export.zip')
+        with zipfile.ZipFile(zip_path, 'w') as zipf:
+            for filename in export_map.keys():
+                zipf.write(os.path.join(tmpdir, filename), arcname=filename)
+
+        return send_file(zip_path, mimetype='application/zip', as_attachment=True, download_name='ellipse_export.zip')
+
+
 @app.route('/employee/<int:employee_id>')
 @login_required
 def employee_detail(employee_id):

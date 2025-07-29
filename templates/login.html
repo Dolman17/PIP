@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="min-h-screen flex items-center justify-center bg-ellipse-light px-4 py-12">
-  <div class="w-full max-w-md bg-white p-8 rounded-2xl shadow-xl border border-gray-200 animate-fade-in">
+  <div class="w-full max-w-md bg-[#e6f3f3] p-6 sm:p-8 rounded-2xl shadow-xl border border-gray-200 animate-fade-in">
 
     <!-- Logo + Title -->
     <div class="text-center mb-6">
@@ -15,23 +15,23 @@
       <p class="text-sm text-gray-500 mt-1">Sign in to your account</p>
     </div>
 
-    <form method="post">
+    <form method="post" class="space-y-4">
       {{ form.hidden_tag() }}
 
       <!-- Username -->
-      <div class="mb-4">
+      <div>
         <label class="block text-sm font-medium text-ellipse-gray mb-1">{{ form.username.label }}</label>
         {{ form.username(class_="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-ellipse-teal") }}
       </div>
 
       <!-- Password -->
-      <div class="mb-2">
+      <div>
         <label class="block text-sm font-medium text-ellipse-gray mb-1">{{ form.password.label }}</label>
         {{ form.password(class_="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-ellipse-teal") }}
       </div>
 
       <!-- Remember me + forgot password -->
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center justify-between">
         <label class="flex items-center text-sm text-gray-600">
           {{ form.remember(class_="mr-2 rounded") }}
           Remember me
@@ -43,7 +43,7 @@
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
           {% for category, message in messages %}
-            <div class="mb-4 text-sm text-red-600">
+            <div class="text-sm text-red-600">
               {{ message }}
             </div>
           {% endfor %}
@@ -54,7 +54,7 @@
       <div>
         <button type="submit"
                 class="w-full bg-ellipse-teal hover:bg-ellipse-hover text-white font-semibold py-2 px-4 rounded-lg transition">
-          Log In
+          🔐 Log In
         </button>
       </div>
     </form>

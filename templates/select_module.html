@@ -6,29 +6,29 @@
 <!-- Full-screen animated background -->
 <div class="min-h-screen w-full flex items-center justify-center bg-sunset bg-[length:400%_400%] animate-gradient-x transition">
 
-  <!-- Frosted white container -->
-  <div class="bg-white bg-opacity-90 backdrop-blur-md p-8 sm:p-10 rounded-2xl shadow-2xl w-full max-w-4xl mx-4 sm:mx-6">
+  <!-- Frosted container -->
+  <div class="bg-white bg-opacity-90 backdrop-blur-md p-6 sm:p-10 rounded-2xl shadow-2xl w-full max-w-4xl mx-4 sm:mx-6">
 
     <!-- Logo and welcome -->
     <div class="text-center mb-6">
       <img src="{{ url_for('static', filename='images/logo.avif') }}"
            alt="Ellipse HR Logo"
            class="h-14 w-auto mx-auto mb-4">
-      <h2 class="text-2xl sm:text-3xl font-semibold text-ellipse-teal">
+      <h2 class="text-xl sm:text-3xl font-semibold text-ellipse-teal">
         Welcome, {{ current_user.username }} 👋
       </h2>
     </div>
 
-    <p class="text-base sm:text-lg text-gray-600 text-center mb-10">
+    <p class="text-sm sm:text-base text-gray-600 text-center mb-8">
       Please choose a module to continue:
     </p>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
       <!-- PIP Card -->
       <a href="{{ url_for('dashboard') }}"
-         class="group block bg-white p-6 sm:p-8 rounded-xl shadow hover:shadow-xl transition-all duration-300 border border-gray-200 hover:ring-2 hover:ring-ellipse-teal">
+         class="group block bg-[#e6f3f3] p-6 sm:p-8 rounded-xl shadow hover:shadow-xl transition-all duration-300 border border-gray-200 hover:ring-2 hover:ring-ellipse-teal">
         <div class="flex items-center justify-center h-14 w-14 bg-ellipse-teal rounded-full mb-4 mx-auto">
-          <!-- SVG icon for documents -->
+          <!-- Icon -->
           <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" stroke-width="2"
                viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -38,16 +38,16 @@
         <h3 class="text-lg font-bold text-ellipse-teal group-hover:underline mb-2 text-center">
           Performance Improvement Plans
         </h3>
-        <p class="text-sm text-gray-600 text-center transition-opacity duration-300 group-hover:opacity-100 opacity-90">
+        <p class="text-sm text-gray-700 text-center group-hover:opacity-100 opacity-90">
           Manage employee PIPs, generate letters, and track performance interventions.
         </p>
       </a>
 
       <!-- Probation Card -->
       <a href="{{ url_for('probation_dashboard') }}"
-         class="group block bg-white p-6 sm:p-8 rounded-xl shadow hover:shadow-xl transition-all duration-300 border border-gray-200 hover:ring-2 hover:ring-ellipse-teal">
+         class="group block bg-[#e6f3f3] p-6 sm:p-8 rounded-xl shadow hover:shadow-xl transition-all duration-300 border border-gray-200 hover:ring-2 hover:ring-ellipse-teal">
         <div class="flex items-center justify-center h-14 w-14 bg-ellipse-teal rounded-full mb-4 mx-auto">
-          <!-- SVG icon for people -->
+          <!-- Icon -->
           <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" stroke-width="2"
                viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -57,7 +57,7 @@
         <h3 class="text-lg font-bold text-ellipse-teal group-hover:underline mb-2 text-center">
           Probation Management
         </h3>
-        <p class="text-sm text-gray-600 text-center transition-opacity duration-300 group-hover:opacity-100 opacity-90">
+        <p class="text-sm text-gray-700 text-center group-hover:opacity-100 opacity-90">
           Track onboarding, reviews, extensions, outcomes, and documentation.
         </p>
       </a>

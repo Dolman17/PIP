@@ -1,34 +1,54 @@
 {% extends "base.html" %}
 {% block title %}Employee Dashboard{% endblock %}
+{% block page_title %}📊 Performance Dashboard{% endblock %}
 
 {% block content %}
-<div class="p-6">
-  <h1 class="text-2xl font-bold mb-6">Employee Dashboard</h1>
+<div class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
 
   <!-- Summary Cards -->
-  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-    <div class="bg-white shadow rounded p-4">
-      <div class="text-sm text-gray-500">Total Employees</div>
-      <div class="text-2xl font-semibold">{{ total_employees }}</div>
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <!-- Total Employees -->
+    <div class="bg-[#e6f3f3] p-6 rounded-xl shadow border border-gray-200 text-center hover:shadow-lg transition duration-300">
+      <div class="flex justify-center items-center w-12 h-12 mx-auto rounded-full bg-ellipse-teal text-white text-2xl mb-3">
+        👥
+      </div>
+      <div class="text-sm text-gray-600">Total Employees</div>
+      <div class="text-3xl font-bold text-ellipse-teal">{{ total_employees }}</div>
     </div>
-    <div class="bg-white shadow rounded p-4">
-      <div class="text-sm text-gray-500">Active PIPs</div>
-      <div class="text-2xl font-semibold">{{ active_pips }}</div>
+
+    <!-- Active PIPs -->
+    <div class="bg-[#e6f3f3] p-6 rounded-xl shadow border border-gray-200 text-center hover:shadow-lg transition duration-300">
+      <div class="flex justify-center items-center w-12 h-12 mx-auto rounded-full bg-yellow-500 text-white text-2xl mb-3">
+        📂
+      </div>
+      <div class="text-sm text-gray-600">Active PIPs</div>
+      <div class="text-3xl font-bold text-yellow-600">{{ active_pips }}</div>
     </div>
-    <div class="bg-white shadow rounded p-4">
-      <div class="text-sm text-gray-500">Completed PIPs</div>
-      <div class="text-2xl font-semibold">{{ completed_pips }}</div>
+
+    <!-- Completed PIPs -->
+    <div class="bg-[#e6f3f3] p-6 rounded-xl shadow border border-gray-200 text-center hover:shadow-lg transition duration-300">
+      <div class="flex justify-center items-center w-12 h-12 mx-auto rounded-full bg-green-600 text-white text-2xl mb-3">
+        ✅
+      </div>
+      <div class="text-sm text-gray-600">Completed PIPs</div>
+      <div class="text-3xl font-bold text-green-600">{{ completed_pips }}</div>
     </div>
-    <div class="bg-white shadow rounded p-4">
-      <div class="text-sm text-gray-500">Overdue Reviews</div>
-      <div class="text-2xl font-semibold text-red-600">{{ overdue_reviews }}</div>
+
+    <!-- Overdue Reviews -->
+    <div class="bg-[#e6f3f3] p-6 rounded-xl shadow border border-gray-200 text-center hover:shadow-lg transition duration-300">
+      <div class="flex justify-center items-center w-12 h-12 mx-auto rounded-full bg-red-600 text-white text-2xl mb-3">
+        ⏰
+      </div>
+      <div class="text-sm text-gray-600">Overdue Reviews</div>
+      <div class="text-3xl font-bold text-red-600">{{ overdue_reviews }}</div>
     </div>
   </div>
 
+  <!-- Activity + Upcoming PIPs -->
   <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-    <!-- Recent Timeline Activity -->
-    <div class="bg-white shadow rounded p-4">
-      <h2 class="text-lg font-semibold mb-2">Recent Activity</h2>
+    <!-- Recent Activity -->
+    <div class="bg-[#e6f3f3] p-6 rounded-xl shadow border border-gray-200">
+      <h2 class="text-lg font-semibold text-ellipse-teal mb-3">🕒 Recent Activity</h2>
       <ul class="divide-y divide-gray-200">
         {% for event in recent_activity %}
           <li class="py-2">
@@ -41,9 +61,9 @@
       </ul>
     </div>
 
-    <!-- Upcoming PIP Reviews -->
-    <div class="bg-white shadow rounded p-4">
-      <h2 class="text-lg font-semibold mb-2">Upcoming Reviews (7 Days)</h2>
+    <!-- Upcoming Reviews -->
+    <div class="bg-[#e6f3f3] p-6 rounded-xl shadow border border-gray-200">
+      <h2 class="text-lg font-semibold text-ellipse-teal mb-3">📅 Upcoming Reviews (7 Days)</h2>
       <ul class="divide-y divide-gray-200">
         {% for pip in upcoming_pips %}
           <li class="py-2">

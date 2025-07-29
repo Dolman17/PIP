@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard{% endblock %}
+{% block page_title %}⚙️ Admin Tools{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    
+    <!-- Manage Users -->
+    <div class="bg-[#e6f3f3] p-6 rounded-xl shadow border border-gray-200 hover:shadow-lg transition">
+      <div class="flex items-center mb-4">
+        <div class="bg-ellipse-teal text-white rounded-full h-10 w-10 flex items-center justify-center text-lg">👥</div>
+        <h3 class="ml-3 text-lg font-semibold text-ellipse-teal">Manage Users</h3>
+      </div>
+      <p class="text-sm text-gray-600 mb-4">Add, edit, or remove users and assign admin roles.</p>
+      <a href="{{ url_for('manage_users') }}"
+         class="inline-block text-sm bg-ellipse-teal hover:bg-ellipse-hover text-white px-4 py-2 rounded">
+        Go to User Manager →
+      </a>
+    </div>
+
+    <!-- Backup Database -->
+    <div class="bg-[#e6f3f3] p-6 rounded-xl shadow border border-gray-200 hover:shadow-lg transition">
+      <div class="flex items-center mb-4">
+        <div class="bg-yellow-500 text-white rounded-full h-10 w-10 flex items-center justify-center text-lg">💾</div>
+        <h3 class="ml-3 text-lg font-semibold text-yellow-700">Backup Database</h3>
+      </div>
+      <p class="text-sm text-gray-600 mb-4">Download a full backup of the current database.</p>
+      <a href="{{ url_for('backup_database') }}"
+         class="inline-block text-sm bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded">
+        Run Backup →
+      </a>
+    </div>
+
+    <!-- Export All Data -->
+    <div class="bg-[#e6f3f3] p-6 rounded-xl shadow border border-gray-200 hover:shadow-lg transition">
+      <div class="flex items-center mb-4">
+        <div class="bg-green-600 text-white rounded-full h-10 w-10 flex items-center justify-center text-lg">📤</div>
+        <h3 class="ml-3 text-lg font-semibold text-green-700">Export Data</h3>
+      </div>
+      <p class="text-sm text-gray-600 mb-4">Export employees, PIPs, timeline activity, and probation data.</p>
+      <a href="{{ url_for('export_data') }}"
+         class="inline-block text-sm bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
+        Export Now →
+      </a>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

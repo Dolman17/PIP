@@ -7,9 +7,11 @@
 
   <!-- Main PIP details -->
   <div class="flex-1">
-    <div class="bg-white shadow rounded-2xl p-6 border border-gray-200 space-y-5">
+    <div class="bg-[#e6f3f3] shadow rounded-2xl p-4 sm:p-6 border border-gray-200 space-y-5">
 
-      <h1 class="text-2xl font-bold text-[#005b5a]">PIP for {{ employee.first_name }} {{ employee.last_name }}</h1>
+      <h1 class="text-xl sm:text-2xl font-bold text-[#005b5a]">
+        PIP for {{ employee.first_name }} {{ employee.last_name }}
+      </h1>
 
       <div class="text-sm text-gray-700 space-y-2">
         <p><strong>Job Title:</strong> {{ employee.job_title }}</p>
@@ -38,7 +40,7 @@
       <div>
         <strong class="block text-sm text-gray-700 mb-1">Action Plan:</strong>
         {% if pip.action_items %}
-          <ul class="list-disc pl-6 mt-2 text-sm text-gray-800 space-y-1">
+          <ul class="list-disc pl-4 sm:pl-6 mt-2 text-sm text-gray-800 space-y-1">
             {% for action in pip.action_items %}
               <li>
                 {{ action.description }}
@@ -51,13 +53,13 @@
         {% endif %}
       </div>
 
-      <div class="pt-4">
+      <div class="pt-4 flex flex-col sm:flex-row gap-3 sm:items-center">
         <a href="{{ url_for('edit_pip', id=pip.id) }}"
-           class="bg-[#005b5a] text-white px-4 py-2 rounded-lg hover:bg-[#007876] transition font-semibold text-sm">
+           class="bg-[#005b5a] text-white px-4 py-2 rounded-lg hover:bg-[#007876] transition font-semibold text-sm text-center">
           ✏️ Edit PIP
         </a>
         <a href="{{ url_for('employee_detail', employee_id=employee.id) }}"
-           class="ml-4 text-sm text-[#005b5a] hover:underline">
+           class="text-sm text-[#005b5a] hover:underline text-center sm:text-left">
           ← Back to Employee
         </a>
       </div>
@@ -66,26 +68,25 @@
   </div>
 
   <!-- Document Actions + AI -->
-  <aside class="lg:w-1/3 bg-white border border-gray-200 shadow rounded-2xl p-6 space-y-4">
-
+  <aside class="lg:w-1/3 bg-[#e6f3f3] border border-gray-200 shadow rounded-2xl p-4 sm:p-6 space-y-4">
     <h2 class="text-lg font-semibold text-[#005b5a]">Generate Documents</h2>
 
     <a href="{{ url_for('generate_invite_letter', id=pip.id) }}"
-       class="block text-center bg-[#005b5a] text-white py-2 rounded hover:bg-[#007876] transition text-sm font-medium">
+       class="block w-full text-center bg-[#005b5a] text-white py-2 rounded hover:bg-[#007876] transition text-sm font-medium">
       📄 Create Invite Letter
     </a>
     <a href="{{ url_for('generate_plan_document', id=pip.id) }}"
-       class="block text-center bg-green-600 text-white py-2 rounded hover:bg-green-700 transition text-sm font-medium">
+       class="block w-full text-center bg-green-600 text-white py-2 rounded hover:bg-green-700 transition text-sm font-medium">
       📝 Create Plan
     </a>
     <a href="{{ url_for('generate_outcome_letter', id=pip.id) }}"
-       class="block text-center bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition text-sm font-medium">
+       class="block w-full text-center bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition text-sm font-medium">
       ✅ Create Outcome Letter
     </a>
 
     <!-- AI Advice -->
     <button type="button"
-        class="block w-full bg-indigo-600 text-white text-center py-2 rounded hover:bg-indigo-700 mt-4 text-sm font-medium"
+        class="block w-full bg-indigo-600 text-white text-center py-2 rounded hover:bg-indigo-700 mt-2 text-sm font-medium"
         onclick="openModal()">
       {% if pip.ai_advice %}
         🔁 Regenerate AI Advice
@@ -103,13 +104,12 @@
         </p>
       </div>
     {% endif %}
-
   </aside>
 </div>
 
 <!-- Modal -->
 <div id="aiModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-  <div class="bg-white p-6 rounded-xl shadow-xl max-w-md w-full space-y-4">
+  <div class="bg-white p-6 rounded-xl shadow-xl max-w-md w-full space-y-4 mx-2">
     <h2 class="text-xl font-bold text-[#005b5a]">Are you sure?</h2>
     <p class="text-sm text-gray-700">
       {% if pip.ai_advice %}
