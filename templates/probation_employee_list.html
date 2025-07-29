@@ -39,17 +39,10 @@
                  class="inline-block text-xs bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-1 rounded mr-2">
                 View
               </a>
-              {% if active_module == 'PIP' %}
-                <a href="{{ url_for('create_pip', employee_id=emp.id) }}"
-                   class="inline-block text-xs bg-ellipse-teal hover:bg-ellipse-hover text-white px-3 py-1 rounded">
-                  Start PIP
-                </a>
-              {% elif active_module == 'Probation' %}
-                <a href="{{ url_for('create_probation', employee_id=emp.id) }}"
-                   class="inline-block text-xs bg-ellipse-teal hover:bg-ellipse-hover text-white px-3 py-1 rounded">
-                  Start Probation
-                </a>
-              {% endif %}
+              <a href="{{ url_for('create_probation', employee_id=emp.id) }}"
+                 class="inline-block text-xs bg-ellipse-teal hover:bg-ellipse-hover text-white px-3 py-1 rounded">
+                Start Probation
+              </a>
             </td>
           </tr>
           {% else %}

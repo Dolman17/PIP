@@ -44,26 +44,37 @@
 <body class="bg-ellipse-light min-h-screen text-ellipse-gray font-sans m-0 p-0 overflow-x-hidden">
   <div class="flex min-h-screen">
 
-    {% if not hide_sidebar %}
-    <!-- Sidebar -->
-    <aside class="w-64 bg-white shadow-md">
-      <div class="p-6 border-b border-ellipse-light text-center">
-        <!-- Logo Image -->
-        <img src="{{ url_for('static', filename='images/logo.avif') }}"
-             alt="Ellipse HR Logo"
-             class="h-12 w-auto mx-auto mb-3" />
-        <h1 class="text-lg font-semibold text-ellipse-teal">Ellipse HR</h1>
-      </div>
-      <nav class="p-4 space-y-2 text-sm font-medium">
-        <a href="{{ url_for('home') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">🏠 Home</a>
+  {% if active_module %}
+  <!-- Sidebar -->
+  <aside class="w-64 bg-white shadow-md">
+    <div class="p-6 border-b border-ellipse-light text-center">
+      <img src="{{ url_for('static', filename='images/logo.avif') }}"
+           alt="Ellipse HR Logo"
+           class="h-12 w-auto mx-auto mb-3" />
+      <h1 class="text-lg font-semibold text-ellipse-teal">Ellipse HR</h1>
+    </div>
+    <nav class="p-4 space-y-2 text-sm font-medium">
+      <a href="{{ url_for('home') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">⬅ Back to Module Selection</a>
+
+      {% if active_module == 'PIP' %}
         <a href="{{ url_for('select_employee_for_pip') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">➕ Start New PIP</a>
         <a href="{{ url_for('employee_list') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">👥 All Employees</a>
         <a href="{{ url_for('pip_list') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">📋 View All PIPs</a>
         <a href="{{ url_for('dashboard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">📊 Dashboard</a>
-        <a href="{{ url_for('logout') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">🚪 Logout</a>
-      </nav>
-    </aside>
-    {% endif %}
+      {% elif active_module == 'Probation' %}
+        <a href="{{ url_for('create_probation', employee_id=1) }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">➕ Start Probation</a>
+        <a href="{{ url_for('probation_employee_list') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">👥 All Employees</a>
+        <a href="{{ url_for('probation_dashboard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">📊 Probation Dashboard</a>
+      {% endif %}
+
+      <a href="{{ url_for('logout') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">🚪 Logout</a>
+    </nav>
+  </aside>
+{% endif %}
+
+
+ 
+
 
     <!-- Main content -->
     <main class="flex-1">

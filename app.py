@@ -1,5 +1,6 @@
+
 import os
-from flask import Flask, render_template, redirect, url_for, request, flash, send_file
+from flask import Flask, session, render_template, redirect, url_for, request, flash, send_file, session
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
@@ -18,7 +19,6 @@ from models import db, User, Employee, PIPRecord, PIPActionItem, TimelineEvent, 
 from forms import PIPForm, EmployeeForm, LoginForm, ProbationRecordForm, ProbationReviewForm, ProbationPlanForm
 from flask_wtf.csrf import CSRFProtect
 
-
 # Initialize OpenAI v1 client (will pick up OPENAI_API_KEY env var)
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
@@ -30,21 +30,40 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'pi
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 csrf = CSRFProtect(app)
 
-
-
 db.init_app(app)
 migrate = Migrate(app, db)
+
+@app.context_processor
+def inject_module():
+    return dict(active_module=session.get('active_module'))
+
+
 
 # Initialize Login
 login_manager = LoginManager()
 login_manager.login_view = 'login'
 login_manager.init_app(app)
 
-
 # ----- User Loader -----
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
+
+# ----- Set active module in session -----
+@app.before_request
+def set_active_module():
+    path = request.path.lower()
+
+    if path.startswith('/pip/') or \
+       path.startswith('/employee/') or \
+       path in ['/dashboard', '/pip_list', '/employee/list', '/employee/add', '/pip/select-employee']:
+        session['active_module'] = 'PIP'
+    elif path.startswith('/probation/'):
+        session['active_module'] = 'Probation'
+    elif path == '/':
+        session.pop('active_module', None)
+
+
 
 # ----- Routes -----
 @app.route('/')
@@ -357,7 +376,10 @@ def add_employee():
 @app.route('/employee/list')
 @login_required
 def employee_list():
+    if session.get('active_module') == 'probation':
+        return render_template('probation_employee_list.html', employees=Employee.query.all())
     return render_template('employee_list.html', employees=Employee.query.all())
+
 
 @app.route('/pip/select-employee', methods=['GET', 'POST'])
 @login_required
@@ -418,6 +440,7 @@ def generate_outcome_letter(id):
     return send_file(out, as_attachment=True,
                      download_name=f"Outcome_Letter_{pip.employee.last_name}_{pip.id}.docx",
                      mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+
 
 
 # --- Create a probation record ---
@@ -562,6 +585,14 @@ def probation_dashboard():
     # This will be replaced with the real dashboard later
     records = ProbationRecord.query.all()
     return render_template('probation_dashboard.html', records=records)
+
+
+@app.route('/probation/employees')
+@login_required
+def probation_employee_list():
+    session['active_module'] = 'Probation'
+    employees = Employee.query.all()
+    return render_template('probation_employee_list.html', employees=employees)
 
 
 
