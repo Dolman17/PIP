@@ -1,6 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
+from sqlalchemy.dialects.sqlite import JSON
 
 
 db = SQLAlchemy()
@@ -132,3 +133,12 @@ class ProbationPlan(db.Model):
     objectives = db.Column(db.Text)  # Optionally replace with structured fields later
     deadline = db.Column(db.Date)
     outcome = db.Column(db.String(100))  # e.g., Met, Not Met, Ongoing
+
+
+
+class PIPDraft(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    step = db.Column(db.Integer, nullable=False, default=1)
+    data = db.Column(JSON, nullable=False)
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow)

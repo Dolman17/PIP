@@ -3,10 +3,7 @@ import os
 import zipfile
 import tempfile
 import csv
-import threading
-import time
-from io import BytesIO
-from flask import Flask, session, render_template, redirect, url_for, request, flash, send_file, jsonify
+from flask import Flask, session, render_template, redirect, url_for, request, flash, send_file, session
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
@@ -21,10 +18,9 @@ from openai import OpenAI
 from dotenv import load_dotenv
 load_dotenv()
 
-from models import db, User, Employee, PIPRecord, PIPActionItem, TimelineEvent, ProbationRecord, ProbationReview, ProbationPlan, PIPDraft
-from forms import PIPForm, EmployeeForm, LoginForm, ProbationRecordForm, ProbationReviewForm, ProbationPlanForm, UserForm
-from flask_wtf import FlaskForm
-from flask_wtf.csrf import CSRFProtect, validate_csrf, CSRFError
+from models import db, User, Employee, PIPRecord, PIPActionItem, TimelineEvent, ProbationRecord, ProbationReview, ProbationPlan
+from forms import PIPForm, EmployeeForm, LoginForm, ProbationRecordForm, ProbationReviewForm, ProbationPlanForm
+from flask_wtf.csrf import CSRFProtect
 
 # Initialize OpenAI v1 client (will pick up OPENAI_API_KEY env var)
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -55,19 +51,6 @@ login_manager.init_app(app)
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
-
-from functools import wraps
-from flask import abort
-
-def superuser_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.is_superuser():
-            abort(403)  # Forbidden
-        return f(*args, **kwargs)
-    return decorated_function
-
-
 
 # ----- Set active module in session -----
 @app.before_request
@@ -121,123 +104,44 @@ def admin_dashboard():
     return render_template('admin_dashboard.html')
 
 
-import threading
-import time
-
-from io import BytesIO
-import zipfile
-import csv
-from flask import send_file
-
-
 @app.route('/admin/export')
 @login_required
-@superuser_required
 def export_data():
-    # In-memory buffer for the ZIP file
-    zip_buffer = BytesIO()
+    if not current_user.is_superuser():
+        flash('Access denied: Superuser only.', 'danger')
+        return redirect(url_for('home'))
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Helper to write a list of dicts to CSV
-        def write_csv(filename, fieldnames, rows):
-            filepath = os.path.join(tmpdir, filename)
-            with open(filepath, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(rows)
-            export_zip.write(filepath, arcname=filename)
+        # Define export targets
+        export_map = {
+            'employees.csv': Employee.query.all(),
+            'pips.csv': PIPRecord.query.all(),
+            'pip_action_items.csv': PIPActionItem.query.all(),
+            'timeline.csv': TimelineEvent.query.all(),
+            'users.csv': User.query.all(),
+            'probations.csv': ProbationRecord.query.all(),
+            'probation_reviews.csv': ProbationReview.query.all(),
+            'probation_plans.csv': ProbationPlan.query.all(),
+        }
 
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as export_zip:
+        for filename, records in export_map.items():
+            file_path = os.path.join(tmpdir, filename)
+            with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                if records:
+                    writer.writerow(vars(records[0]).keys())
+                    for record in records:
+                        writer.writerow(vars(record).values())
+                else:
+                    writer.writerow(['No records'])
 
-            # Export Employees
-            employees = Employee.query.all()
-            write_csv('employees.csv', ['id', 'name', 'job_title', 'line_manager', 'service', 'start_date'], [
-                {
-                    'id': e.id,
-                    'name': f'{getattr(e, "first_name", "")} {getattr(e, "last_name", "")}',
-                    'job_title': e.job_title,
-                    'line_manager': e.line_manager,
-                    'service': e.service,
-                    'start_date': e.start_date.strftime('%Y-%m-%d') if e.start_date else ''
-                } for e in employees
-            ])
+        # Create ZIP file
+        zip_path = os.path.join(tmpdir, 'export.zip')
+        with zipfile.ZipFile(zip_path, 'w') as zipf:
+            for filename in export_map.keys():
+                zipf.write(os.path.join(tmpdir, filename), arcname=filename)
 
-            # Export PIPs
-            pips = PIPRecord.query.all()
-            write_csv('pip_records.csv', ['id', 'employee_id', 'concerns', 'start_date', 'review_date', 'status'], [
-                {
-                    'id': p.id,
-                    'employee_id': p.employee_id,
-                    'concerns': p.concerns,
-                    'start_date': p.start_date.strftime('%Y-%m-%d') if p.start_date else '',
-                    'review_date': p.review_date.strftime('%Y-%m-%d') if p.review_date else '',
-                    'status': p.status
-                } for p in pips
-            ])
-
-            # Export Timeline Events
-            events = TimelineEvent.query.all()
-            write_csv('timeline_events.csv', ['id', 'employee_id', 'description', 'timestamp'], [
-                {
-                    'id': t.id,
-                    'employee_id': t.pip_record.employee_id if t.pip_record else '',
-                    'description': f"{t.event_type or ''}: {t.notes or ''}",
-                    'timestamp': t.timestamp.strftime('%Y-%m-%d %H:%M:%S')
-                } for t in events
-        ])
-
-
-            # Export Users
-            users = User.query.all()
-            write_csv('users.csv', ['id', 'email', 'admin_level'], [
-                {
-                    'id': u.id,
-                    'email': u.email,
-                    'admin_level': u.admin_level
-                } for u in users
-            ])
-
-            # Export Probation Records
-            probations = ProbationRecord.query.all()
-            write_csv('probation_records.csv', ['id', 'employee_id', 'status', 'start_date', 'end_date'], [
-                {
-                    'id': p.id,
-                    'employee_id': p.employee_id,
-                    'status': p.status,
-                    'start_date': p.start_date.strftime('%Y-%m-%d') if p.start_date else '',
-                    'end_date': p.expected_end_date.strftime('%Y-%m-%d') if p.expected_end_date else ''
-                } for p in probations
-            ])
-
-            # Export Probation Reviews
-            reviews = ProbationReview.query.all()
-            write_csv('probation_reviews.csv', ['id', 'probation_id', 'review_date', 'notes'], [
-                {
-                    'id': r.id,
-                    'probation_id': r.probation_id,
-                    'review_date': r.review_date.strftime('%Y-%m-%d') if r.review_date else '',
-                    'notes': r.notes
-                } for r in reviews
-            ])
-
-            # Export Probation Plans
-            plans = ProbationPlan.query.all()
-            write_csv('probation_plans.csv', ['id', 'probation_id', 'objective', 'support', 'deadline'], [
-                {
-                    'id': p.id,
-                    'probation_id': p.probation_id,
-                    'objective': p.objective,
-                    'support': p.support,
-                    'deadline': p.deadline.strftime('%Y-%m-%d') if p.deadline else ''
-                } for p in plans
-            ])
-
-    # Finalize ZIP buffer and return file
-    zip_buffer.seek(0)
-    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M')
-    return send_file(zip_buffer, mimetype='application/zip', as_attachment=True, download_name=f'export_{timestamp}.zip')
-
-
+        return send_file(zip_path, mimetype='application/zip', as_attachment=True, download_name='ellipse_export.zip')
 
 
 # ----- User Management -----
@@ -300,6 +204,31 @@ def create_user():
         return redirect(url_for('manage_users'))
 
     return render_template('admin_create_user.html')
+
+@app.route('/admin/users/edit/<int:user_id>', methods=['GET', 'POST'])
+@login_required
+def edit_user(user_id):
+    if not current_user.is_superuser():
+        flash("Access denied: Superuser only.", "danger")
+        return redirect(url_for('dashboard'))
+
+    user = User.query.get_or_404(user_id)
+
+    if request.method == 'POST':
+        user.username = request.form.get('username')
+        user.email = request.form.get('email')
+        new_password = request.form.get('password')
+        user.admin_level = int(request.form.get('admin_level', 0))
+        user.team_id = request.form.get('team_id') or None
+
+        if new_password:
+            user.password_hash = generate_password_hash(new_password)
+
+        db.session.commit()
+        flash("User updated successfully.", "success")
+        return redirect(url_for('manage_users'))
+
+    return render_template('admin_edit_user.html', user=user)
 
 @app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
 @login_required
@@ -478,7 +407,7 @@ def generate_ai_advice(id):
     return redirect(url_for('pip_detail', id=pip.id))
 
 
-#@app.route('/pip/create/<int:employee_id>', methods=['GET', 'POST'])
+@app.route('/pip/create/<int:employee_id>', methods=['GET', 'POST'])
 @login_required
 def create_pip(employee_id):
     employee = Employee.query.get_or_404(employee_id)
@@ -681,223 +610,8 @@ def generate_outcome_letter(id):
                      mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
 
 
-from datetime import datetime, timezone
 
-class DummyForm(FlaskForm):
-    pass
-
-from flask_wtf import FlaskForm
-
-class DummyForm(FlaskForm):
-    pass
-
-from datetime import datetime, timezone
-
-@app.route('/pip/create-wizard', methods=['GET', 'POST'])
-@login_required
-def create_pip_wizard():
-    if 'wizard_step' not in session:
-        session['wizard_step'] = 1
-        session['pip_data'] = {}
-
-    step = session['wizard_step']
-    data = session['pip_data']
-    wizard_errors = {}
-
-    if request.method == 'POST':
-        print(f"[DEBUG] POST request received at step {step}")
-        print(f"[DEBUG] Form data: {request.form}")
-
-        if step == 1:
-            employee_id = request.form.get('employee_id')
-            if not employee_id:
-                wizard_errors['employee_id'] = "Please select an employee."
-            else:
-                data['employee_id'] = int(employee_id)
-
-        elif step == 2:
-            concerns = request.form.get('concerns', '').strip()
-            if not concerns:
-                wizard_errors['concerns'] = "Concerns cannot be empty."
-            else:
-                data['concerns'] = concerns
-
-        elif step == 3:
-            start_date = request.form.get('start_date')
-            review_date = request.form.get('review_date')
-            if not start_date:
-                wizard_errors['start_date'] = "Start date is required."
-            if not review_date:
-                wizard_errors['review_date'] = "Review date is required."
-            if not wizard_errors:
-                data['start_date'] = start_date
-                data['review_date'] = review_date
-
-        elif step == 4:
-            data['capability_meeting_date'] = request.form.get('capability_meeting_date')
-            data['capability_meeting_time'] = request.form.get('capability_meeting_time')
-            data['capability_meeting_venue'] = request.form.get('capability_meeting_venue')
-
-        elif step == 5:
-            action_items = request.form.getlist('action_plan_items[]')
-            valid_items = [item.strip() for item in action_items if item.strip()]
-            if not valid_items:
-                wizard_errors['action_plan_items'] = "Add at least one action plan item."
-            else:
-                try:
-                    pip = PIPRecord(
-                        employee_id=int(data['employee_id']),
-                        concerns=data['concerns'],
-                        start_date=datetime.strptime(data['start_date'], '%Y-%m-%d').date(),
-                        review_date=datetime.strptime(data['review_date'], '%Y-%m-%d').date(),
-                        capability_meeting_date=datetime.strptime(data['capability_meeting_date'], '%Y-%m-%d') if data.get('capability_meeting_date') else None,
-                        capability_meeting_time=data.get('capability_meeting_time'),
-                        capability_meeting_venue=data.get('capability_meeting_venue'),
-                        created_by=current_user.username
-                    )
-                    db.session.add(pip)
-                    db.session.commit()
-
-                    for item_text in valid_items:
-                        action = PIPActionItem(pip_record_id=pip.id, description=item_text)
-                        db.session.add(action)
-
-                    # 🔹 Add timeline event
-                    timeline = TimelineEvent(
-                        pip_record_id=pip.id,
-                        event_type="PIP Created",
-                        notes="PIP created via multi-step wizard",
-                        updated_by=current_user.username
-                    )
-                    db.session.add(timeline)
-
-                    db.session.commit()
-                    session.pop('wizard_step', None)
-                    session.pop('pip_data', None)
-                    flash("PIP created successfully!", "success")
-                    return redirect(url_for('dashboard'))
-
-                except Exception as e:
-                    print(f"[ERROR] Failed to save PIP: {e}")
-                    flash(f"Error creating PIP: {str(e)}", "danger")
-
-        # Step failed validation or processing
-        session['pip_data'] = data
-        if not wizard_errors and step < 5:
-            session['wizard_step'] = step + 1
-            return redirect(url_for('create_pip_wizard'))
-
-    # GET or failed POST – render step
-    employees = Employee.query.all() if step == 1 else []
-    print(f"[DEBUG] Rendering step {step} with data: {data}")
-    return render_template(
-        'create_pip_wizard.html',
-        step=step,
-        employees=employees,
-        data=data or {},
-        wizard_errors=wizard_errors
-    )
-
-
-
-from flask import request, jsonify
-from flask_login import login_required
-from flask_wtf.csrf import validate_csrf, CSRFError
-
-from flask import request, jsonify
-from flask_login import login_required
-from flask_wtf.csrf import validate_csrf, CSRFError
-
-from flask import request, jsonify
-from flask_login import login_required
-from flask_wtf.csrf import validate_csrf, CSRFError
-
-@app.route("/validate-wizard-step", methods=["POST"])
-@login_required
-def validate_wizard_step():
-    try:
-        # ✅ Extract CSRF token from header
-        csrf_token = request.headers.get('X-CSRFToken')
-        if not csrf_token:
-            return jsonify({"success": False, "errors": {"csrf_token": "CSRF token missing"}}), 400
-
-        try:
-            validate_csrf(csrf_token)
-        except CSRFError as e:
-            return jsonify({"success": False, "errors": {"csrf_token": str(e)}}), 400
-
-        # ✅ Get step from form data
-        step = int(request.form.get('step', 1))
-        errors = {}
-
-        # ✅ Step-specific validation
-        if step == 1:
-            if not request.form.get("employee_id"):
-                errors["employee_id"] = "Employee is required."
-
-        elif step == 2:
-            if not request.form.get("concerns", "").strip():
-                errors["concerns"] = "Please describe the concerns."
-
-        elif step == 3:
-            if not request.form.get("start_date"):
-                errors["start_date"] = "Start date is required."
-            if not request.form.get("review_date"):
-                errors["review_date"] = "Review date is required."
-
-        elif step == 5:
-            items = request.form.getlist("action_plan_items[]")
-            if not any(i.strip() for i in items):
-                errors["action_plan_items"] = "Please enter at least one action item."
-
-        return jsonify({
-            "success": len(errors) == 0,
-            "errors": errors
-        })
-
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "errors": {"form": f"Server error: {str(e)}"}
-        }), 500
-
-
-@app.route("/pip/save-draft", methods=["POST"])
-@login_required
-def save_pip_draft():
-    try:
-        # ✅ CSRF token from header
-        csrf_token = request.headers.get('X-CSRFToken')
-        if not csrf_token:
-            return jsonify({"success": False, "message": "CSRF token missing."}), 400
-
-        try:
-            validate_csrf(csrf_token)
-        except CSRFError as e:
-            return jsonify({"success": False, "message": f"CSRF validation failed: {str(e)}"}), 400
-
-        # ✅ Parse JSON body
-        data = request.get_json()
-        if not data:
-            return jsonify({"success": False, "message": "No JSON data received."}), 400
-
-        # ✅ Save or update draft
-        draft = PIPDraft.query.filter_by(user_id=current_user.id).first()
-        if not draft:
-            draft = PIPDraft(user_id=current_user.id)
-
-        draft.data = data
-        draft.step = data.get("step", 1)
-        draft.last_updated = datetime.utcnow()
-
-        db.session.add(draft)
-        db.session.commit()
-
-        return jsonify({"success": True, "message": "Draft saved."})
-
-    except Exception as e:
-        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
-
+# --- Create a probation record ---
 
 # --- View probation record ---
 @app.route('/probation/<int:id>')

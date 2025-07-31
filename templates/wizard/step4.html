@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="text-xl font-bold mb-4">Step 4: Capability Meeting Details</h2>
+<form method="post">
+  <label>Date</label>
+  <input type="date" name="capability_meeting_date" class="w-full mb-4" value="{{ data.capability_meeting_date }}">
+
+  <label>Time</label>
+  <input type="text" name="capability_meeting_time" class="w-full mb-4" value="{{ data.capability_meeting_time }}">
+
+  <label>Venue</label>
+  <input type="text" name="capability_meeting_venue" class="w-full mb-4" value="{{ data.capability_meeting_venue }}">
+
+  <button type="submit" name="back" class="btn">Back</button>
+  <button type="submit" name="next" class="btn btn-primary">Next</button>
+</form>
+{% endblock %}

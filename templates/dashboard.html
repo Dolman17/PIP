@@ -70,7 +70,7 @@
             <div class="text-sm">
               {{ pip.employee.first_name }} {{ pip.employee.last_name }} — 
               <span class="text-gray-600 text-sm">{{ pip.review_date.strftime('%d %b %Y') }}</span>
-              <a href="{{ url_for('pip_detail', pip_id=pip.id) }}" class="text-blue-600 text-xs ml-2 underline">View</a>
+              <a href="{{ url_for('pip_detail', id=pip.id) }}" class="text-blue-600 text-xs ml-2 underline">View</a>
             </div>
           </li>
         {% else %}

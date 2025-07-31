@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-2xl mx-auto py-8">
+
+  <!-- Step Progress -->
+  <div class="text-sm text-gray-500 mb-6 text-right">
+    Step {{ step }} of 5
+  </div>
+
+  <form method="POST" id="wizardForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    {% if step == 1 %}
+      <h2 class="text-xl font-semibold mb-4">Step 1: Select Employee</h2>
+      <div class="mb-4">
+        <label for="employee_id" class="block font-medium">Employee</label>
+        <select name="employee_id" id="employee_id" class="form-select mt-1 w-full" required>
+          <option value="">-- Select an employee --</option>
+          {% for emp in employees %}
+            <option value="{{ emp.id }}" {% if data.employee_id == emp.id|string %}selected{% endif %}>
+              {{ emp.first_name }} {{ emp.last_name }} – {{ emp.job_title }}
+            </option>
+          {% endfor %}
+        </select>
+        {% if wizard_errors.employee_id %}
+          <p class="text-red-600 text-sm mt-1">{{ wizard_errors.employee_id }}</p>
+        {% endif %}
+      </div>
+
+    {% elif step == 2 %}
+      <h2 class="text-xl font-semibold mb-4">Step 2: Concerns</h2>
+      <div class="mb-4">
+        <label for="concerns" class="block font-medium">Concerns</label>
+        <textarea name="concerns" id="concerns" class="form-textarea w-full mt-1" rows="5">{{ data.concerns }}</textarea>
+        {% if wizard_errors.concerns %}
+          <p class="text-red-600 text-sm mt-1">{{ wizard_errors.concerns }}</p>
+        {% endif %}
+      </div>
+
+    {% elif step == 3 %}
+      <h2 class="text-xl font-semibold mb-4">Step 3: Dates</h2>
+      <div class="mb-4">
+        <label for="start_date" class="block font-medium">Start Date</label>
+        <input type="date" name="start_date" id="start_date" value="{{ data.start_date }}" class="form-input w-full mt-1">
+        {% if wizard_errors.start_date %}
+          <p class="text-red-600 text-sm mt-1">{{ wizard_errors.start_date }}</p>
+        {% endif %}
+      </div>
+      <div class="mb-4">
+        <label for="review_date" class="block font-medium">Review Date</label>
+        <input type="date" name="review_date" id="review_date" value="{{ data.review_date }}" class="form-input w-full mt-1">
+        {% if wizard_errors.review_date %}
+          <p class="text-red-600 text-sm mt-1">{{ wizard_errors.review_date }}</p>
+        {% endif %}
+      </div>
+
+    {% elif step == 4 %}
+      <h2 class="text-xl font-semibold mb-4">Step 4: Capability Meeting</h2>
+      <div class="mb-4">
+        <label for="capability_meeting_date" class="block font-medium">Meeting Date</label>
+        <input type="date" name="capability_meeting_date" id="capability_meeting_date" value="{{ data.meeting_date }}" class="form-input w-full mt-1">
+      </div>
+      <div class="mb-4">
+        <label for="capability_meeting_time" class="block font-medium">Meeting Time</label>
+        <input type="time" name="capability_meeting_time" id="capability_meeting_time" value="{{ data.meeting_time }}" class="form-input w-full mt-1">
+      </div>
+      <div class="mb-4">
+        <label for="capability_meeting_venue" class="block font-medium">Meeting Venue</label>
+        <input type="text" name="capability_meeting_venue" id="capability_meeting_venue" value="{{ data.meeting_venue }}" class="form-input w-full mt-1">
+      </div>
+
+    {% elif step == 5 %}
+      <h2 class="text-xl font-semibold mb-4">Step 5: Action Plan</h2>
+      <div id="action-plan-list" class="space-y-2 mb-4">
+        {% if data.action_plan_items %}
+          {% for item in data.action_plan_items %}
+            <input type="text" name="action_plan_items[]" class="form-input w-full" value="{{ item }}">
+          {% endfor %}
+        {% else %}
+          <input type="text" name="action_plan_items[]" class="form-input w-full" placeholder="Enter action item">
+        {% endif %}
+      </div>
+      <button type="button" onclick="addActionItem()" class="text-sm text-blue-600 hover:underline mb-4">+ Add another</button>
+      {% if wizard_errors.action_plan_items %}
+        <p class="text-red-600 text-sm mt-2">{{ wizard_errors.action_plan_items }}</p>
+      {% endif %}
+    {% endif %}
+
+    <div class="mt-6 flex flex-wrap justify-between items-center gap-4">
+      {% if step > 1 %}
+        <a href="{{ url_for('create_pip_wizard') }}?back=true&edit=true" class="text-sm text-gray-600 hover:underline">← Back</a>
+      {% else %}
+        <div></div>
+      {% endif %}
+
+      <div class="flex items-center gap-4">
+        <button id="nextBtn" type="button" class="bg-blue-600 text-white px-4 py-2 rounded">
+          {% if step == 5 %}Finish and Save{% else %}Next{% endif %}
+        </button>
+        <button type="button" onclick="saveDraft()" class="text-sm text-gray-600 underline hover:text-gray-800">
+          💾 Save Draft
+        </button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+  function addActionItem() {
+    const container = document.getElementById("action-plan-list");
+    const input = document.createElement("input");
+    input.type = "text";
+    input.name = "action_plan_items[]";
+    input.className = "form-input w-full mt-2";
+    input.placeholder = "Enter action item";
+    container.appendChild(input);
+  }
+
+  function saveDraft(callback) {
+    const formData = new FormData(document.getElementById("wizardForm"));
+    fetch("{{ url_for('save_pip_draft') }}", {
+      method: "POST",
+      body: formData,
+      headers: {
+        "X-CSRFToken": formData.get("csrf_token")
+      }
+    })
+    .then(res => res.json())
+    .then(result => {
+      console.log("Draft save result:", result);
+      if (callback) callback(); // Continue if needed
+    })
+    .catch(err => {
+      console.error("Draft save failed:", err);
+      alert("Failed to save draft.");
+    });
+  }
+
+  function validateStep(step, callback) {
+    const formData = new FormData(document.getElementById("wizardForm"));
+    formData.append("step", step);
+
+    fetch("{{ url_for('validate_wizard_step') }}", {
+      method: "POST",
+      body: formData,
+      headers: {
+        "X-CSRFToken": formData.get("csrf_token")
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      document.querySelectorAll(".wizard-error").forEach(el => el.remove());
+      if (!data.success) {
+        for (const field in data.errors) {
+          const input = document.querySelector(`[name="${field}"]`);
+          if (input) {
+            const p = document.createElement("p");
+            p.className = "wizard-error text-red-600 text-sm mt-1";
+            p.textContent = data.errors[field];
+            input.insertAdjacentElement("afterend", p);
+          }
+        }
+      }
+      callback(data.success);
+    });
+  }
+
+  const currentStep = {{ step }};
+  document.getElementById("nextBtn").addEventListener("click", function (e) {
+    e.preventDefault();
+    validateStep(currentStep, function (valid) {
+      if (valid) {
+        saveDraft(function () {
+          document.getElementById("wizardForm").submit();
+        });
+      }
+    });
+  });
+</script>
+{% endblock %}

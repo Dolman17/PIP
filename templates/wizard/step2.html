@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="text-xl font-bold mb-4">Step 2: Enter Concerns and Dates</h2>
+<form method="post">
+  <label>Concerns</label>
+  <textarea name="concerns" class="w-full border p-2 mb-4">{{ data.concerns }}</textarea>
+
+  <label>Start Date</label>
+  <input type="date" name="start_date" class="w-full mb-4" value="{{ data.start_date }}">
+
+  <label>Review Date</label>
+  <input type="date" name="review_date" class="w-full mb-4" value="{{ data.review_date }}">
+
+  <button type="submit" name="back" class="btn">Back</button>
+  <button type="submit" name="next" class="btn btn-primary">Next</button>
+</form>
+{% endblock %}

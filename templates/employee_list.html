@@ -40,7 +40,7 @@
                 View
               </a>
               {% if active_module == 'PIP' %}
-                <a href="{{ url_for('create_pip', employee_id=emp.id) }}"
+                <a href="{{ url_for('create_pip_wizard', goto=1, edit='true', employee_id=emp.id) }}"
                    class="inline-block text-xs bg-ellipse-teal hover:bg-ellipse-hover text-white px-3 py-1 rounded">
                   Start PIP
                 </a>

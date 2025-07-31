@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="text-xl font-bold mb-4">Step 5: Review & Submit</h2>
+<ul class="mb-4">
+  <li><strong>Employee ID:</strong> {{ data.employee_id }}</li>
+  <li><strong>Concerns:</strong> {{ data.concerns }}</li>
+  <li><strong>Start Date:</strong> {{ data.start_date }}</li>
+  <li><strong>Review Date:</strong> {{ data.review_date }}</li>
+  <li><strong>Capability Meeting:</strong> {{ data.capability_meeting_date }} {{ data.capability_meeting_time }} at {{ data.capability_meeting_venue }}</li>
+</ul>
+<form method="post">
+  <button type="submit" name="back" class="btn">Back</button>
+  <button type="submit" name="submit" class="btn btn-success">Submit</button>
+</form>
+{% endblock %}

@@ -85,3 +85,15 @@ class ProbationPlanForm(FlaskForm):
     deadline = DateField('Deadline', validators=[DataRequired()])
     outcome = StringField('Outcome (e.g. Met, Not Met)', validators=[Optional()])
     submit = SubmitField('Save Plan')
+
+class UserForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired()])
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    admin_level = SelectField(
+        'Admin Level',
+        choices=[(0, 'Line Manager'), (1, 'Admin'), (2, 'Superuser')],
+        coerce=int,
+        validators=[DataRequired()]
+    )
+    team_id = IntegerField('Team ID (optional)')
+    submit = SubmitField('Save Changes')

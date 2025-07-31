@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Edit User{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto p-6 bg-white shadow rounded mt-6">
+  <h1 class="text-2xl font-bold mb-4">Edit User</h1>
+
+  <form method="POST">
+    <div class="mb-4">
+      <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+      <input type="text" name="username" id="username" required value="{{ user.username }}"
+             class="mt-1 block w-full rounded border-gray-300 shadow-sm">
+    </div>
+
+    <div class="mb-4">
+      <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+      <input type="email" name="email" id="email" required value="{{ user.email }}"
+             class="mt-1 block w-full rounded border-gray-300 shadow-sm">
+    </div>
+
+    <div class="mb-4">
+      <label for="password" class="block text-sm font-medium text-gray-700">New Password (leave blank to keep existing)</label>
+      <input type="password" name="password" id="password"
+             class="mt-1 block w-full rounded border-gray-300 shadow-sm">
+    </div>
+
+    <div class="mb-4">
+      <label for="admin_level" class="block text-sm font-medium text-gray-700">Admin Level</label>
+      <select name="admin_level" id="admin_level" class="mt-1 block w-full rounded border-gray-300 shadow-sm">
+        <option value="0" {% if user.admin_level == 0 %}selected{% endif %}>Line Manager</option>
+        <option value="1" {% if user.admin_level == 1 %}selected{% endif %}>Admin</option>
+        <option value="2" {% if user.admin_level == 2 %}selected{% endif %}>Superuser</option>
+      </select>
+    </div>
+
+    <div class="mb-4">
+      <label for="team_id" class="block text-sm font-medium text-gray-700">Team ID (optional)</label>
+      <input type="number" name="team_id" id="team_id" value="{{ user.team_id or '' }}"
+             class="mt-1 block w-full rounded border-gray-300 shadow-sm">
+    </div>
+
+    <div class="flex justify-end">
+      <button type="submit" class="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700">Update User</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+

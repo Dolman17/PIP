@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="text-xl font-bold mb-4">Step 3: Add Action Items</h2>
+<form method="post">
+  <div id="action-items">
+    {% for i in range(3) %}
+      <input type="text" name="action_items[]" class="w-full mb-2" placeholder="Action item {{ i + 1 }}">
+    {% endfor %}
+  </div>
+  <button type="submit" name="back" class="btn">Back</button>
+  <button type="submit" name="next" class="btn btn-primary">Next</button>
+</form>
+{% endblock %}
