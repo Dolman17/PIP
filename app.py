@@ -560,33 +560,46 @@ def pip_list():
 @login_required
 def dashboard():
     total_employees = Employee.query.count()
-    active_pips     = PIPRecord.query.filter_by(status='Open').count()
-    completed_pips  = PIPRecord.query.filter_by(status='Completed').count()
-    today           = datetime.utcnow().date()
+    active_pips = PIPRecord.query.filter_by(status='Open').count()
+    completed_pips = PIPRecord.query.filter_by(status='Completed').count()
+
+    today = datetime.utcnow().date()
     overdue_reviews = PIPRecord.query.filter(
-        PIPRecord.review_date < today, PIPRecord.status=='Open'
+        PIPRecord.review_date < today,
+        PIPRecord.status == 'Open'
     ).count()
-    recent_activity   = TimelineEvent.query.order_by(TimelineEvent.timestamp.desc()).limit(10).all()
+
+    recent_activity = TimelineEvent.query.order_by(TimelineEvent.timestamp.desc()).limit(10).all()
     upcoming_deadline = today + timedelta(days=7)
+
     if current_user.admin_level == 0:
         upcoming_pips = PIPRecord.query.join(Employee).filter(
-            Employee.team_id==current_user.team_id,
-            PIPRecord.status=='Open',
-            PIPRecord.review_date>=today,
-            PIPRecord.review_date<=upcoming_deadline
+            Employee.team_id == current_user.team_id,
+            PIPRecord.status == 'Open',
+            PIPRecord.review_date >= today,
+            PIPRecord.review_date <= upcoming_deadline
         ).order_by(PIPRecord.review_date).all()
     else:
         upcoming_pips = PIPRecord.query.filter(
-            PIPRecord.status=='Open',
-            PIPRecord.review_date>=today,
-            PIPRecord.review_date<=upcoming_deadline
+            PIPRecord.status == 'Open',
+            PIPRecord.review_date >= today,
+            PIPRecord.review_date <= upcoming_deadline
         ).order_by(PIPRecord.review_date).all()
+
+    draft = PIPDraft.query.filter_by(user_id=current_user.id).first()
+
     return render_template(
-        'dashboard.html', total_employees=total_employees,
-        active_pips=active_pips, completed_pips=completed_pips,
-        overdue_reviews=overdue_reviews, recent_activity=recent_activity,
-        upcoming_pips=upcoming_pips
+        'dashboard.html',
+        total_employees=total_employees,
+        active_pips=active_pips,
+        completed_pips=completed_pips,
+        overdue_reviews=overdue_reviews,
+        recent_activity=recent_activity,
+        upcoming_pips=upcoming_pips,
+        draft=draft
     )
+
+
 
 @app.route('/employee/add', methods=['GET', 'POST'])
 @login_required

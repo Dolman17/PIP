@@ -3,7 +3,24 @@
 {% block page_title %}📊 Performance Dashboard{% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+{% if draft %}
+<div id="resume-draft-banner" class="bg-yellow-100 border border-yellow-300 text-yellow-800 px-4 py-3 rounded relative mb-6 max-w-2xl mx-auto">
+  <div class="flex justify-between items-center flex-col sm:flex-row text-center sm:text-left">
+    <div>
+      <p class="font-semibold">You have a saved PIP draft</p>
+      <p class="text-sm">Last updated: {{ draft.last_updated.strftime('%d %b %Y at %H:%M') }}</p>
+    </div>
+    <div class="mt-2 sm:mt-0">
+      <a href="{{ url_for('create_pip_wizard') }}" class="inline-block bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium px-4 py-2 rounded mr-2">Resume</a>
+      <button onclick="document.getElementById('resume-draft-banner').style.display='none'" class="text-yellow-800 hover:text-yellow-900 text-sm underline">Dismiss</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+
+  
+
 
   <!-- Summary Cards -->
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
