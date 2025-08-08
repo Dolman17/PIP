@@ -1,4 +1,3 @@
-
 import os
 import zipfile
 import tempfile
@@ -21,7 +20,8 @@ from openai import OpenAI
 from dotenv import load_dotenv
 load_dotenv()
 
-from models import db, User, Employee, PIPRecord, PIPActionItem, TimelineEvent, ProbationRecord, ProbationReview, ProbationPlan, PIPDraft
+from models import db, User, Employee, PIPRecord, PIPActionItem, TimelineEvent, ProbationRecord, ProbationReview, ProbationPlan, DraftPIP
+
 from forms import PIPForm, EmployeeForm, LoginForm, ProbationRecordForm, ProbationReviewForm, ProbationPlanForm, UserForm
 from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect, validate_csrf, CSRFError
@@ -103,6 +103,12 @@ def login():
             return redirect(url_for('home'))
         flash('Invalid username or password', 'danger')
     return render_template('login.html', form=form, hide_sidebar=True, current_year=datetime.now().year)
+
+
+# Get active (not dismissed) draft for current user
+def get_active_draft_for_user(user_id):
+    return DraftPIP.query.filter_by(user_id=user_id, is_dismissed=False).order_by(DraftPIP.updated_at.desc()).first()
+
 
 
 @app.route('/logout')
@@ -586,7 +592,8 @@ def dashboard():
             PIPRecord.review_date <= upcoming_deadline
         ).order_by(PIPRecord.review_date).all()
 
-    draft = PIPDraft.query.filter_by(user_id=current_user.id).first()
+    draft = DraftPIP.query.filter_by(user_id=current_user.id).first()
+
 
     return render_template(
         'dashboard.html',
@@ -714,8 +721,9 @@ def create_pip_wizard():
         session['pip_data'] = {}
 
     step = session['wizard_step']
-    data = session['pip_data']
+    data = session.get('pip_data', {})
     wizard_errors = {}
+    draft = None  # Optional: you can enhance to load a real draft by draft_id
 
     if request.method == 'POST':
         print(f"[DEBUG] POST request received at step {step}")
@@ -723,33 +731,59 @@ def create_pip_wizard():
 
         if step == 1:
             employee_id = request.form.get('employee_id')
+            draft_name = request.form.get('draft_name', '').strip()
             if not employee_id:
                 wizard_errors['employee_id'] = "Please select an employee."
             else:
                 data['employee_id'] = int(employee_id)
+            data['draft_name'] = draft_name
 
         elif step == 2:
             concerns = request.form.get('concerns', '').strip()
+            category = request.form.get('concern_category', '').strip()
+            severity = request.form.get('severity', '').strip()
+            frequency = request.form.get('frequency', '').strip()
+            tags = request.form.get('concern_tags', '').strip()
+            draft_name = request.form.get('draft_name', '').strip()
+
             if not concerns:
                 wizard_errors['concerns'] = "Concerns cannot be empty."
-            else:
-                data['concerns'] = concerns
+            if not category:
+                wizard_errors['concern_category'] = "Please choose a concern category."
+            if not severity:
+                wizard_errors['severity'] = "Please select severity."
+            if not frequency:
+                wizard_errors['frequency'] = "Please select frequency."
+
+            data.update({
+                'concerns': concerns,
+                'concern_category': category,
+                'severity': severity,
+                'frequency': frequency,
+                'concern_tags': tags,
+                'draft_name': draft_name,
+            })
 
         elif step == 3:
             start_date = request.form.get('start_date')
             review_date = request.form.get('review_date')
+            draft_name = request.form.get('draft_name', '').strip()
+
             if not start_date:
                 wizard_errors['start_date'] = "Start date is required."
             if not review_date:
                 wizard_errors['review_date'] = "Review date is required."
+
             if not wizard_errors:
                 data['start_date'] = start_date
                 data['review_date'] = review_date
+            data['draft_name'] = draft_name
 
         elif step == 4:
             data['capability_meeting_date'] = request.form.get('capability_meeting_date')
             data['capability_meeting_time'] = request.form.get('capability_meeting_time')
             data['capability_meeting_venue'] = request.form.get('capability_meeting_venue')
+            data['draft_name'] = request.form.get('draft_name', '').strip()
 
         elif step == 5:
             action_items = request.form.getlist('action_plan_items[]')
@@ -761,6 +795,10 @@ def create_pip_wizard():
                     pip = PIPRecord(
                         employee_id=int(data['employee_id']),
                         concerns=data['concerns'],
+                        concern_category=data.get('concern_category'),
+                        severity=data.get('severity'),
+                        frequency=data.get('frequency'),
+                        tags=data.get('concern_tags'),
                         start_date=datetime.strptime(data['start_date'], '%Y-%m-%d').date(),
                         review_date=datetime.strptime(data['review_date'], '%Y-%m-%d').date(),
                         capability_meeting_date=datetime.strptime(data['capability_meeting_date'], '%Y-%m-%d') if data.get('capability_meeting_date') else None,
@@ -775,7 +813,6 @@ def create_pip_wizard():
                         action = PIPActionItem(pip_record_id=pip.id, description=item_text)
                         db.session.add(action)
 
-                    # 🔹 Add timeline event
                     timeline = TimelineEvent(
                         pip_record_id=pip.id,
                         event_type="PIP Created",
@@ -785,8 +822,10 @@ def create_pip_wizard():
                     db.session.add(timeline)
 
                     db.session.commit()
+
                     session.pop('wizard_step', None)
                     session.pop('pip_data', None)
+
                     flash("PIP created successfully!", "success")
                     return redirect(url_for('dashboard'))
 
@@ -794,28 +833,31 @@ def create_pip_wizard():
                     print(f"[ERROR] Failed to save PIP: {e}")
                     flash(f"Error creating PIP: {str(e)}", "danger")
 
-        # Step failed validation or processing
+        if 'draft_name' in request.form:
+            data['draft_name'] = request.form.get('draft_name')
+
         session['pip_data'] = data
+
         if not wizard_errors and step < 5:
             session['wizard_step'] = step + 1
             return redirect(url_for('create_pip_wizard'))
 
-    # GET or failed POST – render step
     employees = Employee.query.all() if step == 1 else []
     print(f"[DEBUG] Rendering step {step} with data: {data}")
+
     return render_template(
         'create_pip_wizard.html',
         step=step,
-        employees=employees,
-        data=data or {},
-        wizard_errors=wizard_errors
+        draft=draft,
+        data=data,
+        wizard_errors=wizard_errors,
+        employees=employees
     )
 
 
 
-from flask import request, jsonify
-from flask_login import login_required
-from flask_wtf.csrf import validate_csrf, CSRFError
+
+
 
 from flask import request, jsonify
 from flask_login import login_required
@@ -825,91 +867,208 @@ from flask import request, jsonify
 from flask_login import login_required
 from flask_wtf.csrf import validate_csrf, CSRFError
 
-@app.route("/validate-wizard-step", methods=["POST"])
+from flask import request, jsonify
+from flask_login import login_required
+from flask_wtf.csrf import validate_csrf, CSRFError
+
+@app.route('/validate_wizard_step', methods=['POST'])
 @login_required
 def validate_wizard_step():
-    try:
-        # ✅ Extract CSRF token from header
-        csrf_token = request.headers.get('X-CSRFToken')
-        if not csrf_token:
-            return jsonify({"success": False, "errors": {"csrf_token": "CSRF token missing"}}), 400
+    step = int(request.form.get("step", 1))
+    errors = {}
 
-        try:
-            validate_csrf(csrf_token)
-        except CSRFError as e:
-            return jsonify({"success": False, "errors": {"csrf_token": str(e)}}), 400
+    # Step 1: Select Employee
+    if step == 1:
+        employee_id = request.form.get("employee_id")
+        if not employee_id:
+            errors["employee_id"] = "Please select an employee."
 
-        # ✅ Get step from form data
-        step = int(request.form.get('step', 1))
-        errors = {}
+    # Step 2: Define Concerns
+    elif step == 2:
+        concerns = request.form.get("concerns", "").strip()
+        category = request.form.get("concern_category", "").strip()
+        tags = request.form.get("concern_tags", "").strip()
+        severity = request.form.get("severity", "").strip()
+        frequency = request.form.get("frequency", "").strip()
 
-        # ✅ Step-specific validation
-        if step == 1:
-            if not request.form.get("employee_id"):
-                errors["employee_id"] = "Employee is required."
+        if not concerns:
+            errors["concerns"] = "Please describe the concern."
+        if not category:
+            errors["concern_category"] = "Please select a concern category."
+        if not tags:
+            errors["concern_tags"] = "Please enter at least one tag."
+        if not severity:
+            errors["severity"] = "Please select severity."
+        if not frequency:
+            errors["frequency"] = "Please select frequency."
 
-        elif step == 2:
-            if not request.form.get("concerns", "").strip():
-                errors["concerns"] = "Please describe the concerns."
+    # Step 3: Set Dates
+    elif step == 3:
+        start_date = request.form.get("start_date", "").strip()
+        review_date = request.form.get("review_date", "").strip()
+        if not start_date:
+            errors["start_date"] = "Please enter a start date."
+        if not review_date:
+            errors["review_date"] = "Please enter a review date."
 
-        elif step == 3:
-            if not request.form.get("start_date"):
-                errors["start_date"] = "Start date is required."
-            if not request.form.get("review_date"):
-                errors["review_date"] = "Review date is required."
+    # Step 4: Schedule Meeting
+    elif step == 4:
+        meeting_date = request.form.get("meeting_date", "").strip()
+        meeting_time = request.form.get("meeting_time", "").strip()
+        if not meeting_date:
+            errors["meeting_date"] = "Please enter a meeting date."
+        if not meeting_time:
+            errors["meeting_time"] = "Please enter a meeting time."
 
-        elif step == 5:
-            items = request.form.getlist("action_plan_items[]")
-            if not any(i.strip() for i in items):
-                errors["action_plan_items"] = "Please enter at least one action item."
+    # Step 5: Action Plan
+    elif step == 5:
+        actions = request.form.getlist("action_plan_items[]")
+        actions = [a.strip() for a in actions if a.strip()]
+        if not actions:
+            errors["action_plan_items"] = "Please add at least one action item."
 
-        return jsonify({
-            "success": len(errors) == 0,
-            "errors": errors
-        })
-
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "errors": {"form": f"Server error: {str(e)}"}
-        }), 500
+    return jsonify({"success": not errors, "errors": errors})
 
 
-@app.route("/pip/save-draft", methods=["POST"])
+@app.route('/dismiss_draft', methods=['POST'])
 @login_required
+@csrf.exempt
+def dismiss_draft():
+    draft = DraftPIP.query.filter_by(user_id=current_user.id, is_dismissed=False).first()
+    if draft:
+        draft.is_dismissed = True
+        draft.updated_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify({"success": True})
+    return jsonify({"success": False, "message": "No active draft found"}), 404
+
+
+
+@app.route('/save_pip_draft', methods=['POST'])
+@login_required
+@csrf.exempt
 def save_pip_draft():
     try:
-        # ✅ CSRF token from header
-        csrf_token = request.headers.get('X-CSRFToken')
-        if not csrf_token:
-            return jsonify({"success": False, "message": "CSRF token missing."}), 400
+        # Gather data from the form
+        data = {
+            'employee_id': request.form.get('employee_id'),
+            'draft_name': request.form.get('draft_name', '').strip(),
+            'concerns': request.form.get('concerns', '').strip(),
+            'concern_category': request.form.get('concern_category', '').strip(),
+            'severity': request.form.get('severity', '').strip(),
+            'frequency': request.form.get('frequency', '').strip(),
+            'concern_tags': request.form.get('concern_tags', '').strip(),
+            'start_date': request.form.get('start_date'),
+            'review_date': request.form.get('review_date'),
+            'capability_meeting_date': request.form.get('capability_meeting_date'),
+            'capability_meeting_time': request.form.get('capability_meeting_time'),
+            'capability_meeting_venue': request.form.get('capability_meeting_venue'),
+            'action_plan_items': request.form.getlist('action_plan_items[]')
+        }
 
-        try:
-            validate_csrf(csrf_token)
-        except CSRFError as e:
-            return jsonify({"success": False, "message": f"CSRF validation failed: {str(e)}"}), 400
+        # Clean empty values
+        cleaned_data = {k: v for k, v in data.items() if v not in [None, '', []]}
 
-        # ✅ Parse JSON body
-        data = request.get_json()
-        if not data:
-            return jsonify({"success": False, "message": "No JSON data received."}), 400
+        # Check for existing non-dismissed draft for the user
+        existing_draft = DraftPIP.query.filter_by(user_id=current_user.id, is_dismissed=False).first()
 
-        # ✅ Save or update draft
-        draft = PIPDraft.query.filter_by(user_id=current_user.id).first()
-        if not draft:
-            draft = PIPDraft(user_id=current_user.id)
+        if existing_draft:
+            db.session.delete(existing_draft)
+            db.session.commit()
 
-        draft.data = data
-        draft.step = data.get("step", 1)
-        draft.last_updated = datetime.utcnow()
-
-        db.session.add(draft)
+        new_draft = DraftPIP(
+            user_id=current_user.id,
+            data=cleaned_data,
+            step=session.get('wizard_step', 1),
+            is_dismissed=False,
+            updated_at=datetime.utcnow()
+        )
+        db.session.add(new_draft)
         db.session.commit()
 
         return jsonify({"success": True, "message": "Draft saved."})
 
     except Exception as e:
-        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+        print(f"[ERROR] Failed to save draft: {e}")
+        return jsonify({"success": False, "message": "Failed to save draft."}), 500
+
+
+# --- AI Action Suggestions ---
+from flask import request, jsonify
+from openai import OpenAI
+import os
+
+openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+@app.route('/suggest_actions_ai', methods=['POST'])
+@login_required
+def suggest_actions_ai():
+    data = request.get_json()
+    concerns = data.get('concerns', '')
+    severity = data.get('severity', '')
+    frequency = data.get('frequency', '')
+    tags = data.get('tags', '')
+    category = data.get('category', '')
+
+    # Construct the AI prompt
+    prompt = f"""
+    You're an HR advisor helping line managers create action plans for performance improvement.
+    Based on the following concern details, suggest 3 specific, practical action plan items:
+
+    Concern Category: {category}
+    Concerns: {concerns}
+    Tags: {tags}
+    Severity: {severity}
+    Frequency: {frequency}
+
+    Format your response as a plain numbered list.
+    """
+
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=300,
+            temperature=0.7,
+        )
+        actions_text = response['choices'][0]['message']['content']
+        actions = [line.strip().lstrip('0123456789. ').strip() for line in actions_text.splitlines() if line.strip()]
+        success = True
+
+    except Exception as e:
+        print("OpenAI error:", e)
+        return jsonify({
+            "success": False,
+            "error": "Unable to generate AI suggestions at this time."
+        }), 500
+
+    # Next Up Suggestions logic
+    next_up = []
+    tag_list = [t.strip().lower() for t in tags.split(',')]
+
+    if 'lateness' in tag_list or 'timekeeping' in category.lower():
+        next_up.extend([
+            "Set up a daily check-in for punctuality.",
+            "Introduce a lateness tracking sheet."
+        ])
+
+    if 'conduct' in tag_list or category.lower() == 'conduct':
+        next_up.extend([
+            "Schedule a values-based training session.",
+            "Document informal warnings in line with policy."
+        ])
+
+    if severity.lower() == 'high':
+        next_up.append("Consider escalating to formal disciplinary procedures.")
+
+    if frequency.lower() == 'frequent' or frequency.lower() == 'persistent':
+        next_up.append("Increase monitoring frequency and assign a mentor.")
+
+    return jsonify({
+        "success": success,
+        "actions": actions,
+        "next_up": next_up
+    })
 
 
 # --- View probation record ---

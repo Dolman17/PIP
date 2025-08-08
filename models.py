@@ -136,9 +136,13 @@ class ProbationPlan(db.Model):
 
 
 
-class PIPDraft(db.Model):
+class DraftPIP(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    step = db.Column(db.Integer, nullable=False, default=1)
-    data = db.Column(JSON, nullable=False)
-    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    step = db.Column(db.Integer)
+    data = db.Column(db.JSON)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_dismissed = db.Column(db.Boolean, default=False)
+
+    user = db.relationship('User', backref='draft_pips')

@@ -1,68 +1,121 @@
 {% extends 'base.html' %}
+{% set layout = 'fullscreen' %}
+
 {% block title %}Choose Module - Ellipse HR{% endblock %}
 {% block page_title %}{% endblock %}
 
 {% block content %}
-<!-- Full-screen animated background -->
-<div class="min-h-screen w-full flex items-center justify-center bg-sunset bg-[length:400%_400%] animate-gradient-x transition">
+<style>
+  @keyframes gradient-x {
+    0%, 100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+  .animate-gradient-x {
+    background-size: 400% 400%;
+    animation: gradient-x 8s ease infinite;
+  }
+</style>
 
-  <!-- Frosted container -->
-  <div class="bg-white bg-opacity-90 backdrop-blur-md p-6 sm:p-10 rounded-2xl shadow-2xl w-full max-w-4xl mx-4 sm:mx-6">
+<!-- Outer background -->
+<div class="min-h-screen w-full bg-gradient-to-br from-pink-100 via-pink-200 to-pink-300 animate-gradient-x flex items-center justify-center dark:from-gray-900 dark:via-gray-800 dark:to-gray-700">
 
-    <!-- Logo and welcome -->
-    <div class="text-center mb-6">
+  <!-- Content wrapper -->
+  <div class="bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg rounded-2xl shadow-2xl p-6 sm:p-10 max-w-4xl w-full mx-4 sm:mx-6 animate-fade-in">
+
+    <!-- Top bar: Logo + Dark mode toggle -->
+    <div class="flex items-center justify-between mb-6">
       <img src="{{ url_for('static', filename='images/logo.avif') }}"
            alt="Ellipse HR Logo"
-           class="h-14 w-auto mx-auto mb-4">
-      <h2 class="text-xl sm:text-3xl font-semibold text-ellipse-teal">
-        Welcome, {{ current_user.username }} 👋
-      </h2>
+           class="h-12 w-auto opacity-90 hover:opacity-100 transition">
+
+      <button id="toggleDark" class="text-gray-700 dark:text-gray-100 hover:text-teal-700 dark:hover:text-teal-300 text-sm border border-gray-300 dark:border-gray-500 rounded px-3 py-1 transition">
+        Toggle Dark Mode
+      </button>
     </div>
 
-    <p class="text-sm sm:text-base text-gray-600 text-center mb-8">
-      Please choose a module to continue:
-    </p>
+    <!-- Welcome text -->
+    <div class="text-center">
+      <h2 class="text-2xl sm:text-3xl font-semibold text-teal-800 dark:text-teal-300 mb-2">
+        Welcome, {{ current_user.username }} 👋
+      </h2>
+      <p class="text-base text-gray-600 dark:text-gray-300 mb-8">
+        Please choose a module to continue:
+      </p>
+    </div>
 
+    <!-- Module cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+
       <!-- PIP Card -->
       <a href="{{ url_for('dashboard') }}"
-         class="group block bg-[#e6f3f3] p-6 sm:p-8 rounded-xl shadow hover:shadow-xl transition-all duration-300 border border-gray-200 hover:ring-2 hover:ring-ellipse-teal">
-        <div class="flex items-center justify-center h-14 w-14 bg-ellipse-teal rounded-full mb-4 mx-auto">
-          <!-- Icon -->
+         class="group block p-6 sm:p-8 bg-[#e6f3f3] dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl shadow-md hover:shadow-xl transition-all duration-300 hover:ring-2 hover:ring-teal-600 dark:hover:ring-teal-400">
+        <div class="flex items-center justify-center h-14 w-14 bg-teal-600 rounded-full mb-4 mx-auto">
           <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" stroke-width="2"
-               viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+               viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round"
                   d="M9 12h6m-6 4h6M4 6h16M4 10h16M4 14h16M4 18h16" />
           </svg>
         </div>
-        <h3 class="text-lg font-bold text-ellipse-teal group-hover:underline mb-2 text-center">
+        <h3 class="text-lg font-bold text-teal-800 dark:text-teal-300 group-hover:underline text-center mb-2">
           Performance Improvement Plans
         </h3>
-        <p class="text-sm text-gray-700 text-center group-hover:opacity-100 opacity-90">
+        <p class="text-sm text-gray-700 dark:text-gray-300 text-center group-hover:opacity-100 opacity-90">
           Manage employee PIPs, generate letters, and track performance interventions.
         </p>
       </a>
 
       <!-- Probation Card -->
       <a href="{{ url_for('probation_dashboard') }}"
-         class="group block bg-[#e6f3f3] p-6 sm:p-8 rounded-xl shadow hover:shadow-xl transition-all duration-300 border border-gray-200 hover:ring-2 hover:ring-ellipse-teal">
-        <div class="flex items-center justify-center h-14 w-14 bg-ellipse-teal rounded-full mb-4 mx-auto">
-          <!-- Icon -->
+         class="group block p-6 sm:p-8 bg-[#e6f3f3] dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl shadow-md hover:shadow-xl transition-all duration-300 hover:ring-2 hover:ring-teal-600 dark:hover:ring-teal-400">
+        <div class="flex items-center justify-center h-14 w-14 bg-teal-600 rounded-full mb-4 mx-auto">
           <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" stroke-width="2"
-               viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+               viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round"
                   d="M5.121 17.804A2 2 0 017 16h10a2 2 0 011.879 1.264M16 11a4 4 0 10-8 0 4 4 0 008 0z" />
           </svg>
         </div>
-        <h3 class="text-lg font-bold text-ellipse-teal group-hover:underline mb-2 text-center">
+        <h3 class="text-lg font-bold text-teal-800 dark:text-teal-300 group-hover:underline text-center mb-2">
           Probation Management
         </h3>
-        <p class="text-sm text-gray-700 text-center group-hover:opacity-100 opacity-90">
+        <p class="text-sm text-gray-700 dark:text-gray-300 text-center group-hover:opacity-100 opacity-90">
           Track onboarding, reviews, extensions, outcomes, and documentation.
         </p>
       </a>
     </div>
 
+    <!-- Footer -->
+    <div class="mt-10 text-center text-sm text-gray-500 dark:text-gray-400">
+      Version 1.0 · Powered by <span class="font-semibold text-teal-700 dark:text-teal-300">Ellipse HR</span>
+    </div>
   </div>
 </div>
+
+<!-- JS for dark mode -->
+<script>
+  const toggleDark = document.getElementById('toggleDark');
+  toggleDark.addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+  });
+
+  // Load theme on page load
+  if (localStorage.getItem('theme') === 'dark') {
+    document.documentElement.classList.add('dark');
+  }
+</script>
+
+<!-- Fade animation -->
+<style>
+  .animate-fade-in {
+    animation: fadeIn 0.6s ease-out;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
 {% endblock %}

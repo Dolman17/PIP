@@ -10,6 +10,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
           fontFamily: {
@@ -41,7 +42,9 @@
   </script>
 </head>
 
-<body class="bg-ellipse-light min-h-screen text-ellipse-gray font-sans overflow-x-hidden">
+<body class="text-ellipse-gray font-sans overflow-x-hidden {% if layout != 'fullscreen' %}bg-ellipse-light min-h-screen{% endif %}">
+  
+  {% if layout != 'fullscreen' %}
   <div class="flex flex-col md:flex-row min-h-screen">
 
     {% if active_module %}
@@ -79,41 +82,46 @@
       </nav>
     </aside>
     {% endif %}
-
- <!-- Main content -->
-<main class="flex-1">
-  <header class="bg-white shadow p-4 flex justify-between items-center border-b border-gray-200">
-  <h2 class="text-lg font-semibold text-ellipse-teal">{% block page_title %}{% endblock %}</h2>
-  <div class="flex items-center space-x-3 text-sm text-gray-500">
-    <span>Logged in as {{ current_user.username }}</span>
-    {% if current_user.is_authenticated and current_user.is_superuser() %}
-      <a href="{{ url_for('admin_dashboard') }}" class="text-ellipse-teal hover:text-ellipse-hover" title="Admin Tools">
-        ⚙️
-      </a>
-    {% endif %}
-  </div>
-</header>
-
-  <div class="p-4 sm:p-6 max-w-7xl mx-auto">
-    {% block content %}{% endblock %}
-  </div>
-</main>
-
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-    <div class="mb-4">
-      {% for category, message in messages %}
-        <div class="p-3 rounded text-sm text-white bg-{{ 'green-600' if category == 'success' else 'red-600' }}">
-          {{ message }}
-        </div>
-      {% endfor %}
-    </div>
   {% endif %}
-{% endwith %}
 
+  <!-- Main content -->
+  <main class="flex-1">
+    {% if layout != 'fullscreen' %}
+    <header class="bg-white shadow p-4 flex justify-between items-center border-b border-gray-200">
+      <h2 class="text-lg font-semibold text-ellipse-teal">{% block page_title %}{% endblock %}</h2>
+      <div class="flex items-center space-x-3 text-sm text-gray-500">
+        <span>Logged in as {{ current_user.username }}</span>
+        {% if current_user.is_authenticated and current_user.is_superuser() %}
+          <a href="{{ url_for('admin_dashboard') }}" class="text-ellipse-teal hover:text-ellipse-hover" title="Admin Tools">
+            ⚙️
+          </a>
+        {% endif %}
+      </div>
+    </header>
+    {% endif %}
 
+    <div class="{% if layout != 'fullscreen' %}p-4 sm:p-6 max-w-7xl mx-auto{% endif %}">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
 
-  <!-- Mobile menu toggle script -->
+  {% if layout != 'fullscreen' %}
+  </div> <!-- end wrapper -->
+  {% endif %}
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="mb-4">
+        {% for category, message in messages %}
+          <div class="p-3 rounded text-sm text-white bg-{{ 'green-600' if category == 'success' else 'red-600' }}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <!-- Mobile menu toggle -->
   <script>
     const toggleBtn = document.getElementById('mobileMenuToggle');
     const sidebarMenu = document.getElementById('sidebarMenu');
