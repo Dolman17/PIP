@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-4xl mx-auto py-8 px-6 bg-white rounded-md shadow">
+
+  <h1 class="text-2xl font-semibold text-[#005b5a] mb-6">Bulk Employee Import</h1>
+
+  <!-- Step 1: Upload -->
+  <div class="mb-6">
+    <label class="block font-medium text-gray-700 mb-2">Upload CSV{% if xlsx_enabled %}/XLSX{% endif %}</label>
+    <input id="fileInput" type="file" accept=".csv{% if xlsx_enabled %},.xlsx{% endif %}" class="block w-full">
+    <button id="uploadBtn" class="mt-3 px-4 py-2 bg-[#005b5a] text-white rounded hover:bg-[#004746]">
+      Upload & Preview
+    </button>
+    <p class="text-xs text-gray-500 mt-2">Accepted columns include: first_name, last_name, email, job_title, line_manager, service, start_date, team_id.</p>
+  </div>
+
+  <!-- Step 2: Mapping -->
+  <div id="mappingSection" class="hidden border rounded p-4 mb-6">
+    <h2 class="text-lg font-semibold text-gray-800 mb-3">Map Columns</h2>
+    <div id="mappingTable" class="space-y-2"></div>
+
+    <div class="mt-4">
+      <label class="block font-medium text-gray-700">Duplicate Check Key</label>
+      <select id="uniqueKey" class="border rounded p-2">
+        <option value="email">email</option>
+        <option value="first_name,last_name">first_name + last_name</option>
+      </select>
+    </div>
+
+    <button id="validateBtn" class="mt-4 px-4 py-2 bg-[#005b5a] text-white rounded hover:bg-[#004746]">
+      Validate
+    </button>
+  </div>
+
+  <!-- Step 3: Validation report -->
+  <div id="reportSection" class="hidden border rounded p-4 mb-6">
+    <h2 class="text-lg font-semibold text-gray-800 mb-3">Validation Report</h2>
+    <div id="reportBody" class="text-sm text-gray-700 space-y-2"></div>
+    <button id="commitBtn" class="mt-4 px-4 py-2 bg-[#005b5a] text-white rounded hover:bg-[#004746]">
+      Commit Import
+    </button>
+  </div>
+
+  <!-- Step 4: Result -->
+  <div id="resultSection" class="hidden border rounded p-4">
+    <h2 class="text-lg font-semibold text-gray-800 mb-3">Result</h2>
+    <pre id="resultPre" class="text-sm bg-gray-50 p-3 rounded overflow-auto"></pre>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  const fileInput   = document.getElementById('fileInput');
+  const uploadBtn   = document.getElementById('uploadBtn');
+  const mappingSec  = document.getElementById('mappingSection');
+  const mappingTbl  = document.getElementById('mappingTable');
+  const validateBtn = document.getElementById('validateBtn');
+  const reportSec   = document.getElementById('reportSection');
+  const reportBody  = document.getElementById('reportBody');
+  const commitBtn   = document.getElementById('commitBtn');
+  const resultSec   = document.getElementById('resultSection');
+  const resultPre   = document.getElementById('resultPre');
+  const uniqueKey   = document.getElementById('uniqueKey');
+
+  let tempId = null;
+  let headers = [];
+  let suggested = {};
+
+  function makeFieldSelect(selected="") {
+    const fields = [
+      "","first_name","last_name","email",
+      "job_title","line_manager","service",
+      "start_date","team_id"
+    ];
+    const sel = document.createElement('select');
+    sel.className = "border rounded p-1";
+    fields.forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f; opt.textContent = f || "(ignore)";
+      if (f === selected) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    return sel;
+  }
+
+  function csrf() {
+    const el = document.querySelector('[name=csrf_token]');
+    return el ? el.value : "";
+  }
+
+  uploadBtn.addEventListener('click', async () => {
+    if (!fileInput.files.length) {
+      alert("Choose a file first");
+      return;
+    }
+    const fd = new FormData();
+    fd.append('file', fileInput.files[0]);
+
+    const res = await fetch("{{ url_for('employee_import') }}", {
+      method: "POST",
+      body: fd,
+      headers: { "X-CSRFToken": csrf() }
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      alert("Upload failed: " + t);
+      return;
+    }
+    const data = await res.json();
+    tempId   = data.temp_id;
+    headers  = data.headers || [];
+    suggested = data.suggested_mapping || {};
+
+    // Build mapping UI
+    mappingTbl.innerHTML = "";
+    headers.forEach(h => {
+      const row = document.createElement('div');
+      row.className = "flex items-center justify-between border rounded p-2";
+      const left = document.createElement('div');
+      left.textContent = h;
+      left.className = "font-mono text-sm";
+      const right = document.createElement('div');
+      const sel = makeFieldSelect(suggested[h] || "");
+      sel.dataset.header = h;
+      right.appendChild(sel);
+      row.appendChild(left);
+      row.appendChild(right);
+      mappingTbl.appendChild(row);
+    });
+
+    mappingSec.classList.remove('hidden');
+    reportSec.classList.add('hidden');
+    resultSec.classList.add('hidden');
+  });
+
+  validateBtn.addEventListener('click', async () => {
+    if (!tempId) { alert("Upload a file first."); return; }
+
+    // collect mapping
+    const mapping = {};
+    mappingTbl.querySelectorAll('select').forEach(sel => {
+      mapping[sel.dataset.header] = sel.value;
+    });
+
+    const res = await fetch("{{ url_for('employee_import_validate') }}", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrf()
+      },
+      body: JSON.stringify({
+        temp_id: tempId,
+        mapping,
+        unique_key: uniqueKey.value
+      })
+    });
+    const data = await res.json();
+
+    const rep = data.report || {};
+    const toList = (arr, label) => {
+      if (!arr || !arr.length) return "";
+      const ul = document.createElement('ul');
+      ul.className = "list-disc pl-6";
+      arr.forEach(it => {
+        const li = document.createElement('li');
+        li.textContent = typeof it === "string" ? it : JSON.stringify(it);
+        ul.appendChild(li);
+      });
+      const wrap = document.createElement('div');
+      wrap.innerHTML = `<div class="font-semibold">${label}</div>`;
+      wrap.appendChild(ul);
+      return wrap.outerHTML;
+    };
+
+    reportBody.innerHTML = `
+      <div>Total rows: <strong>${rep.total_rows || 0}</strong></div>
+      <div>Rows ready to import: <strong>${rep.rows_ready || 0}</strong></div>
+      ${toList(rep.unmapped_headers, "Unmapped headers")}
+      ${toList(rep.missing_required, "Missing required fields")}
+      ${toList(rep.duplicates_in_file, "Duplicates inside file")}
+      ${toList(rep.duplicates_in_db, "Duplicates already in database")}
+    `;
+
+    reportSec.classList.remove('hidden');
+    resultSec.classList.add('hidden');
+
+    // Enable or disable commit depending on readiness
+    const ready = (rep.rows_ready || 0) > 0;
+    commitBtn.disabled = !ready;
+    commitBtn.classList.toggle("opacity-50", !ready);
+  });
+
+  commitBtn.addEventListener('click', async () => {
+    // collect mapping again to be safe
+    const mapping = {};
+    mappingTbl.querySelectorAll('select').forEach(sel => {
+      mapping[sel.dataset.header] = sel.value;
+    });
+
+    const res = await fetch("{{ url_for('employee_import_commit') }}", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrf()
+      },
+      body: JSON.stringify({
+        temp_id: tempId,
+        mapping,
+        unique_key: uniqueKey.value,
+        confirm: true
+      })
+    });
+    const data = await res.json();
+
+    resultPre.textContent = JSON.stringify(data, null, 2);
+    resultSec.classList.remove('hidden');
+
+    // quick toast
+    const toast = document.createElement("div");
+    toast.textContent = "✅ Import complete";
+    toast.className = "fixed bottom-4 right-4 bg-[#005b5a] text-white py-2 px-4 rounded-lg shadow";
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+  });
+})();
+</script>
+{% endblock %}

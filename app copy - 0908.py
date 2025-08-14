@@ -1,15 +1,11 @@
 import os
-import csv, io
 import zipfile
 import tempfile
+import csv
+import threading
+import time
 from io import BytesIO
-from functools import wraps
-from datetime import datetime, timedelta, timezone
-
-from flask import (
-    Flask, session, render_template, redirect, url_for,
-    request, flash, send_file, jsonify, abort
-)
+from flask import Flask, session, render_template, redirect, url_for, request, flash, send_file, jsonify
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
@@ -17,91 +13,25 @@ from flask_login import (
     logout_user, current_user
 )
 from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
-from flask_wtf import FlaskForm
-from flask_wtf.csrf import CSRFProtect
-
+from datetime import datetime, timedelta
+from io import BytesIO
 from docxtpl import DocxTemplate
 from openai import OpenAI
 from dotenv import load_dotenv
 load_dotenv()
 
-import csv, io, tempfile
-from datetime import datetime
-from werkzeug.utils import secure_filename
+from models import db, User, Employee, PIPRecord, PIPActionItem, TimelineEvent, ProbationRecord, ProbationReview, ProbationPlan, DraftPIP
 
-# If you have openpyxl installed, we can read .xlsx; otherwise we’ll allow CSV only.
-try:
-    import openpyxl  # noqa: F401
-    XLSX_ENABLED = True
-except Exception:
-    XLSX_ENABLED = False
-
-ALLOWED_EXTS = {"csv", "xlsx"} if XLSX_ENABLED else {"csv"}
-
-# Map *your* Employee model fields here.
-# Keep this list in sync with your actual columns.
-# Map Employee model fields you actually want to import
-# Matches your export columns and templates
-EMPLOYEE_FIELDS = [
-    "first_name", "last_name", "email", "job_title", "line_manager",
-    "service", "team_id", "start_date"
-]
-
-
-
-
-# Minimal required fields — adjust if you need more
-REQUIRED_FIELDS = ["first_name", "last_name"]
-
-def _read_csv_bytes(file_bytes: bytes):
-    text = file_bytes.decode("utf-8-sig", errors="replace")
-    reader = csv.DictReader(io.StringIO(text))
-    rows = [dict(r) for r in reader]
-    headers = reader.fieldnames or []
-    return headers, rows
-
-def _read_xlsx_bytes(file_bytes: bytes):
-    # Requires openpyxl; already guarded by XLSX_ENABLED
-    workbook = openpyxl.load_workbook(io.BytesIO(file_bytes))
-    sheet = workbook.active
-    headers = [c.value for c in next(sheet.iter_rows(min_row=1, max_row=1))]
-    rows = []
-    for row in sheet.iter_rows(min_row=2, values_only=True):
-        rows.append({headers[i]: (row[i] if i < len(row) else None) for i in range(len(headers))})
-    return headers, rows
-
-def _normalize_header(h):
-    # Loose normalisation to help mapping (e.g., "First Name" -> "first_name")
-    return (h or "").strip().lower().replace(" ", "_")
-
-def _try_parse_date(value):
-    if not value:
-        return None
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%m/%d/%Y"):
-        try:
-            return datetime.strptime(str(value).strip(), fmt).date()
-        except Exception:
-            continue
-    return None
-
-
-# --- Models & Forms ---
-from models import (
-    db, User, Employee, PIPRecord, PIPActionItem, TimelineEvent,
-    ProbationRecord, ProbationReview, ProbationPlan, DraftPIP
-)
-from forms import (
-    PIPForm, EmployeeForm, LoginForm, ProbationRecordForm,
-    ProbationReviewForm, ProbationPlanForm, UserForm
-)
+from forms import PIPForm, EmployeeForm, LoginForm, ProbationRecordForm, ProbationReviewForm, ProbationPlanForm, UserForm
+from flask_wtf import FlaskForm
+from flask_wtf.csrf import CSRFProtect, validate_csrf, CSRFError
 
 # Initialize OpenAI v1 client (will pick up OPENAI_API_KEY env var)
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 # Initialize Flask
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-only-secret')
+app.config['SECRET_KEY'] = 'your-secret-key'
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'pip_crm.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -110,10 +40,11 @@ csrf = CSRFProtect(app)
 db.init_app(app)
 migrate = Migrate(app, db)
 
-# ----- Context Processor -----
 @app.context_processor
 def inject_module():
     return dict(active_module=session.get('active_module'))
+
+
 
 # Initialize Login
 login_manager = LoginManager()
@@ -125,7 +56,9 @@ login_manager.init_app(app)
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
-# ----- Superuser decorator -----
+from functools import wraps
+from flask import abort
+
 def superuser_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -134,10 +67,13 @@ def superuser_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+
+
 # ----- Set active module in session -----
 @app.before_request
 def set_active_module():
     path = request.path.lower()
+
     if path.startswith('/pip/') or \
        path.startswith('/employee/') or \
        path in ['/dashboard', '/pip_list', '/employee/list', '/employee/add', '/pip/select-employee']:
@@ -147,11 +83,15 @@ def set_active_module():
     elif path == '/':
         session.pop('active_module', None)
 
+
+
 # ----- Routes -----
 @app.route('/')
 @login_required
 def home():
-    return render_template('select_module.html', hide_sidebar=True, layout='fullscreen')
+    return render_template('select_module.html', hide_sidebar=True)
+
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -164,16 +104,19 @@ def login():
         flash('Invalid username or password', 'danger')
     return render_template('login.html', form=form, hide_sidebar=True, current_year=datetime.now().year)
 
+
 # Get active (not dismissed) draft for current user
 def get_active_draft_for_user(user_id):
-    return DraftPIP.query.filter_by(user_id=user_id, is_dismissed=False)\
-                         .order_by(DraftPIP.updated_at.desc()).first()
+    return DraftPIP.query.filter_by(user_id=user_id, is_dismissed=False).order_by(DraftPIP.updated_at.desc()).first()
+
+
 
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
     return redirect(url_for('login'))
+
 
 @app.route('/admin/dashboard')
 @login_required
@@ -183,14 +126,25 @@ def admin_dashboard():
         return redirect(url_for('home'))
     return render_template('admin_dashboard.html')
 
-# ----- Export Data -----
+
+import threading
+import time
+
+from io import BytesIO
+import zipfile
+import csv
+from flask import send_file
+
+
 @app.route('/admin/export')
 @login_required
 @superuser_required
 def export_data():
+    # In-memory buffer for the ZIP file
     zip_buffer = BytesIO()
 
     with tempfile.TemporaryDirectory() as tmpdir:
+        # Helper to write a list of dicts to CSV
         def write_csv(filename, fieldnames, rows):
             filepath = os.path.join(tmpdir, filename)
             with open(filepath, 'w', newline='', encoding='utf-8') as f:
@@ -200,124 +154,101 @@ def export_data():
             export_zip.write(filepath, arcname=filename)
 
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as export_zip:
-            # Employees
+
+            # Export Employees
             employees = Employee.query.all()
-            write_csv(
-                'employees.csv',
-                ['id', 'first_name', 'last_name', 'job_title', 'line_manager', 'service', 'start_date', 'team_id', 'email'],
-                [{
+            write_csv('employees.csv', ['id', 'name', 'job_title', 'line_manager', 'service', 'start_date'], [
+                {
                     'id': e.id,
-                    'first_name': getattr(e, 'first_name', ''),
-                    'last_name': getattr(e, 'last_name', ''),
+                    'name': f'{getattr(e, "first_name", "")} {getattr(e, "last_name", "")}',
                     'job_title': e.job_title,
                     'line_manager': e.line_manager,
                     'service': e.service,
-                    'start_date': e.start_date.strftime('%Y-%m-%d') if e.start_date else '',
-                    'team_id': e.team_id,
-                    'email': e.email
-                } for e in employees]
-            )
+                    'start_date': e.start_date.strftime('%Y-%m-%d') if e.start_date else ''
+                } for e in employees
+            ])
 
-            # PIP Records
+            # Export PIPs
             pips = PIPRecord.query.all()
-            write_csv(
-                'pip_records.csv',
-                ['id', 'employee_id', 'concerns', 'concern_category', 'severity', 'frequency', 'tags',
-                 'start_date', 'review_date', 'status', 'created_by'],
-                [{
+            write_csv('pip_records.csv', ['id', 'employee_id', 'concerns', 'start_date', 'review_date', 'status'], [
+                {
                     'id': p.id,
                     'employee_id': p.employee_id,
                     'concerns': p.concerns,
-                    'concern_category': getattr(p, 'concern_category', ''),
-                    'severity': getattr(p, 'severity', ''),
-                    'frequency': getattr(p, 'frequency', ''),
-                    'tags': getattr(p, 'tags', ''),
                     'start_date': p.start_date.strftime('%Y-%m-%d') if p.start_date else '',
                     'review_date': p.review_date.strftime('%Y-%m-%d') if p.review_date else '',
-                    'status': p.status,
-                    'created_by': getattr(p, 'created_by', '')
-                } for p in pips]
-            )
+                    'status': p.status
+                } for p in pips
+            ])
 
-            # Timeline Events
+            # Export Timeline Events
             events = TimelineEvent.query.all()
-            write_csv(
-                'timeline_events.csv',
-                ['id', 'pip_record_id', 'employee_id', 'event_type', 'notes', 'updated_by', 'timestamp'],
-                [{
+            write_csv('timeline_events.csv', ['id', 'employee_id', 'description', 'timestamp'], [
+                {
                     'id': t.id,
-                    'pip_record_id': t.pip_record_id,
                     'employee_id': t.pip_record.employee_id if t.pip_record else '',
-                    'event_type': getattr(t, 'event_type', ''),
-                    'notes': getattr(t, 'notes', ''),
-                    'updated_by': getattr(t, 'updated_by', ''),
-                    'timestamp': t.timestamp.strftime('%Y-%m-%d %H:%M:%S') if t.timestamp else ''
-                } for t in events]
-            )
+                    'description': f"{t.event_type or ''}: {t.notes or ''}",
+                    'timestamp': t.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                } for t in events
+        ])
 
-            # Users
+
+            # Export Users
             users = User.query.all()
-            write_csv(
-                'users.csv',
-                ['id', 'username', 'email', 'admin_level', 'team_id'],
-                [{
+            write_csv('users.csv', ['id', 'email', 'admin_level'], [
+                {
                     'id': u.id,
-                    'username': u.username,
                     'email': u.email,
-                    'admin_level': u.admin_level,
-                    'team_id': u.team_id
-                } for u in users]
-            )
+                    'admin_level': u.admin_level
+                } for u in users
+            ])
 
-            # Probation Records
+            # Export Probation Records
             probations = ProbationRecord.query.all()
-            write_csv(
-                'probation_records.csv',
-                ['id', 'employee_id', 'status', 'start_date', 'expected_end_date', 'notes'],
-                [{
+            write_csv('probation_records.csv', ['id', 'employee_id', 'status', 'start_date', 'end_date'], [
+                {
                     'id': p.id,
                     'employee_id': p.employee_id,
                     'status': p.status,
                     'start_date': p.start_date.strftime('%Y-%m-%d') if p.start_date else '',
-                    'expected_end_date': p.expected_end_date.strftime('%Y-%m-%d') if p.expected_end_date else '',
-                    'notes': p.notes
-                } for p in probations]
-            )
+                    'end_date': p.expected_end_date.strftime('%Y-%m-%d') if p.expected_end_date else ''
+                } for p in probations
+            ])
 
-            # Probation Reviews
+            # Export Probation Reviews
             reviews = ProbationReview.query.all()
-            write_csv(
-                'probation_reviews.csv',
-                ['id', 'probation_id', 'review_date', 'reviewer', 'summary', 'concerns_flag'],
-                [{
+            write_csv('probation_reviews.csv', ['id', 'probation_id', 'review_date', 'notes'], [
+                {
                     'id': r.id,
                     'probation_id': r.probation_id,
                     'review_date': r.review_date.strftime('%Y-%m-%d') if r.review_date else '',
-                    'reviewer': r.reviewer,
-                    'summary': r.summary,
-                    'concerns_flag': r.concerns_flag
-                } for r in reviews]
-            )
+                    'notes': r.notes
+                } for r in reviews
+            ])
 
-            # Probation Plans (objectives/outcome/deadline)
+            # Export Probation Plans
             plans = ProbationPlan.query.all()
-            write_csv(
-                'probation_plans.csv',
-                ['id', 'probation_id', 'objectives', 'outcome', 'deadline'],
-                [{
+            write_csv('probation_plans.csv', ['id', 'probation_id', 'objective', 'support', 'deadline'], [
+                {
                     'id': p.id,
                     'probation_id': p.probation_id,
-                    'objectives': getattr(p, 'objectives', ''),
-                    'outcome': getattr(p, 'outcome', ''),
-                    'deadline': p.deadline.strftime('%Y-%m-%d') if getattr(p, 'deadline', None) else ''
-                } for p in plans]
-            )
+                    'objective': p.objective,
+                    'support': p.support,
+                    'deadline': p.deadline.strftime('%Y-%m-%d') if p.deadline else ''
+                } for p in plans
+            ])
 
+    # Finalize ZIP buffer and return file
     zip_buffer.seek(0)
     timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M')
     return send_file(zip_buffer, mimetype='application/zip', as_attachment=True, download_name=f'export_{timestamp}.zip')
 
+
+
+
 # ----- User Management -----
+
+
 @app.route('/admin/users/edit/<int:user_id>', methods=['GET', 'POST'])
 @login_required
 def edit_user(user_id):
@@ -339,6 +270,7 @@ def edit_user(user_id):
 
     return render_template('edit_user.html', form=form, user=user)
 
+
 @app.route('/admin/users/create', methods=['GET', 'POST'])
 @login_required
 def create_user():
@@ -353,6 +285,7 @@ def create_user():
         admin_level = int(request.form.get('admin_level', 0))
         team_id = request.form.get('team_id') or None
 
+        # Basic checks
         if not username or not email or not password:
             flash("All fields except team ID are required.", "danger")
             return redirect(request.url)
@@ -392,7 +325,17 @@ def delete_user(user_id):
     flash("User deleted successfully.", "success")
     return redirect(url_for('manage_users'))
 
-# ----- Employee and PIP management -----
+
+
+
+
+
+
+
+
+#Employee and PIP management
+
+
 @app.route('/employee/<int:employee_id>')
 @login_required
 def employee_detail(employee_id):
@@ -412,24 +355,27 @@ def pip_detail(id):
 @app.route('/pip/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
 def edit_pip(id):
-    pip = PIPRecord.query.get_or_404(id)
+    pip      = PIPRecord.query.get_or_404(id)
     employee = pip.employee
 
+    # Bind GET or POST into the form
     if request.method == 'POST':
         form = PIPForm()
         form.process(request.form)
     else:
         form = PIPForm(obj=pip)
+        # Pre‐populate action items on GET
         for _ in range(len(pip.action_items) - len(form.actions.entries)):
             form.actions.append_entry()
         for idx, ai in enumerate(pip.action_items):
             form.actions.entries[idx].form.description.data = ai.description
-            form.actions.entries[idx].form.status.data = ai.status
+            form.actions.entries[idx].form.status.data      = ai.status
 
     advice_text = None
 
-    # AI Advice branch
+    # 1) AI Advice branch
     if request.method == 'POST' and 'generate_advice' in request.form:
+        # Build prompt
         prompt = (
             f"You are a performance coach.\n"
             f"Employee: {employee.first_name} {employee.last_name}\n"
@@ -439,37 +385,46 @@ def edit_pip(id):
         )
         for ai_field in form.actions.entries:
             desc = ai_field.form.description.data or '[no description]'
-            stat = ai_field.form.status.data or '[no status]'
+            stat = ai_field.form.status.data      or '[no status]'
             prompt += f"- {desc} [{stat}]\n"
         prompt += f"Meeting Notes: {form.meeting_notes.data or '[none]'}\n"
         prompt += "Provide 3 bulleted actionable tips for the manager to support this employee."
 
+        # Call the new API
         resp = client.chat.completions.create(
             model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role":"user","content":prompt}],
             temperature=0.7,
         )
+        # In v1, the choices list still lives under resp.choices
         advice_text = resp.choices[0].message.content.strip()
 
-        return render_template('edit_pip.html', form=form, pip=pip, employee=employee, advice_text=advice_text)
+        return render_template(
+            'edit_pip.html',
+            form=form,
+            pip=pip,
+            employee=employee,
+            advice_text=advice_text
+        )
 
-    # Save branch
+    # 2) Save branch
     if form.validate_on_submit():
-        pip.concerns = form.concerns.data
-        pip.start_date = form.start_date.data
-        pip.review_date = form.review_date.data
-        pip.status = form.status.data
+        pip.concerns      = form.concerns.data
+        pip.start_date    = form.start_date.data
+        pip.review_date   = form.review_date.data
+        pip.status        = form.status.data
         pip.meeting_notes = form.meeting_notes.data
-        pip.capability_meeting_date = form.capability_meeting_date.data
-        pip.capability_meeting_time = form.capability_meeting_time.data
+        pip.capability_meeting_date  = form.capability_meeting_date.data
+        pip.capability_meeting_time  = form.capability_meeting_time.data
         pip.capability_meeting_venue = form.capability_meeting_venue.data
+
 
         pip.action_items.clear()
         for ai_field in form.actions.entries:
             pip.action_items.append(
                 PIPActionItem(
                     description=ai_field.form.description.data,
-                    status=ai_field.form.status.data
+                    status     =ai_field.form.status.data
                 )
             )
 
@@ -477,8 +432,14 @@ def edit_pip(id):
         flash('PIP updated successfully.', 'success')
         return redirect(url_for('pip_detail', id=pip.id))
 
-    # Final render
-    return render_template('edit_pip.html', form=form, pip=pip, employee=employee, advice_text=advice_text)
+    # 3) Final render
+    return render_template(
+        'edit_pip.html',
+        form=form,
+        pip=pip,
+        employee=employee,
+        advice_text=advice_text
+    )
 
 @app.route('/pip/<int:id>/generate/advice', methods=['POST'])
 @login_required
@@ -497,6 +458,7 @@ def generate_ai_advice(id):
     )
     for item in pip.action_items:
         prompt += f"- {item.description or '[no description]'} [{item.status or '[no status]'}]\n"
+
     prompt += f"Meeting Notes: {pip.meeting_notes or '[none]'}\n\n"
     prompt += "Provide your advice as a bullet-pointed list."
 
@@ -506,8 +468,9 @@ def generate_ai_advice(id):
         temperature=0.7,
     )
     pip.ai_advice = resp.choices[0].message.content.strip()
-    pip.ai_advice_generated_at = datetime.now(timezone.utc)
+    pip.ai_advice_generated_at = datetime.utcnow()
 
+    # Log timeline event
     event = TimelineEvent(
         pip_record_id=pip.id,
         event_type="AI Advice Generated",
@@ -520,7 +483,8 @@ def generate_ai_advice(id):
     flash('AI advice generated.', 'success')
     return redirect(url_for('pip_detail', id=pip.id))
 
-@app.route('/pip/create/<int:employee_id>', methods=['GET', 'POST'])
+
+#@app.route('/pip/create/<int:employee_id>', methods=['GET', 'POST'])
 @login_required
 def create_pip(employee_id):
     employee = Employee.query.get_or_404(employee_id)
@@ -530,31 +494,31 @@ def create_pip(employee_id):
 
     form = PIPForm()
 
-    # Append empty action entry on GET to prevent Jinja error
+    # ✅ Append empty action entry on GET to prevent Jinja error
     if request.method == 'GET' and len(form.actions.entries) == 0:
         form.actions.append_entry()
 
-    # Recalculate min_entries for dynamic action field JS handling
+    # ✅ Recalculate min_entries for dynamic action field JS handling
     if request.method == 'POST':
         action_fields = [k for k in request.form if 'actions-' in k and '-description' in k]
         form.actions.min_entries = len(set(k.split('-')[1] for k in action_fields))
 
     if form.validate_on_submit():
         pip = PIPRecord(
-            employee_id=employee.id,
-            concerns=form.concerns.data,
-            start_date=form.start_date.data,
-            review_date=form.review_date.data,
-            meeting_notes=form.meeting_notes.data
+            employee_id   = employee.id,
+            concerns      = form.concerns.data,
+            start_date    = form.start_date.data,
+            review_date   = form.review_date.data,
+            meeting_notes = form.meeting_notes.data
         )
         db.session.add(pip)
         db.session.flush()
 
         for action_form in form.actions.entries:
             item = PIPActionItem(
-                pip_record_id=pip.id,
-                description=action_form.form.description.data,
-                status=action_form.form.status.data
+                pip_record_id = pip.id,
+                description   = action_form.form.description.data,
+                status        = action_form.form.status.data
             )
             db.session.add(item)
 
@@ -568,7 +532,7 @@ def create_pip(employee_id):
 @login_required
 def edit_employee(employee_id):
     employee = Employee.query.get_or_404(employee_id)
-
+    
     if current_user.admin_level == 0 and employee.team_id != current_user.team_id:
         flash('Access denied.')
         return redirect(url_for('dashboard'))
@@ -576,20 +540,21 @@ def edit_employee(employee_id):
     form = EmployeeForm(obj=employee)
 
     if form.validate_on_submit():
-        employee.first_name = form.first_name.data
-        employee.last_name = form.last_name.data
-        employee.job_title = form.job_title.data
+        employee.first_name   = form.first_name.data
+        employee.last_name    = form.last_name.data
+        employee.job_title    = form.job_title.data
         employee.line_manager = form.line_manager.data
-        employee.service = form.service.data
-        employee.start_date = form.start_date.data
-        employee.team_id = form.team_id.data
-        employee.email = form.email.data
+        employee.service      = form.service.data
+        employee.start_date   = form.start_date.data
+        employee.team_id      = form.team_id.data
+        employee.email        = form.email.data
 
         db.session.commit()
         flash('Employee details updated.', 'success')
         return redirect(url_for('employee_detail', employee_id=employee.id))
 
     return render_template('edit_employee.html', form=form, employee=employee)
+
 
 @app.route('/pip/list')
 @login_required
@@ -604,9 +569,7 @@ def dashboard():
     active_pips = PIPRecord.query.filter_by(status='Open').count()
     completed_pips = PIPRecord.query.filter_by(status='Completed').count()
 
-    
-    today = datetime.now(timezone.utc).date()
-
+    today = datetime.utcnow().date()
     overdue_reviews = PIPRecord.query.filter(
         PIPRecord.review_date < today,
         PIPRecord.status == 'Open'
@@ -629,7 +592,8 @@ def dashboard():
             PIPRecord.review_date <= upcoming_deadline
         ).order_by(PIPRecord.review_date).all()
 
-    draft = get_active_draft_for_user(current_user.id)
+    draft = DraftPIP.query.filter_by(user_id=current_user.id).first()
+
 
     return render_template(
         'dashboard.html',
@@ -642,6 +606,8 @@ def dashboard():
         draft=draft
     )
 
+
+
 @app.route('/employee/add', methods=['GET', 'POST'])
 @login_required
 def add_employee():
@@ -651,14 +617,14 @@ def add_employee():
     form = EmployeeForm()
     if form.validate_on_submit():
         emp = Employee(
-            first_name=form.first_name.data,
-            last_name=form.last_name.data,
-            job_title=form.job_title.data,
-            line_manager=form.line_manager.data,
-            service=form.service.data,
-            start_date=form.start_date.data,
-            team_id=form.team_id.data,
-            email=form.email.data
+            first_name  = form.first_name.data,
+            last_name   = form.last_name.data,
+            job_title   = form.job_title.data,
+            line_manager= form.line_manager.data,
+            service     = form.service.data,
+            start_date  = form.start_date.data,
+            team_id     = form.team_id.data,
+            email       = form.email.data
         )
         db.session.add(emp)
         db.session.commit()
@@ -666,66 +632,12 @@ def add_employee():
         return redirect(url_for('employee_list'))
     return render_template('add_employee.html', form=form)
 
-@app.route('/employee/quick-add', methods=['POST'])
-@login_required
-@csrf.exempt
-def quick_add_employee():
-    """
-    Minimal quick-add endpoint for use in wizard Step 1.
-    Expects JSON: { first_name, last_name, role, service }
-    """
-    data = request.get_json(force=True, silent=True) or {}
-    first = (data.get("first_name") or "").strip()
-    last = (data.get("last_name") or "").strip()
-    role = (data.get("role") or "").strip()
-    service = (data.get("service") or "").strip()
-
-    if not first or not last:
-        return jsonify({"success": False, "error": "First and last name are required"}), 400
-
-    emp = Employee(
-        first_name=first,
-        last_name=last,
-        role=role,
-        service=service,
-        manager_id=getattr(current_user, "id", None)
-    )
-    db.session.add(emp)
-    db.session.commit()
-
-    # Optional: log event
-    try:
-        evt = TimelineEvent(
-            event_type="Employee Created",
-            notes="Employee created via Quick-Add in wizard",
-            updated_by=current_user.username
-        )
-        db.session.add(evt)
-        db.session.commit()
-    except Exception:
-        pass
-
-    return jsonify({"success": True, "id": emp.id, "display_name": f"{emp.first_name} {emp.last_name}"})
-
-
 @app.route('/employee/list')
 @login_required
 def employee_list():
-    # Choose template by active module, but always apply role-based filtering
-    template = 'probation_employee_list.html' if session.get('active_module') == 'Probation' else 'employee_list.html'
-
-    q = Employee.query
-    if current_user.admin_level == 0:
-        # Line managers: only their team
-        if current_user.team_id:
-            q = q.filter(Employee.team_id == current_user.team_id)
-        else:
-            # No team assigned -> return empty list rather than error
-            q = q.filter(False)
-
-    employees = q.order_by(Employee.last_name.asc(), Employee.first_name.asc()).all()
-    return render_template(template, employees=employees)
-
+    if session.get('active_module') == 'probation':
+        return render_template('probation_employee_list.html', employees=Employee.query.all())
+    return render_template('employee_list.html', employees=Employee.query.all())
 
 
 @app.route('/pip/select-employee', methods=['GET', 'POST'])
@@ -736,7 +648,7 @@ def select_employee_for_pip():
         return redirect(url_for('create_pip', employee_id=request.form.get('employee_id')))
     return render_template('pip_select_employee.html', employees=employees)
 
-# ----- Document Generation -----
+# Document Generation
 @app.route('/pip/<int:id>/generate/invite')
 @login_required
 def generate_invite_letter(id):
@@ -769,37 +681,37 @@ def generate_plan_document(id):
     pip = PIPRecord.query.get_or_404(id)
     tpl = DocxTemplate('templates/docx/plan_template.docx')
     tpl.render({'employee': pip.employee, 'pip': pip, 'current_user': current_user})
-    out = BytesIO()
-    tpl.save(out)
-    out.seek(0)
-    return send_file(
-        out,
-        as_attachment=True,
-        download_name=f"PIP_Plan_{pip.employee.last_name}_{pip.id}.docx",
-        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    )
+    out = BytesIO(); tpl.save(out); out.seek(0)
+    return send_file(out, as_attachment=True,
+                     download_name=f"PIP_Plan_{pip.employee.last_name}_{pip.id}.docx",
+                     mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
 
 @app.route('/pip/<int:id>/generate/outcome')
 @login_required
 def generate_outcome_letter(id):
     pip = PIPRecord.query.get_or_404(id)
     tpl = DocxTemplate('templates/docx/outcome_letter_template.docx')
-    date_obj = pip.last_updated or pip.created_at or pip.start_date or datetime.now()
+    # safe date
+    date_obj = pip.last_updated or pip.created_at or pip.start_date
     date_str = date_obj.strftime('%d %b %Y')
     tpl.render({'employee': pip.employee, 'pip': pip, 'current_user': current_user, 'date_str': date_str})
-    out = BytesIO()
-    tpl.save(out)
-    out.seek(0)
-    return send_file(
-        out,
-        as_attachment=True,
-        download_name=f"Outcome_Letter_{pip.employee.last_name}_{pip.id}.docx",
-        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    )
+    out = BytesIO(); tpl.save(out); out.seek(0)
+    return send_file(out, as_attachment=True,
+                     download_name=f"Outcome_Letter_{pip.employee.last_name}_{pip.id}.docx",
+                     mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
 
-# ----- Wizard -----
+
+from datetime import datetime, timezone
+
 class DummyForm(FlaskForm):
     pass
+
+from flask_wtf import FlaskForm
+
+class DummyForm(FlaskForm):
+    pass
+
+from datetime import datetime, timezone
 
 @app.route('/pip/create-wizard', methods=['GET', 'POST'])
 @login_required
@@ -811,7 +723,7 @@ def create_pip_wizard():
     step = session['wizard_step']
     data = session.get('pip_data', {})
     wizard_errors = {}
-    draft = None  # Enhance later: load a real draft by draft_id
+    draft = None  # Optional: you can enhance to load a real draft by draft_id
 
     if request.method == 'POST':
         print(f"[DEBUG] POST request received at step {step}")
@@ -889,8 +801,7 @@ def create_pip_wizard():
                         tags=data.get('concern_tags'),
                         start_date=datetime.strptime(data['start_date'], '%Y-%m-%d').date(),
                         review_date=datetime.strptime(data['review_date'], '%Y-%m-%d').date(),
-                        capability_meeting_date=datetime.strptime(data['capability_meeting_date'], '%Y-%m-%d')
-                            if data.get('capability_meeting_date') else None,
+                        capability_meeting_date=datetime.strptime(data['capability_meeting_date'], '%Y-%m-%d') if data.get('capability_meeting_date') else None,
                         capability_meeting_time=data.get('capability_meeting_time'),
                         capability_meeting_venue=data.get('capability_meeting_venue'),
                         created_by=current_user.username
@@ -943,18 +854,36 @@ def create_pip_wizard():
         employees=employees
     )
 
-# ----- AJAX validation for wizard -----
+
+
+
+
+
+from flask import request, jsonify
+from flask_login import login_required
+from flask_wtf.csrf import validate_csrf, CSRFError
+
+from flask import request, jsonify
+from flask_login import login_required
+from flask_wtf.csrf import validate_csrf, CSRFError
+
+from flask import request, jsonify
+from flask_login import login_required
+from flask_wtf.csrf import validate_csrf, CSRFError
+
 @app.route('/validate_wizard_step', methods=['POST'])
 @login_required
 def validate_wizard_step():
     step = int(request.form.get("step", 1))
     errors = {}
 
+    # Step 1: Select Employee
     if step == 1:
         employee_id = request.form.get("employee_id")
         if not employee_id:
             errors["employee_id"] = "Please select an employee."
 
+    # Step 2: Define Concerns
     elif step == 2:
         concerns = request.form.get("concerns", "").strip()
         category = request.form.get("concern_category", "").strip()
@@ -966,12 +895,14 @@ def validate_wizard_step():
             errors["concerns"] = "Please describe the concern."
         if not category:
             errors["concern_category"] = "Please select a concern category."
-        # tags optional to match wizard
+        if not tags:
+            errors["concern_tags"] = "Please enter at least one tag."
         if not severity:
             errors["severity"] = "Please select severity."
         if not frequency:
             errors["frequency"] = "Please select frequency."
 
+    # Step 3: Set Dates
     elif step == 3:
         start_date = request.form.get("start_date", "").strip()
         review_date = request.form.get("review_date", "").strip()
@@ -980,6 +911,7 @@ def validate_wizard_step():
         if not review_date:
             errors["review_date"] = "Please enter a review date."
 
+    # Step 4: Schedule Meeting
     elif step == 4:
         meeting_date = request.form.get("meeting_date", "").strip()
         meeting_time = request.form.get("meeting_time", "").strip()
@@ -988,6 +920,7 @@ def validate_wizard_step():
         if not meeting_time:
             errors["meeting_time"] = "Please enter a meeting time."
 
+    # Step 5: Action Plan
     elif step == 5:
         actions = request.form.getlist("action_plan_items[]")
         actions = [a.strip() for a in actions if a.strip()]
@@ -996,7 +929,7 @@ def validate_wizard_step():
 
     return jsonify({"success": not errors, "errors": errors})
 
-# ----- Draft handling -----
+
 @app.route('/dismiss_draft', methods=['POST'])
 @login_required
 @csrf.exempt
@@ -1004,16 +937,19 @@ def dismiss_draft():
     draft = DraftPIP.query.filter_by(user_id=current_user.id, is_dismissed=False).first()
     if draft:
         draft.is_dismissed = True
-        draft.updated_at = datetime.now(timezone.utc)
+        draft.updated_at = datetime.utcnow()
         db.session.commit()
         return jsonify({"success": True})
     return jsonify({"success": False, "message": "No active draft found"}), 404
+
+
 
 @app.route('/save_pip_draft', methods=['POST'])
 @login_required
 @csrf.exempt
 def save_pip_draft():
     try:
+        # Gather data from the form
         data = {
             'employee_id': request.form.get('employee_id'),
             'draft_name': request.form.get('draft_name', '').strip(),
@@ -1030,9 +966,12 @@ def save_pip_draft():
             'action_plan_items': request.form.getlist('action_plan_items[]')
         }
 
+        # Clean empty values
         cleaned_data = {k: v for k, v in data.items() if v not in [None, '', []]}
 
+        # Check for existing non-dismissed draft for the user
         existing_draft = DraftPIP.query.filter_by(user_id=current_user.id, is_dismissed=False).first()
+
         if existing_draft:
             db.session.delete(existing_draft)
             db.session.commit()
@@ -1042,7 +981,7 @@ def save_pip_draft():
             data=cleaned_data,
             step=session.get('wizard_step', 1),
             is_dismissed=False,
-            updated_at=datetime.now(timezone.utc)
+            updated_at=datetime.utcnow()
         )
         db.session.add(new_draft)
         db.session.commit()
@@ -1053,7 +992,14 @@ def save_pip_draft():
         print(f"[ERROR] Failed to save draft: {e}")
         return jsonify({"success": False, "message": "Failed to save draft."}), 500
 
-# ----- AI Action Suggestions -----
+
+# --- AI Action Suggestions ---
+from flask import request, jsonify
+from openai import OpenAI
+import os
+
+openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
 @app.route('/suggest_actions_ai', methods=['POST'])
 @login_required
 def suggest_actions_ai():
@@ -1064,56 +1010,68 @@ def suggest_actions_ai():
     tags = data.get('tags', '')
     category = data.get('category', '')
 
+    # Construct the AI prompt
     prompt = f"""
-You're an HR advisor helping line managers create action plans for performance improvement.
-Based on the following concern details, suggest 3 specific, practical action plan items:
+    You're an HR advisor helping line managers create action plans for performance improvement.
+    Based on the following concern details, suggest 3 specific, practical action plan items:
 
-Concern Category: {category}
-Concerns: {concerns}
-Tags: {tags}
-Severity: {severity}
-Frequency: {frequency}
+    Concern Category: {category}
+    Concerns: {concerns}
+    Tags: {tags}
+    Severity: {severity}
+    Frequency: {frequency}
 
-Format your response as a plain numbered list.
-"""
+    Format your response as a plain numbered list.
+    """
 
     try:
-        resp = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=300,
-            temperature=0.7
+            temperature=0.7,
         )
-        actions_text = resp.choices[0].message.content
-        actions = [line.strip().lstrip('0123456789. ').strip()
-                   for line in actions_text.splitlines() if line.strip()]
+        actions_text = response['choices'][0]['message']['content']
+        actions = [line.strip().lstrip('0123456789. ').strip() for line in actions_text.splitlines() if line.strip()]
         success = True
+
     except Exception as e:
         print("OpenAI error:", e)
-        return jsonify({"success": False, "error": "Unable to generate AI suggestions at this time."}), 500
+        return jsonify({
+            "success": False,
+            "error": "Unable to generate AI suggestions at this time."
+        }), 500
 
-    # Next Up Suggestions
+    # Next Up Suggestions logic
     next_up = []
-    tag_list = [t.strip().lower() for t in tags.split(',')] if tags else []
+    tag_list = [t.strip().lower() for t in tags.split(',')]
 
-    if 'lateness' in tag_list or (category and 'timekeeping' in category.lower()):
+    if 'lateness' in tag_list or 'timekeeping' in category.lower():
         next_up.extend([
             "Set up a daily check-in for punctuality.",
             "Introduce a lateness tracking sheet."
         ])
-    if 'conduct' in tag_list or (category and category.lower() == 'conduct'):
+
+    if 'conduct' in tag_list or category.lower() == 'conduct':
         next_up.extend([
             "Schedule a values-based training session.",
             "Document informal warnings in line with policy."
         ])
-    if severity and severity.lower() == 'high':
+
+    if severity.lower() == 'high':
         next_up.append("Consider escalating to formal disciplinary procedures.")
-    if frequency and frequency.lower() in ('frequent', 'persistent'):
+
+    if frequency.lower() == 'frequent' or frequency.lower() == 'persistent':
         next_up.append("Increase monitoring frequency and assign a mentor.")
 
-    return jsonify({"success": success, "actions": actions, "next_up": next_up})
+    return jsonify({
+        "success": success,
+        "actions": actions,
+        "next_up": next_up
+    })
 
-# ----- Probation module -----
+
+# --- View probation record ---
 @app.route('/probation/<int:id>')
 @login_required
 def view_probation(id):
@@ -1121,6 +1079,7 @@ def view_probation(id):
     employee = probation.employee
     return render_template('view_probation.html', probation=probation, employee=employee)
 
+# --- View Probation Review ---
 @app.route('/probation/<int:id>/review/add', methods=['GET', 'POST'])
 @login_required
 def add_probation_review(id):
@@ -1129,16 +1088,17 @@ def add_probation_review(id):
 
     if form.validate_on_submit():
         review = ProbationReview(
-            probation_id=probation.id,
-            review_date=form.review_date.data,
-            reviewer=form.reviewer.data,
-            summary=form.summary.data,
-            concerns_flag=(form.concerns_flag.data.lower() == 'yes')
+            probation_id = probation.id,
+            review_date  = form.review_date.data,
+            reviewer     = form.reviewer.data,
+            summary      = form.summary.data,
+            concerns_flag = (form.concerns_flag.data.lower() == 'yes')
         )
         db.session.add(review)
 
+        # Log to timeline
         event = TimelineEvent(
-            pip_record_id=None,
+            pip_record_id=None,  # not a PIP
             event_type="Probation Review",
             notes=f"Review added by {current_user.username}",
             updated_by=current_user.username
@@ -1159,13 +1119,14 @@ def add_probation_plan(id):
 
     if form.validate_on_submit():
         plan = ProbationPlan(
-            probation_id=probation.id,
-            objectives=form.objectives.data,
-            deadline=form.deadline.data,
-            outcome=form.outcome.data
+            probation_id = probation.id,
+            objectives   = form.objectives.data,
+            deadline     = form.deadline.data,
+            outcome      = form.outcome.data
         )
         db.session.add(plan)
 
+        # Log to timeline
         event = TimelineEvent(
             pip_record_id=None,
             event_type="Probation Plan Added",
@@ -1187,14 +1148,15 @@ def edit_probation(id):
     form = ProbationRecordForm(obj=probation)
 
     if form.validate_on_submit():
-        probation.start_date = form.start_date.data
-        probation.expected_end_date = form.expected_end_date.data
-        probation.notes = form.notes.data
+        probation.start_date       = form.start_date.data
+        probation.expected_end_date= form.expected_end_date.data
+        probation.notes            = form.notes.data
         db.session.commit()
         flash('Probation record updated.', 'success')
         return redirect(url_for('view_probation', id=probation.id))
 
     return render_template('edit_probation.html', form=form, probation=probation)
+
 
 @app.route('/probation/<int:id>/status/<new_status>', methods=['POST'])
 @login_required
@@ -1241,11 +1203,15 @@ def create_probation(employee_id):
 
     return render_template('create_probation.html', form=form, employee=employee)
 
+
+
 @app.route('/probation/dashboard')
 @login_required
 def probation_dashboard():
+    # This will be replaced with the real dashboard later
     records = ProbationRecord.query.all()
     return render_template('probation_dashboard.html', records=records)
+
 
 @app.route('/probation/employees')
 @login_required
@@ -1253,6 +1219,7 @@ def probation_employee_list():
     session['active_module'] = 'Probation'
     employees = Employee.query.all()
     return render_template('probation_employee_list.html', employees=employees)
+
 
 @app.route('/admin/users')
 @login_required
@@ -1262,6 +1229,8 @@ def manage_users():
         return redirect(url_for('dashboard'))
     users = User.query.all()
     return render_template('admin_users.html', users=users)
+
+
 
 @app.route('/admin/backup')
 @login_required
@@ -1276,279 +1245,12 @@ def backup_database():
     else:
         flash('Database file not found.', 'danger')
         return redirect(url_for('admin_dashboard'))
-    
-
-@app.route("/employee/import", methods=["GET", "POST"])
-@login_required
-@superuser_required
-def employee_import():
-    """
-    GET: render basic upload page (you can wire a simple template later).
-    POST: read file, return preview (headers + first 10 rows), and a temp_id.
-    """
-    if request.method == "GET":
-        # If you have a template, render it; otherwise return a tiny placeholder.
-        return render_template("employee_import.html")  # create later
-
-    file = request.files.get("file")
-    if not file or file.filename == "":
-        abort(400, "No file uploaded")
-
-    filename = secure_filename(file.filename)
-    ext = filename.rsplit(".", 1)[-1].lower()
-    if ext not in ALLOWED_EXTS:
-        abort(400, f"Unsupported file type: .{ext}")
-
-    file_bytes = file.read()
-
-    if ext == "csv":
-        headers, rows = _read_csv_bytes(file_bytes)
-    else:
-        headers, rows = _read_xlsx_bytes(file_bytes)
-
-    # Basic normalised headers for mapping convenience
-    normalised_headers = [{ "raw": h, "norm": _normalize_header(h) } for h in (headers or [])]
-
-    # Stash raw file in a temp file; return a token the browser will send back later
-    tmp = tempfile.NamedTemporaryFile(prefix="emp_import_", suffix=f".{ext}", delete=False)
-    tmp.write(file_bytes)
-    tmp.flush()
-    temp_id = tmp.name  # path as token; you can swap to DB-backed jobs later
-
-    # Only preview first 10 rows to keep payload small
-    preview = rows[:10] if rows else []
-
-    return jsonify({
-        "temp_id": temp_id,
-        "headers": headers,
-        "headers_norm": normalised_headers,
-        "suggested_mapping": _suggest_mapping(headers),
-        "preview_rows": preview,
-        "xlsx_enabled": XLSX_ENABLED
-    }), 200
-
-def _suggest_mapping(headers):
-    mapping = {}
-    for h in headers or []:
-        n = _normalize_header(h)
-        if n in EMPLOYEE_FIELDS:
-            mapping[h] = n
-        elif n in ("firstname", "first"):
-            mapping[h] = "first_name"
-        elif n in ("lastname", "last", "surname"):
-            mapping[h] = "last_name"
-        elif n in ("mail", "email_address"):
-            mapping[h] = "email"
-        elif n in ("role", "position", "title", "job", "jobrole", "job_role", "jobtitle"):
-            mapping[h] = "job_title"
-        elif n in ("manager", "line_manager", "linemanager", "manager_name"):
-            mapping[h] = "line_manager"
-        elif n in ("team", "teamid", "team_id", "dept", "department"):
-            mapping[h] = "team_id"
-        else:
-            mapping[h] = ""  # not mapped yet
-    return mapping
 
 
-
-@app.route("/employee/import/validate", methods=["POST"])
-@login_required
-@superuser_required
-def employee_import_validate():
-    """
-    Body JSON:
-    {
-      "temp_id": "<tmp path from /employee/import>",
-      "mapping": { "<file header>": "<employee_field>" },
-      "unique_key": "email" | "first_name,last_name"
-    }
-    Returns a validation report (missing requireds, duplicates, unmapped).
-    """
-    data = request.get_json(force=True, silent=True) or {}
-    temp_id = data.get("temp_id")
-    mapping = data.get("mapping") or {}
-    unique_key = (data.get("unique_key") or "email").strip()
-
-    if not temp_id:
-        abort(400, "Missing temp_id")
-    try:
-        with open(temp_id, "rb") as f:
-            file_bytes = f.read()
-    except Exception:
-        abort(400, "Invalid temp_id or temporary file expired")
-
-    ext = temp_id.rsplit(".", 1)[-1].lower()
-    headers, rows = (_read_csv_bytes(file_bytes) if ext == "csv" else _read_xlsx_bytes(file_bytes))
-
-    # Build normalised row dicts by applying mapping
-    mapped_rows = []
-    unmapped_headers = []
-    for h in headers or []:
-        if not mapping.get(h):
-            unmapped_headers.append(h)
-
-    for r in rows:
-        out = {}
-        for h, v in r.items():
-            field = mapping.get(h)
-            if not field:
-                continue
-            if field == "start_date":
-                out[field] = _try_parse_date(v)
-            else:
-                out[field] = (str(v).strip() if v is not None else None)
-        mapped_rows.append(out)
-
-    # Required fields check
-    missing_required = []
-    for idx, r in enumerate(mapped_rows, start=1):
-        missing = [f for f in REQUIRED_FIELDS if not r.get(f)]
-        if missing:
-            missing_required.append({"row": idx, "missing": missing})
-
-    # Duplicate checks (in-file)
-    duplicates_in_file = []
-    if unique_key:
-        keys = unique_key.split(",")
-        seen = set()
-        for idx, r in enumerate(mapped_rows, start=1):
-            key_tuple = tuple((r.get(k.strip()) or "").lower() for k in keys)
-            if all(key_tuple):  # only consider non-empty key
-                if key_tuple in seen:
-                    duplicates_in_file.append({"row": idx, "key": key_tuple})
-                else:
-                    seen.add(key_tuple)
-
-    # Duplicate checks (in DB) — only if key fields map to actual columns we have
-    duplicates_in_db = []
-    try:
-        from sqlalchemy import or_, and_
-        # Build a query for emails or name pair
-        if unique_key == "email" and any(r.get("email") for r in mapped_rows):
-            emails = list({r.get("email") for r in mapped_rows if r.get("email")})
-            existing = set(e[0].lower() for e in db.session.query(Employee.email).filter(Employee.email.in_(emails)).all())
-            for idx, r in enumerate(mapped_rows, start=1):
-                em = (r.get("email") or "").lower()
-                if em and em in existing:
-                    duplicates_in_db.append({"row": idx, "email": r.get("email")})
-        elif unique_key == "first_name,last_name":
-            # Crude name-based check
-            pairs = {( (r.get("first_name") or "").lower(), (r.get("last_name") or "").lower() )
-                     for r in mapped_rows if r.get("first_name") and r.get("last_name")}
-            if pairs:
-                q = db.session.query(Employee.first_name, Employee.last_name).all()
-                existing_pairs = {(fn.lower(), ln.lower()) for fn, ln in q}
-                for idx, r in enumerate(mapped_rows, start=1):
-                    t = ((r.get("first_name") or "").lower(), (r.get("last_name") or "").lower())
-                    if all(t) and t in existing_pairs:
-                        duplicates_in_db.append({"row": idx, "name": f"{r.get('first_name')} {r.get('last_name')}"})
-    except Exception as e:
-        # Don’t fail validation if the DB check had an issue (e.g., missing column). Report it.
-        duplicates_in_db = [{"error": f"DB duplicate check skipped: {e}"}]
-
-    report = {
-        "unmapped_headers": unmapped_headers,
-        "missing_required": missing_required,
-        "duplicates_in_file": duplicates_in_file,
-        "duplicates_in_db": duplicates_in_db,
-        "rows_ready": len(mapped_rows) - len(missing_required) - len(duplicates_in_file) - len(duplicates_in_db),
-        "total_rows": len(mapped_rows)
-    }
-    # Keep the mapped rows for the commit step (send them back to client, or if preferred store server-side)
-    return jsonify({"temp_id": temp_id, "report": report}), 200
-
-@app.route("/employee/import/commit", methods=["POST"])
-@login_required
-@superuser_required
-def employee_import_commit():
-    """
-    Body JSON:
-    {
-      "temp_id": "<tmp path>",
-      "mapping": { "<file header>": "<employee_field>" },
-      "unique_key": "email" | "first_name,last_name",
-      "confirm": true
-    }
-    Creates Employee rows for all *valid* entries.
-    """
-    data = request.get_json(force=True, silent=True) or {}
-    temp_id = data.get("temp_id")
-    mapping = data.get("mapping") or {}
-    confirm = bool(data.get("confirm"))
-    unique_key = (data.get("unique_key") or "email").strip()
-    if not (temp_id and confirm and mapping):
-        abort(400, "Missing temp_id, mapping, or confirm flag")
-
-    try:
-        with open(temp_id, "rb") as f:
-            file_bytes = f.read()
-    except Exception:
-        abort(400, "Invalid temp_id or temporary file expired")
-
-    ext = temp_id.rsplit(".", 1)[-1].lower()
-    headers, rows = (_read_csv_bytes(file_bytes) if ext == "csv" else _read_xlsx_bytes(file_bytes))
-
-    created, skipped, errors = 0, 0, []
-
-    for idx, src in enumerate(rows, start=1):
-        payload = {}
-        for h, v in src.items():
-            field = mapping.get(h)
-            if not field:
-                continue
-            if field == "start_date":
-                payload[field] = _try_parse_date(v)
-            else:
-                payload[field] = (str(v).strip() if v is not None else None)
-
-        # Required fields
-        if any(not payload.get(f) for f in REQUIRED_FIELDS):
-            skipped += 1
-            continue
-
-        # Duplicate checks (quick)
-        try:
-            exists = False
-            if unique_key == "email" and payload.get("email"):
-                exists = db.session.query(Employee.id).filter_by(email=payload["email"]).first() is not None
-            elif unique_key == "first_name,last_name" and payload.get("first_name") and payload.get("last_name"):
-                exists = db.session.query(Employee.id).filter_by(
-                    first_name=payload["first_name"], last_name=payload["last_name"]
-                ).first() is not None
-            if exists:
-                skipped += 1
-                continue
-        except Exception as e:
-            errors.append({"row": idx, "error": f"Duplicate check failed: {e}"})
-            skipped += 1
-            continue
-
-        try:
-            emp = Employee(**{k: v for k, v in payload.items() if k in EMPLOYEE_FIELDS})
-            db.session.add(emp)
-            created += 1
-        except Exception as e:
-            errors.append({"row": idx, "error": str(e)})
-            skipped += 1
-
-    db.session.commit()
-
-    # Log a single summary event (adjust if you prefer per-employee)
-    try:
-        # Replace with your current_user import if needed
-        username = getattr(current_user, "username", "system")
-        notes = f"Employee Import: created={created}, skipped={skipped}, errors={len(errors)}"
-        evt = TimelineEvent(event_type="Import", notes=notes, updated_by=username)
-        db.session.add(evt)
-        db.session.commit()
-    except Exception:
-        pass  # If TimelineEvent doesn’t fit here, skip logging silently
-
-    return jsonify({"created": created, "skipped": skipped, "errors": errors}), 200
 
 # Create DB if missing
-with app.app_context():
-    if not os.path.exists(os.path.join(basedir, 'pip_crm.db')):
+#with app.app_context():
+    if not os.path.exists('pip_crm.db'):
         db.create_all()
         print('✅ Database created')
 
