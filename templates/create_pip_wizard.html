@@ -35,16 +35,37 @@
     {% if step == 1 %}
       <div class="mb-4">
         <label for="employee_id" class="block text-gray-700 font-medium">Select Employee:</label>
-        <select name="employee_id" id="employee_id" class="form-select mt-1 block w-full border rounded px-3 py-2">
-          <option value="">-- Choose an employee --</option>
-          {% for emp in employees %}
-            <option value="{{ emp.id }}" {% if data.employee_id == emp.id %}selected{% endif %}>{{ emp.name }}</option>
-          {% endfor %}
-        </select>
+        <div class="flex items-center space-x-2">
+          <select id="employee_id" name="employee_id" class="border border-gray-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-[#005b5a]">
+            <option value="">-- Select Employee --</option>
+            {% for emp in employees %}
+              <option value="{{ emp.id }}" {% if data.employee_id == emp.id %}selected{% endif %}>
+                {{ emp.first_name }} {{ emp.last_name }}
+              </option>
+            {% endfor %}
+          </select>
+          <button type="button" id="openQuickAdd" class="px-3 py-2 bg-[#005b5a] text-white rounded-lg hover:bg-[#004746]">+ Add</button>
+        </div>
+        <input type="hidden" name="employee_name" id="employee_name" value="{{ data.employee_name or '' }}">
         {% if wizard_errors.employee_id %}
           <p class="text-red-600 text-sm mt-1">{{ wizard_errors.employee_id }}</p>
         {% endif %}
       </div>
+
+      <script>
+        // Keep a human-readable name so Step 6 can display it without needing `employees`
+        (function () {
+          const sel = document.getElementById('employee_id');
+          const hidden = document.getElementById('employee_name');
+          function setName() {
+            const t = sel.options[sel.selectedIndex]?.text || '';
+            hidden.value = t;
+          }
+          sel?.addEventListener('change', setName);
+          // initialise on load if already selected
+          if (sel && sel.value && !hidden.value) setName();
+        })();
+      </script>
 
     {% elif step == 2 %}
 <div class="space-y-6">
@@ -52,6 +73,9 @@
   <div>
     <label for="concerns" class="block text-sm font-medium text-gray-700">Describe Concerns:</label>
     <textarea id="concerns" name="concerns" rows="4" class="form-textarea mt-1 block w-full rounded-md border-gray-300 shadow-sm">{{ data.concerns or '' }}</textarea>
+    {% if wizard_errors.concerns %}
+      <p class="text-red-600 text-sm mt-1">{{ wizard_errors.concerns }}</p>
+    {% endif %}
   </div>
 
   <!-- Concern Category Dropdown -->
@@ -63,6 +87,9 @@
         <option value="{{ cat }}" {% if data.concern_category == cat %}selected{% endif %}>{{ cat }}</option>
       {% endfor %}
     </select>
+    {% if wizard_errors.concern_category %}
+      <p class="text-red-600 text-sm mt-1">{{ wizard_errors.concern_category }}</p>
+    {% endif %}
   </div>
 
   <!-- Concern Tags (Free Text Input) -->
@@ -80,6 +107,9 @@
         <option value="{{ level }}" {% if data.severity == level %}selected{% endif %}>{{ level }}</option>
       {% endfor %}
     </select>
+    {% if wizard_errors.severity %}
+      <p class="text-red-600 text-sm mt-1">{{ wizard_errors.severity }}</p>
+    {% endif %}
   </div>
 
   <!-- Frequency Dropdown -->
@@ -91,6 +121,9 @@
         <option value="{{ freq }}" {% if data.frequency == freq %}selected{% endif %}>{{ freq }}</option>
       {% endfor %}
     </select>
+    {% if wizard_errors.frequency %}
+      <p class="text-red-600 text-sm mt-1">{{ wizard_errors.frequency }}</p>
+    {% endif %}
   </div>
 </div>
 
@@ -149,6 +182,21 @@
     >
   </div>
 
+  <!-- Hidden mirrors for AJAX validator (expects meeting_date / meeting_time) -->
+  <input type="hidden" name="meeting_date" id="meeting_date_mirror" value="{{ data.get('capability_meeting_date','') }}">
+  <input type="hidden" name="meeting_time" id="meeting_time_mirror" value="{{ data.get('capability_meeting_time','') }}">
+
+  <script>
+    (function () {
+      const d = document.getElementById('meeting_date');
+      const t = document.getElementById('meeting_time');
+      const dMirror = document.getElementById('meeting_date_mirror');
+      const tMirror = document.getElementById('meeting_time_mirror');
+      d?.addEventListener('input', () => dMirror.value = d.value);
+      t?.addEventListener('input', () => tMirror.value = t.value);
+    })();
+  </script>
+
     {% elif step == 5 %}
       <div>
         <div id="action-plan-list" class="mb-4"></div>
@@ -166,7 +214,7 @@
 
     {% elif step == 6 %}
       <div class="space-y-4 text-sm text-gray-700">
-        <p><strong>Employee:</strong> {{ employees | selectattr("id", "equalto", data.employee_id | int) | map(attribute="name") | list | first }}</p>
+        <p><strong>Employee:</strong> {{ data.employee_name or '' }}</p>
         <p><strong>Concerns:</strong> {{ data.concerns }}</p>
         <p><strong>Category:</strong> {{ data.concern_category }}</p>
         <p><strong>Severity:</strong> {{ data.severity }}</p>
@@ -197,8 +245,39 @@
       </div>
     </div>
   </form>
+
+  <!-- Quick-Add Employee Modal (Ellipse HR styling) -->
+  <div id="quickAddModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 border border-gray-200">
+      <h2 class="text-xl font-semibold mb-4 text-[#005b5a]">Quick Add Employee</h2>
+      <form id="quickAddForm" class="space-y-4">
+        <div>
+          <label class="block font-medium text-gray-700">First Name</label>
+          <input type="text" name="first_name" class="border border-gray-300 rounded-lg w-full p-2 focus:outline-none focus:ring-2 focus:ring-[#005b5a]" required>
+        </div>
+        <div>
+          <label class="block font-medium text-gray-700">Last Name</label>
+          <input type="text" name="last_name" class="border border-gray-300 rounded-lg w-full p-2 focus:outline-none focus:ring-2 focus:ring-[#005b5a]" required>
+        </div>
+        <div>
+          <label class="block font-medium text-gray-700">Role</label>
+          <input type="text" name="role" class="border border-gray-300 rounded-lg w-full p-2 focus:outline-none focus:ring-2 focus:ring-[#005b5a]">
+        </div>
+        <div>
+          <label class="block font-medium text-gray-700">Service</label>
+          <input type="text" name="service" class="border border-gray-300 rounded-lg w-full p-2 focus:outline-none focus:ring-2 focus:ring-[#005b5a]">
+        </div>
+        <div class="flex justify-end space-x-2 pt-4">
+          <button type="button" id="cancelQuickAdd" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100">Cancel</button>
+          <button type="submit" class="px-4 py-2 bg-[#005b5a] text-white rounded-lg hover:bg-[#004746]">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
 </div>
 
+<!-- Consolidated scripts -->
 <script>
 function addActionItem() {
   const container = document.getElementById("action-plan-list");
@@ -247,18 +326,21 @@ function suggestActions() {
       });
     }
 
-    if (Array.isArray(data.next_up) && data.next_up.length > 0) {
-      const label = document.createElement("p");
-      label.className = "mt-4 font-medium text-sm text-gray-700";
-      label.textContent = "Next Up Suggestions:";
-      container.appendChild(label);
-
-      data.next_up.forEach(suggestion => {
-        const div = document.createElement("div");
-        div.className = "text-sm text-gray-600 ml-3";
-        div.textContent = "→ " + suggestion;
-        container.appendChild(div);
-      });
+    const nextWrap = document.getElementById("next-up-suggestions");
+    const cards = document.getElementById("suggestion-cards");
+    if (nextWrap && cards) {
+      cards.innerHTML = "";
+      if (Array.isArray(data.next_up) && data.next_up.length > 0) {
+        nextWrap.classList.remove("hidden");
+        data.next_up.forEach(suggestion => {
+          const div = document.createElement("div");
+          div.className = "text-sm text-gray-600 p-2 rounded border";
+          div.textContent = suggestion;
+          cards.appendChild(div);
+        });
+      } else {
+        nextWrap.classList.add("hidden");
+      }
     }
   })
   .catch(err => {
@@ -267,9 +349,9 @@ function suggestActions() {
   });
 }
 
-
 function saveDraft(callback) {
-  const formData = new FormData(document.getElementById("wizardForm"));
+  const form = document.getElementById("wizardForm");
+  const formData = new FormData(form);
   fetch("{{ url_for('save_pip_draft') }}", {
     method: "POST",
     body: formData,
@@ -277,7 +359,8 @@ function saveDraft(callback) {
   })
   .then(res => res.json())
   .then(result => {
-    document.getElementById("autosave-status").innerText = `Last saved: ${new Date().toLocaleTimeString()}`;
+    const status = document.getElementById("autosave-status");
+    if (status) status.innerText = `Last saved: ${new Date().toLocaleTimeString()}`;
     if (callback) callback();
   })
   .catch(err => {
@@ -287,20 +370,19 @@ function saveDraft(callback) {
 }
 
 function validateStep(step, callback) {
-  const formData = new FormData(document.getElementById("wizardForm"));
+  const form = document.getElementById("wizardForm");
+  const formData = new FormData(form);
   formData.append("step", step);
   fetch("{{ url_for('validate_wizard_step') }}", {
     method: "POST",
     body: formData,
-    headers: {
-      "X-CSRFToken": formData.get("csrf_token")
-    }
+    headers: { "X-CSRFToken": formData.get("csrf_token") }
   })
   .then(response => response.json())
   .then(data => {
-    console.log("[DEBUG] Validation response:", data);  // <-- add this
+    console.log("[DEBUG] Validation response:", data);
     document.querySelectorAll(".wizard-error").forEach(el => el.remove());
-    if (!data.success) {
+    if (!data.success && data.errors) {
       for (const field in data.errors) {
         const input = document.querySelector(`[name="${field}"]`);
         if (input) {
@@ -312,12 +394,14 @@ function validateStep(step, callback) {
       }
     }
     callback(data.success);
+  })
+  .catch(err => {
+    console.error("Validation error:", err);
+    callback(false);
   });
 }
 
-
 const currentStep = {{ step | int }};
-
 document.getElementById("nextBtn").addEventListener("click", function (e) {
   e.preventDefault();
   validateStep(currentStep, function (valid) {
@@ -327,6 +411,76 @@ document.getElementById("nextBtn").addEventListener("click", function (e) {
       });
     }
   });
+});
+
+// Quick-Add modal wiring
+document.addEventListener("DOMContentLoaded", () => {
+  const modal = document.getElementById("quickAddModal");
+  const openBtn = document.getElementById("openQuickAdd");
+  const cancelBtn = document.getElementById("cancelQuickAdd");
+  const form = document.getElementById("quickAddForm");
+  const employeeSelect = document.getElementById("employee_id");
+
+  if (openBtn) {
+    openBtn.addEventListener("click", () => {
+      modal.classList.remove("hidden");
+      modal.classList.add("flex");
+    });
+  }
+
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", () => {
+      modal.classList.add("hidden");
+      modal.classList.remove("flex");
+    });
+  }
+
+  if (form) {
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = Object.fromEntries(new FormData(form).entries());
+
+      try {
+        const res = await fetch("{{ url_for('quick_add_employee') }}", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": "{{ csrf_token() }}"
+          },
+          body: JSON.stringify(formData)
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          const opt = document.createElement("option");
+          opt.value = data.id;
+          opt.textContent = data.display_name;
+          opt.selected = true;
+          employeeSelect.appendChild(opt);
+
+          // Update hidden display name for Step 6
+          const hiddenName = document.getElementById('employee_name');
+          if (hiddenName) hiddenName.value = data.display_name;
+
+          form.reset();
+          modal.classList.add("hidden");
+          modal.classList.remove("flex");
+
+          // Toast
+          const toast = document.createElement("div");
+          toast.textContent = "✅ Employee added successfully";
+          toast.className = "fixed bottom-4 right-4 bg-[#005b5a] text-white py-2 px-4 rounded-lg shadow-lg";
+          document.body.appendChild(toast);
+          setTimeout(() => toast.remove(), 3000);
+        } else {
+          alert(data.error || "Error adding employee");
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Failed to add employee");
+      }
+    });
+  }
 });
 </script>
 {% endblock %}

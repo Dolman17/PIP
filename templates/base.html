@@ -13,29 +13,18 @@
       darkMode: 'class',
       theme: {
         extend: {
-          fontFamily: {
-            sans: ['"Open Sans"', 'sans-serif'],
-          },
+          fontFamily: { sans: ['"Open Sans"', 'sans-serif'] },
           colors: {
-            ellipse: {
-              teal: '#005b5a',
-              gray: '#404041',
-              light: '#f7f7f7',
-              hover: '#3a8c8b',
-            }
+            ellipse: { teal: '#005b5a', gray: '#404041', light: '#f7f7f7', hover: '#3a8c8b' }
           },
-          animation: {
-            'gradient-x': 'gradient-x 20s ease infinite',
-          },
+          animation: { 'gradient-x': 'gradient-x 20s ease infinite' },
           keyframes: {
             'gradient-x': {
               '0%, 100%': { backgroundPosition: '0% 50%' },
               '50%': { backgroundPosition: '100% 50%' },
             },
           },
-          backgroundImage: {
-            sunset: 'linear-gradient(-45deg, #ff9a9e, #fad0c4, #fbc2eb, #a18cd1)',
-          }
+          backgroundImage: { sunset: 'linear-gradient(-45deg, #ff9a9e, #fad0c4, #fbc2eb, #a18cd1)' },
         }
       }
     }
@@ -43,96 +32,97 @@
 </head>
 
 <body class="text-ellipse-gray font-sans overflow-x-hidden {% if layout != 'fullscreen' %}bg-ellipse-light min-h-screen{% endif %}">
-  
-  {% if layout != 'fullscreen' %}
-  <div class="flex flex-col md:flex-row min-h-screen">
 
-    {% if active_module %}
-    <!-- Mobile Navbar -->
-    <div class="md:hidden bg-white shadow p-4 flex justify-between items-center">
+{% if layout != 'fullscreen' %}
+<div class="flex flex-col md:flex-row min-h-screen">
+
+  {% if active_module %}
+  <!-- Mobile Navbar -->
+  <div class="md:hidden bg-white shadow p-4 flex justify-between items-center">
+    <h1 class="text-lg font-semibold text-ellipse-teal">Ellipse HR</h1>
+    <button id="mobileMenuToggle" class="text-ellipse-teal focus:outline-none">☰</button>
+  </div>
+
+  <!-- Sidebar -->
+  <aside id="sidebarMenu" class="w-full md:w-64 bg-white shadow-md hidden md:block">
+    <div class="p-6 border-b border-ellipse-light text-center">
+      <img src="{{ url_for('static', filename='images/logo.avif') }}" alt="Ellipse HR Logo" class="h-12 w-auto mx-auto mb-3" />
       <h1 class="text-lg font-semibold text-ellipse-teal">Ellipse HR</h1>
-      <button id="mobileMenuToggle" class="text-ellipse-teal focus:outline-none">
-        ☰
-      </button>
     </div>
 
-    <!-- Sidebar -->
-    <aside id="sidebarMenu" class="w-full md:w-64 bg-white shadow-md hidden md:block">
-      <div class="p-6 border-b border-ellipse-light text-center">
-        <img src="{{ url_for('static', filename='images/logo.avif') }}"
-             alt="Ellipse HR Logo"
-             class="h-12 w-auto mx-auto mb-3" />
-        <h1 class="text-lg font-semibold text-ellipse-teal">Ellipse HR</h1>
-      </div>
-      <nav class="p-4 space-y-2 text-sm font-medium">
-        <a href="{{ url_for('home') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">⬅ Back to Module Selection</a>
+    <nav class="p-4 space-y-2 text-sm font-medium">
+      <a href="{{ url_for('home') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">⬅ Back to Module Selection</a>
 
-        {% if active_module == 'PIP' %}
-          <a href="{{ url_for('create_pip_wizard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">➕ Start New PIP</a>
-          <a href="{{ url_for('employee_list') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">👥 All Employees</a>
-          <a href="{{ url_for('pip_list') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">📋 View All PIPs</a>
-          <a href="{{ url_for('dashboard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">📊 Dashboard</a>
-        {% elif active_module == 'Probation' %}
-          <a href="{{ url_for('create_probation', employee_id=1) }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">➕ Start Probation</a>
-          <a href="{{ url_for('probation_employee_list') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">👥 All Employees</a>
-          <a href="{{ url_for('probation_dashboard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">📊 Probation Dashboard</a>
-        {% endif %}
+      {% if active_module == 'PIP' %}
+        <a href="{{ url_for('create_pip_wizard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">➕ Start New PIP</a>
+        <a href="{{ url_for('employee_list') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">👥 All Employees</a>
+        <a href="{{ url_for('pip_list') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">📋 View All PIPs</a>
+        <a href="{{ url_for('dashboard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">📊 Dashboard</a>
+      {% elif active_module == 'Probation' %}
+        <a href="{{ url_for('create_probation', employee_id=1) }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">➕ Start Probation</a>
+        <a href="{{ url_for('probation_employee_list') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">👥 All Employees</a>
+        <a href="{{ url_for('probation_dashboard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">📊 Probation Dashboard</a>
+      {% endif %}
 
-        <a href="{{ url_for('logout') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">🚪 Logout</a>
-      </nav>
-    </aside>
-    {% endif %}
+      {% if current_user.is_authenticated and current_user.is_superuser() %}
+        <div class="mt-4 mb-1 text-xs uppercase tracking-wide text-gray-500 px-4">Admin Tools</div>
+        <a href="{{ url_for('admin_dashboard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-[#005b5a] {% if request.endpoint == 'admin_dashboard' %}bg-ellipse-light font-semibold{% endif %}">⚙️ Admin Dashboard</a>
+        <a href="{{ url_for('employee_import') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-[#005b5a] {% if request.endpoint == 'employee_import' %}bg-ellipse-light font-semibold{% endif %}">📥 Import Employees</a>
+      {% endif %}
+
+      <a href="{{ url_for('logout') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">🚪 Logout</a>
+    </nav>
+  </aside>
   {% endif %}
+{% endif %}
 
-  <!-- Main content -->
-  <main class="flex-1">
-    {% if layout != 'fullscreen' %}
-    <header class="bg-white shadow p-4 flex justify-between items-center border-b border-gray-200">
-      <h2 class="text-lg font-semibold text-ellipse-teal">{% block page_title %}{% endblock %}</h2>
-      <div class="flex items-center space-x-3 text-sm text-gray-500">
-        <span>Logged in as {{ current_user.username }}</span>
-        {% if current_user.is_authenticated and current_user.is_superuser() %}
-          <a href="{{ url_for('admin_dashboard') }}" class="text-ellipse-teal hover:text-ellipse-hover" title="Admin Tools">
-            ⚙️
-          </a>
-        {% endif %}
-      </div>
-    </header>
-    {% endif %}
-
-    <div class="{% if layout != 'fullscreen' %}p-4 sm:p-6 max-w-7xl mx-auto{% endif %}">
-      {% block content %}{% endblock %}
+<!-- Main Content -->
+<main class="flex-1">
+  {% if layout != 'fullscreen' and active_module %}
+  <header class="bg-white shadow p-4 flex justify-between items-center border-b border-gray-200">
+    <h2 class="text-lg font-semibold text-ellipse-teal">{% block page_title %}{% endblock %}</h2>
+    <div class="flex items-center space-x-3 text-sm text-gray-500">
+      <span>Logged in as {{ current_user.username }}</span>
+      {% if current_user.is_authenticated and current_user.is_superuser() %}
+        <a href="{{ url_for('admin_dashboard') }}" class="text-ellipse-teal hover:text-ellipse-hover" title="Admin Tools">⚙️</a>
+      {% endif %}
     </div>
-  </main>
-
-  {% if layout != 'fullscreen' %}
-  </div> <!-- end wrapper -->
+  </header>
   {% endif %}
 
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div class="mb-4">
-        {% for category, message in messages %}
-          <div class="p-3 rounded text-sm text-white bg-{{ 'green-600' if category == 'success' else 'red-600' }}">
-            {{ message }}
-          </div>
-        {% endfor %}
-      </div>
-    {% endif %}
-  {% endwith %}
+  <div class="{% if layout != 'fullscreen' %}p-4 sm:p-6 max-w-7xl mx-auto{% endif %}">
+    {% block content %}{% endblock %}
+  </div>
+</main>
 
-  <!-- Mobile menu toggle -->
-  <script>
-    const toggleBtn = document.getElementById('mobileMenuToggle');
-    const sidebarMenu = document.getElementById('sidebarMenu');
+{% if layout != 'fullscreen' %}
+</div>
+{% endif %}
 
-    if (toggleBtn) {
-      toggleBtn.addEventListener('click', () => {
-        sidebarMenu.classList.toggle('hidden');
-      });
-    }
-  </script>
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="mb-4">
+      {% for category, message in messages %}
+        <div class="p-3 rounded text-sm text-white bg-{{ 'green-600' if category == 'success' else 'red-600' }}">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
 
-  {% block scripts %}{% endblock %}
+<!-- Mobile Menu Script -->
+<script>
+  const toggleBtn = document.getElementById('mobileMenuToggle');
+  const sidebarMenu = document.getElementById('sidebarMenu');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      sidebarMenu.classList.toggle('hidden');
+    });
+  }
+</script>
+
+{% block scripts %}{% endblock %}
 </body>
 </html>

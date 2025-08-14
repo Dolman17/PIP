@@ -52,6 +52,10 @@ class PIPRecord(db.Model):
     capability_meeting_date = db.Column(db.DateTime, nullable=True)
     capability_meeting_time = db.Column(db.String, nullable=True)
     capability_meeting_venue = db.Column(db.String, nullable=True)
+    concern_category = db.Column(db.String(100))
+    severity = db.Column(db.String(50))
+    frequency = db.Column(db.String(50))
+    tags = db.Column(db.Text)
 
 
     # Relationships
@@ -87,7 +91,7 @@ class TimelineEvent(db.Model):
     __tablename__ = 'timeline_event'
 
     id = db.Column(db.Integer, primary_key=True)
-    pip_record_id = db.Column(db.Integer, db.ForeignKey('pip_record.id'), nullable=False)
+    pip_record_id = db.Column(db.Integer, db.ForeignKey('pip_record.id'), nullable=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     event_type = db.Column(db.String(100))
     notes = db.Column(db.Text)
@@ -146,3 +150,21 @@ class DraftPIP(db.Model):
     is_dismissed = db.Column(db.Boolean, default=False)
 
     user = db.relationship('User', backref='draft_pips')
+
+# models.py (or inside app.py where your models live)
+class ImportJob(db.Model):
+    __tablename__ = 'import_jobs'
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_by = db.Column(db.String(120), nullable=False)
+    source_filename = db.Column(db.String(255), nullable=False)
+    total_rows = db.Column(db.Integer, nullable=False)
+    imported_rows = db.Column(db.Integer, nullable=False, default=0)
+    skipped_rows = db.Column(db.Integer, nullable=False, default=0)
+    errors_json = db.Column(db.Text, nullable=True) # store per-row errors / warnings
+
+    def errors(self):
+        try:
+            return json.loads(self.errors_json or '[]')
+        except Exception:
+            return []
