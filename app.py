@@ -79,10 +79,6 @@ def _merge_curated_and_recent(category: str, recent_tags: list[str], cap: int = 
         if len(out) >= cap: break
     return out
 
-
-
-
-
 # Minimal required fields — adjust if you need more
 REQUIRED_FIELDS = ["first_name", "last_name"]
 
@@ -100,7 +96,7 @@ def _read_xlsx_bytes(file_bytes: bytes):
     headers = [c.value for c in next(sheet.iter_rows(min_row=1, max_row=1))]
     rows = []
     for row in sheet.iter_rows(min_row=2, values_only=True):
-        rows.append({headers[i]: (row[i] if i < len(row) else None) for i in range(len(headers))})
+        rows.append({headers[i]: (row[i] if i < len(headers) else None) for i in range(len(headers))})
     return headers, rows
 
 def _normalize_header(h):
@@ -117,6 +113,20 @@ def _try_parse_date(value):
             continue
     return None
 
+def _max_wizard_step(data: dict) -> int:
+    """
+    Gate progression. Only unlock Step 6 (Review) when Action Items exist.
+    """
+    s = 1
+    if data.get('employee_id'): s = 2
+    if all(data.get(k) for k in ('concerns', 'concern_category', 'severity', 'frequency')): s = 3
+    if all(data.get(k) for k in ('start_date', 'review_date')): s = 4
+    if all(data.get(k) for k in ('capability_meeting_date', 'capability_meeting_time', 'capability_meeting_venue')): s = 5
+    # Only allow review (6) if at least one action item is present
+    items = data.get('action_plan_items') or []
+    if s == 5 and isinstance(items, list) and any((x or '').strip() for x in items):
+        s = 6
+    return s
 
 # --- Models & Forms ---
 from models import (
@@ -221,7 +231,6 @@ def taxonomy_predefined_tags():
     cat = (request.args.get('category') or '').strip()
     tags = CURATED_TAGS.get(cat, [])
     return jsonify({"category": cat, "tags": tags})
-
 
 # ----- Export Data -----
 @app.route('/admin/export')
@@ -644,7 +653,6 @@ def dashboard():
     active_pips = PIPRecord.query.filter_by(status='Open').count()
     completed_pips = PIPRecord.query.filter_by(status='Completed').count()
 
-    
     today = datetime.now(timezone.utc).date()
 
     overdue_reviews = PIPRecord.query.filter(
@@ -747,7 +755,6 @@ def quick_add_employee():
 
     return jsonify({"success": True, "id": emp.id, "display_name": f"{emp.first_name} {emp.last_name}"})
 
-
 @app.route('/employee/list')
 @login_required
 def employee_list():
@@ -765,8 +772,6 @@ def employee_list():
 
     employees = q.order_by(Employee.last_name.asc(), Employee.first_name.asc()).all()
     return render_template(template, employees=employees)
-
-
 
 @app.route('/pip/select-employee', methods=['GET', 'POST'])
 @login_required
@@ -853,6 +858,18 @@ def create_pip_wizard():
     wizard_errors = {}
     draft = None  # Enhance later: load a real draft by draft_id
 
+    # --- Clickable stepper: handle ?goto=N (allow jumps only up to the max allowed) ---
+    if request.method == 'GET':
+        try:
+            goto = int(request.args.get('goto', 0))
+        except (TypeError, ValueError):
+            goto = 0
+        if goto:
+            max_allowed = _max_wizard_step(data)
+            if 1 <= goto <= max_allowed:
+                session['wizard_step'] = goto
+                step = goto
+
     if request.method == 'POST':
         print(f"[DEBUG] POST request received at step {step}")
         print(f"[DEBUG] Form data: {request.form}")
@@ -914,59 +931,79 @@ def create_pip_wizard():
             data['draft_name'] = request.form.get('draft_name', '').strip()
 
         elif step == 5:
+            # Step 5 now ONLY validates and stores the items,
+            # the DB commit happens on Step 6 (Review & Submit).
             action_items = request.form.getlist('action_plan_items[]')
             valid_items = [item.strip() for item in action_items if item.strip()]
             if not valid_items:
                 wizard_errors['action_plan_items'] = "Add at least one action plan item."
             else:
-                try:
-                    pip = PIPRecord(
-                        employee_id=int(data['employee_id']),
-                        concerns=data['concerns'],
-                        concern_category=data.get('concern_category'),
-                        severity=data.get('severity'),
-                        frequency=data.get('frequency'),
-                        tags=data.get('concern_tags'),
-                        start_date=datetime.strptime(data['start_date'], '%Y-%m-%d').date(),
-                        review_date=datetime.strptime(data['review_date'], '%Y-%m-%d').date(),
-                        capability_meeting_date=datetime.strptime(data['capability_meeting_date'], '%Y-%m-%d')
-                            if data.get('capability_meeting_date') else None,
-                        capability_meeting_time=data.get('capability_meeting_time'),
-                        capability_meeting_venue=data.get('capability_meeting_venue'),
-                        created_by=current_user.username
-                    )
-                    db.session.add(pip)
-                    db.session.commit()
+                data['action_plan_items'] = valid_items
+                # Persist and move to Review step
+                session['pip_data'] = data
+                session['wizard_step'] = 6
+                return redirect(url_for('create_pip_wizard'))
 
-                    for item_text in valid_items:
-                        action = PIPActionItem(pip_record_id=pip.id, description=item_text)
-                        db.session.add(action)
+        elif step == 6:
+            # Final COMMIT — create PIP and Action Items
+            try:
+                items = data.get('action_plan_items') or []
+                if not any((x or '').strip() for x in items):
+                    # Safety net: if somehow we got here with no items, send back to step 5
+                    flash("Please add at least one action plan item.", "warning")
+                    session['wizard_step'] = 5
+                    return redirect(url_for('create_pip_wizard'))
 
-                    timeline = TimelineEvent(
-                        pip_record_id=pip.id,
-                        event_type="PIP Created",
-                        notes="PIP created via multi-step wizard",
-                        updated_by=current_user.username
-                    )
-                    db.session.add(timeline)
+                pip = PIPRecord(
+                    employee_id=int(data['employee_id']),
+                    concerns=data['concerns'],
+                    concern_category=data.get('concern_category'),
+                    severity=data.get('severity'),
+                    frequency=data.get('frequency'),
+                    tags=data.get('concern_tags'),
+                    start_date=datetime.strptime(data['start_date'], '%Y-%m-%d').date(),
+                    review_date=datetime.strptime(data['review_date'], '%Y-%m-%d').date(),
+                    capability_meeting_date=datetime.strptime(data['capability_meeting_date'], '%Y-%m-%d')
+                        if data.get('capability_meeting_date') else None,
+                    capability_meeting_time=data.get('capability_meeting_time'),
+                    capability_meeting_venue=data.get('capability_meeting_venue'),
+                    created_by=current_user.username
+                )
+                db.session.add(pip)
+                db.session.commit()
 
-                    db.session.commit()
+                for item_text in items:
+                    action = PIPActionItem(pip_record_id=pip.id, description=item_text)
+                    db.session.add(action)
 
-                    session.pop('wizard_step', None)
-                    session.pop('pip_data', None)
+                timeline = TimelineEvent(
+                    pip_record_id=pip.id,
+                    event_type="PIP Created",
+                    notes="PIP created via multi-step wizard",
+                    updated_by=current_user.username
+                )
+                db.session.add(timeline)
 
-                    flash("PIP created successfully!", "success")
-                    return redirect(url_for('dashboard'))
+                db.session.commit()
 
-                except Exception as e:
-                    print(f"[ERROR] Failed to save PIP: {e}")
-                    flash(f"Error creating PIP: {str(e)}", "danger")
+                session.pop('wizard_step', None)
+                session.pop('pip_data', None)
 
+                flash("PIP created successfully!", "success")
+                return redirect(url_for('dashboard'))
+
+            except Exception as e:
+                print(f"[ERROR] Failed to save PIP: {e}")
+                flash(f"Error creating PIP: {str(e)}", "danger")
+
+        # Always keep draft name if present
         if 'draft_name' in request.form:
             data['draft_name'] = request.form.get('draft_name')
 
+        # Persist to session
         session['pip_data'] = data
 
+        # Move to next step if no errors and not at final commit step
         if not wizard_errors and step < 5:
             session['wizard_step'] = step + 1
             return redirect(url_for('create_pip_wizard'))
@@ -974,13 +1011,17 @@ def create_pip_wizard():
     employees = Employee.query.all() if step == 1 else []
     print(f"[DEBUG] Rendering step {step} with data: {data}")
 
+    # Compute allowed max step for template (clickable stepper)
+    max_allowed = _max_wizard_step(data)
+
     return render_template(
         'create_pip_wizard.html',
         step=step,
         draft=draft,
         data=data,
         wizard_errors=wizard_errors,
-        employees=employees
+        employees=employees,
+        max_allowed_step=max_allowed  # <-- for the clickable stepper UI
     )
 
 # ----- AJAX validation for wizard -----
@@ -1034,6 +1075,8 @@ def validate_wizard_step():
         if not actions:
             errors["action_plan_items"] = "Please add at least one action item."
 
+    # Step 6 has no extra client-side fields; server handles final commit
+
     return jsonify({"success": not errors, "errors": errors})
 
 # ----- Concern taxonomy (categories + tag suggestions) -----
@@ -1085,8 +1128,6 @@ def taxonomy_tags_suggest():
         merged = [t for t in merged if q in t.lower()]
 
     return jsonify({"tags": merged[:30]})
-
-
 
 # ----- Draft handling -----
 @app.route('/dismiss_draft', methods=['POST'])
@@ -1146,7 +1187,6 @@ def save_pip_draft():
         return jsonify({"success": False, "message": "Failed to save draft."}), 500
 
 # ----- AI Action Suggestions -----
-
 @app.route('/suggest_actions_ai', methods=['POST'])
 @login_required
 def suggest_actions_ai():
@@ -1255,8 +1295,6 @@ Rules:
         "actions": actions,
         "next_up": next_up
     }), 200
-
-
 
 # ----- Probation module -----
 @app.route('/probation/<int:id>')
@@ -1421,7 +1459,6 @@ def backup_database():
     else:
         flash('Database file not found.', 'danger')
         return redirect(url_for('admin_dashboard'))
-    
 
 @app.route("/employee/import", methods=["GET", "POST"])
 @login_required
@@ -1493,8 +1530,6 @@ def _suggest_mapping(headers):
         else:
             mapping[h] = ""  # not mapped yet
     return mapping
-
-
 
 @app.route("/employee/import/validate", methods=["POST"])
 @login_required
@@ -1715,6 +1750,21 @@ def _parse_numbered_list(text, max_items=6):
                 out.append(it)
                 seen.add(it)
         return out
+
+
+@app.route('/pip/wizard/resume', methods=['GET'])
+@login_required
+def pip_wizard_resume():
+    """Hydrate the wizard session from the latest active DraftPIP and jump to the furthest valid step."""
+    draft = get_active_draft_for_user(current_user.id)
+    if not draft or not draft.data:
+        flash("No active draft to resume.", "warning")
+        return redirect(url_for('dashboard'))
+
+    # Load draft into session and jump to the max allowed step
+    session['pip_data'] = dict(draft.data)
+    session['wizard_step'] = _max_wizard_step(session['pip_data'])
+    return redirect(url_for('create_pip_wizard'))
 
 # Create DB if missing
 with app.app_context():
