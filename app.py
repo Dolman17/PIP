@@ -2,6 +2,7 @@ import os
 import csv, io
 import zipfile
 import tempfile
+import re
 from io import BytesIO
 from functools import wraps
 from datetime import datetime, timedelta, timezone
@@ -47,6 +48,37 @@ EMPLOYEE_FIELDS = [
     "first_name", "last_name", "email", "job_title", "line_manager",
     "service", "team_id", "start_date"
 ]
+
+# ---- Curated concern tags (lightweight, can move to DB later) ----
+CURATED_TAGS = {
+    "Timekeeping": ["lateness", "missed clock-in", "extended breaks", "early finish", "timekeeping policy"],
+    "Attendance": ["unauthorised absence", "short notice absence", "patterns of absence", "fit note", "return to work"],
+    "Quality of Work": ["accuracy", "attention to detail", "rework", "documentation", "SOP adherence"],
+    "Productivity": ["missed deadlines", "slow throughput", "low output", "prioritisation", "time management"],
+    "Conduct": ["inappropriate language", "unprofessional behaviour", "non-compliance", "policy breach", "conflict"],
+    "Communication": ["tone", "late replies", "stakeholder updates", "handover quality", "listening"],
+    "Teamwork/Collaboration": ["handover gaps", "knowledge sharing", "supporting peers", "collaboration tools"],
+    "Compliance/Process": ["data entry errors", "checklist missed", "audit finding", "process deviation"],
+    "Customer Service": ["response times", "complaint handling", "service standards", "follow-up"],
+    "Health & Safety": ["PPE", "risk assessment", "manual handling", "incident reporting"]
+}
+
+def _merge_curated_and_recent(category: str, recent_tags: list[str], cap: int = 30):
+    """Merge curated list for category with recent DB tags, de-duplicated, curated first."""
+    out, seen = [], set()
+    cat_list = CURATED_TAGS.get(category, [])
+    for t in cat_list:
+        if t.lower() not in seen:
+            out.append(t); seen.add(t.lower())
+    # Add recent (keep original casing where possible)
+    for t in recent_tags:
+        if not t: continue
+        key = t.lower().strip()
+        if key and key not in seen:
+            out.append(t.strip()); seen.add(key)
+        if len(out) >= cap: break
+    return out
+
 
 
 
@@ -182,6 +214,14 @@ def admin_dashboard():
         flash('You do not have permission to access the admin dashboard.', 'danger')
         return redirect(url_for('home'))
     return render_template('admin_dashboard.html')
+
+@app.route('/taxonomy/predefined_tags', methods=['GET'])
+@login_required
+def taxonomy_predefined_tags():
+    cat = (request.args.get('category') or '').strip()
+    tags = CURATED_TAGS.get(cat, [])
+    return jsonify({"category": cat, "tags": tags})
+
 
 # ----- Export Data -----
 @app.route('/admin/export')
@@ -996,6 +1036,58 @@ def validate_wizard_step():
 
     return jsonify({"success": not errors, "errors": errors})
 
+# ----- Concern taxonomy (categories + tag suggestions) -----
+@app.route('/taxonomy/categories', methods=['GET'])
+@login_required
+def taxonomy_categories():
+    """
+    Simple static set to start with. You can later load from DB/Settings.
+    """
+    categories = [
+        "Timekeeping",
+        "Attendance",
+        "Quality of Work",
+        "Productivity",
+        "Conduct",
+        "Communication",
+        "Teamwork/Collaboration",
+        "Compliance/Process",
+        "Customer Service",
+        "Health & Safety"
+    ]
+    return jsonify({"categories": categories})
+
+@app.route('/taxonomy/tags_suggest', methods=['GET'])
+@login_required
+def taxonomy_tags_suggest():
+    """
+    Suggest tags from curated set (by ?category=) + recent PIP tags (comma lists), optional filter ?q=
+    """
+    q = (request.args.get('q') or '').strip().lower()
+    category = (request.args.get('category') or '').strip()
+
+    # Recent from DB
+    try:
+        recent_rows = db.session.query(PIPRecord.tags).order_by(PIPRecord.id.desc()).limit(200).all()
+    except Exception:
+        recent_rows = []
+
+    recent = []
+    for (tag_str,) in recent_rows:
+        if not tag_str: continue
+        for t in (tag_str.split(',') if isinstance(tag_str, str) else []):
+            t = (t or '').strip()
+            if t: recent.append(t)
+
+    merged = _merge_curated_and_recent(category, recent, cap=40)
+
+    if q:
+        merged = [t for t in merged if q in t.lower()]
+
+    return jsonify({"tags": merged[:30]})
+
+
+
 # ----- Draft handling -----
 @app.route('/dismiss_draft', methods=['POST'])
 @login_required
@@ -1054,64 +1146,117 @@ def save_pip_draft():
         return jsonify({"success": False, "message": "Failed to save draft."}), 500
 
 # ----- AI Action Suggestions -----
+
 @app.route('/suggest_actions_ai', methods=['POST'])
 @login_required
 def suggest_actions_ai():
-    data = request.get_json()
-    concerns = data.get('concerns', '')
-    severity = data.get('severity', '')
-    frequency = data.get('frequency', '')
-    tags = data.get('tags', '')
-    category = data.get('category', '')
+    data = request.get_json() or {}
+    concerns = (data.get('concerns') or '').strip()
+    severity = (data.get('severity') or '').strip()
+    frequency = (data.get('frequency') or '').strip()
+    tags = (data.get('tags') or '').strip()
+    category = (data.get('category') or '').strip()
 
-    prompt = f"""
-You're an HR advisor helping line managers create action plans for performance improvement.
-Based on the following concern details, suggest 3 specific, practical action plan items:
+    def _dedupe_clean(items):
+        out, seen = [], set()
+        for x in (items or []):
+            s = (x or '').strip()
+            if not s:
+                continue
+            key = s.lower()
+            if key not in seen:
+                out.append(s)
+                seen.add(key)
+        return out[:8]  # keep it tidy
 
-Concern Category: {category}
-Concerns: {concerns}
-Tags: {tags}
-Severity: {severity}
-Frequency: {frequency}
+    # ----- Build a strict-JSON prompt -----
+    sys_msg = (
+        "You are an HR advisor in the UK. "
+        "Return ONLY valid JSON with two arrays: "
+        '{"actions": ["short concrete manager actions"], "next_up": ["quick follow-ups or escalations"]}. '
+        "Actions must be specific, measurable where possible, and supportive. "
+        "No prose, no markdown, JSON only."
+    )
+    user_msg = f"""
+Concern Category: {category or "[unspecified]"}
+Concerns: {concerns or "[none]"}
+Tags: {tags or "[none]"}
+Severity: {severity or "[unspecified]"}
+Frequency: {frequency or "[unspecified]"}
 
-Format your response as a plain numbered list.
+Rules:
+- Provide 3–5 'actions' tailored to the inputs.
+- Provide 2–4 'next_up' items (e.g., monitoring cadence, policy references, escalation steps).
+- Keep each item under 140 characters.
+- JSON ONLY.
 """
+
+    actions, next_up = [], []
 
     try:
         resp = client.chat.completions.create(
             model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=300,
-            temperature=0.7
+            messages=[
+                {"role": "system", "content": sys_msg},
+                {"role": "user", "content": user_msg}
+            ],
+            temperature=0.5,
+            max_tokens=300
         )
-        actions_text = resp.choices[0].message.content
-        actions = [line.strip().lstrip('0123456789. ').strip()
-                   for line in actions_text.splitlines() if line.strip()]
-        success = True
+        raw = (resp.choices[0].message.content or "").strip()
+
+        # Try strict JSON parse
+        import json, re
+        # Extract the first {...} block just in case
+        m = re.search(r"\{[\s\S]*\}", raw)
+        payload = json.loads(m.group(0) if m else raw)
+
+        actions = _dedupe_clean(payload.get("actions", []))
+        next_up = _dedupe_clean(payload.get("next_up", []))
+
     except Exception as e:
-        print("OpenAI error:", e)
-        return jsonify({"success": False, "error": "Unable to generate AI suggestions at this time."}), 500
+        # Fallback: simple heuristic parsing if model didn't return JSON
+        # Split lines, grab up to 5 actions
+        lines = [ln.strip("-•* 0123456789.\t") for ln in (raw.splitlines() if 'raw' in locals() else [])]
+        actions = _dedupe_clean([ln for ln in lines if ln][:5])
 
-    # Next Up Suggestions
-    next_up = []
-    tag_list = [t.strip().lower() for t in tags.split(',')] if tags else []
+    # Server-side "Next Up" enrichment (defensive, additive)
+    tag_list = [t.strip().lower() for t in tags.split(",")] if tags else []
+    cat = (category or "").lower()
+    sev = (severity or "").lower()
+    freq = (frequency or "").lower()
 
-    if 'lateness' in tag_list or (category and 'timekeeping' in category.lower()):
-        next_up.extend([
-            "Set up a daily check-in for punctuality.",
-            "Introduce a lateness tracking sheet."
-        ])
-    if 'conduct' in tag_list or (category and category.lower() == 'conduct'):
-        next_up.extend([
-            "Schedule a values-based training session.",
-            "Document informal warnings in line with policy."
-        ])
-    if severity and severity.lower() == 'high':
-        next_up.append("Consider escalating to formal disciplinary procedures.")
-    if frequency and frequency.lower() in ('frequent', 'persistent'):
-        next_up.append("Increase monitoring frequency and assign a mentor.")
+    suggestions = []
+    if 'lateness' in tag_list or 'timekeeping' in cat:
+        suggestions += [
+            "Daily start-time check-ins for 2 weeks",
+            "Agree punctuality targets; log variances",
+        ]
+    if 'conduct' in tag_list or cat == 'conduct':
+        suggestions += [
+            "Reference conduct policy; document conversations",
+            "Book values/behaviour refresher"
+        ]
+    if 'performance' in cat or 'missed deadlines' in tags.lower():
+        suggestions += [
+            "Weekly milestones with due dates",
+            "Stand-up updates Mon/Wed/Fri"
+        ]
+    if sev == 'high':
+        suggestions += ["Escalate to formal stage if no progress"]
+    if freq in ('frequent', 'persistent'):
+        suggestions += ["Increase monitoring and assign a buddy/mentor"]
 
-    return jsonify({"success": success, "actions": actions, "next_up": next_up})
+    # Merge + clean
+    next_up = _dedupe_clean((next_up or []) + suggestions)
+
+    return jsonify({
+        "success": True,
+        "actions": actions,
+        "next_up": next_up
+    }), 200
+
+
 
 # ----- Probation module -----
 @app.route('/probation/<int:id>')
@@ -1545,6 +1690,31 @@ def employee_import_commit():
         pass  # If TimelineEvent doesn’t fit here, skip logging silently
 
     return jsonify({"created": created, "skipped": skipped, "errors": errors}), 200
+
+def _parse_numbered_list(text, max_items=6):
+        """
+        Turn LLM output into a clean list of items.
+        Accepts '1. Do X', '- Do X', or plain lines.
+        """
+        if not text:
+            return []
+        lines = [l.strip() for l in text.splitlines() if l.strip()]
+        items = []
+        for l in lines:
+            # Strip leading bullets / numbering like "1) ", "2. ", "- ", "• "
+            l = re.sub(r'^\s*(?:[-*•]|\d+[\).\]]?)\s*', '', l).strip()
+            if l:
+                items.append(l)
+            if len(items) >= max_items:
+                break
+        # Deduplicate while preserving order
+        seen = set()
+        out = []
+        for it in items:
+            if it not in seen:
+                out.append(it)
+                seen.add(it)
+        return out
 
 # Create DB if missing
 with app.app_context():
