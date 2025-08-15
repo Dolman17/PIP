@@ -11,23 +11,49 @@
     <div id="autosave-status">Last saved: just now</div>
   </div>
 
-  <!-- Visual Step Tracker with Icons -->
-  <div class="flex justify-between items-center mb-6 text-sm font-medium text-gray-500">
-    {% set steps = [
-      (1, '👤 Select Employee'),
-      (2, '⚠️ Define Concerns'),
-      (3, '🗓️ Set Dates'),
-      (4, '🏢 Schedule Meeting'),
-      (5, '📝 Action Plan'),
-      (6, '✅ Review & Submit')
-    ] %}
-    {% for i, label in steps %}
-      <div class="flex-1 text-center {% if step == i %}text-ellipse-teal font-bold{% endif %}">
+  {# Compute max-allowed step (server may also pass max_allowed_step) #}
+  {% set _max_jinja = 1 %}
+  {% if data.employee_id %}{% set _max_jinja = 2 %}{% endif %}
+  {% if data.concerns and data.concern_category and data.severity and data.frequency %}{% set _max_jinja = 3 %}{% endif %}
+  {% if data.start_date and data.review_date %}{% set _max_jinja = 4 %}{% endif %}
+  {% if data.capability_meeting_date and data.capability_meeting_time and data.capability_meeting_venue %}{% set _max_jinja = 6 %}{% endif %}
+  {% set allowed = max_allowed_step if max_allowed_step is defined else _max_jinja %}
+
+<!-- Visual Step Tracker with Icons (clickable up to max_allowed_step) -->
+<div class="flex justify-between items-center mb-6 text-sm font-medium text-gray-500">
+  {% set steps = [
+    (1, '👤 Select Employee'),
+    (2, '⚠️ Define Concerns'),
+    (3, '🗓️ Set Dates'),
+    (4, '🏢 Schedule Meeting'),
+    (5, '📝 Action Plan'),
+    (6, '✅ Review & Submit')
+  ] %}
+
+  {% for i, label in steps %}
+    {% set allowed = i <= (max_allowed_step or 1) %}
+    {% set is_current = (step == i) %}
+
+    {% if allowed %}
+      <a href="{{ url_for('create_pip_wizard') }}?goto={{ i }}"
+         class="flex-1 text-center px-1 transition
+                {% if is_current %}text-ellipse-teal font-bold{% else %}hover:text-ellipse-teal{% endif %}">
+        {{ label }}
+      </a>
+    {% else %}
+      <div class="flex-1 text-center px-1 opacity-50 cursor-not-allowed"
+           aria-disabled="true" title="Complete previous steps first">
         {{ label }}
       </div>
-      {% if i < 6 %}<div class="w-5 h-1 bg-gray-300 mx-1"></div>{% endif %}
-    {% endfor %}
-  </div>
+    {% endif %}
+
+    {% if not loop.last %}
+      <div class="w-5 h-1 mx-1
+                  {% if i < (max_allowed_step or 1) %}bg-ellipse-teal{% else %}bg-gray-300{% endif %}">
+      </div>
+    {% endif %}
+  {% endfor %}
+</div>
 
   <form method="POST" id="wizardForm">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -95,7 +121,6 @@
            class="form-input mt-1 block w-full rounded-md border-gray-300 shadow-sm"
            placeholder="e.g. missed deadlines, attitude"
            value="{{ data.concern_tags or '' }}">
-    <!-- Suggested Tags (checkbox pills) -->
     <div id="suggested-tags" class="mt-3 flex flex-wrap gap-2"></div>
     <p class="text-xs text-gray-500 mt-1">Tip: click tags to add/remove; they sync with the box above.</p>
   </div>
@@ -188,10 +213,8 @@
 
     {% elif step == 5 %}
   <div class="space-y-4">
-    <!-- AI results list (plain preview) -->
     <ul id="ai-actions-list" class="list-disc pl-6"></ul>
 
-    <!-- Action inputs get added here -->
     <div class="flex items-center justify-between">
       <h3 class="text-sm font-medium text-gray-700">Action Plan Items</h3>
       <span id="action-count" class="text-xs text-gray-500">0 items</span>
@@ -208,7 +231,6 @@
       <p class="text-red-600 text-sm mt-1">{{ wizard_errors.action_plan_items }}</p>
     {% endif %}
 
-    <!-- Next Up checklist -->
     <div id="next-up-suggestions" class="hidden mt-6">
       <div class="flex items-center justify-between">
         <h3 class="text-sm font-medium text-gray-700">Next Up Suggestions</h3>
@@ -239,7 +261,7 @@
     <!-- Navigation Buttons -->
     <div class="mt-8 flex flex-wrap justify-between items-center gap-4">
       {% if step > 1 %}
-        <a href="{{ url_for('create_pip_wizard') }}?back=true&edit=true" class="text-sm text-ellipse-teal hover:underline font-medium">← Back</a>
+       <a href="{{ url_for('create_pip_wizard', goto=step-1) }}" class="text-sm text-ellipse-teal hover:underline font-medium" rel="prev">← Back</a>
       {% else %}<div></div>{% endif %}
 
       <div class="flex items-center gap-4">
@@ -284,482 +306,179 @@
 
 </div>
 
-<!-- Consolidated scripts (single script tag; no nesting) -->
+<!-- Consolidated scripts -->
 <script>
-// ====================== Helpers (Step 2 + Step 5) ======================
-
-// --- Debounce helper ---
+// ====================== Helpers ======================
 function debounce(fn, wait) {
-  let t;
-  return function(...args){
-    clearTimeout(t);
-    t = setTimeout(() => fn.apply(this, args), wait);
-  };
+  let t; return function(...args){ clearTimeout(t); t = setTimeout(() => fn.apply(this,args), wait); };
 }
+function _parseTags(str){return (str||'').split(',').map(s=>s.trim()).filter(Boolean);}
+function _stringifyTags(arr){const seen=new Set();const out=[];for(const t of arr){const k=t.toLowerCase();if(!seen.has(k)){out.push(t);seen.add(k);}}return out.join(', ');}
+function _buildTagChip(tag,checked){const lbl=document.createElement('label');lbl.className='inline-flex items-center space-x-2 px-3 py-1 rounded-full border text-sm cursor-pointer hover:bg-gray-50';const cb=document.createElement('input');cb.type='checkbox';cb.value=tag;cb.checked=!!checked;cb.className='rounded';const span=document.createElement('span');span.textContent=tag;lbl.appendChild(cb);lbl.appendChild(span);return lbl;}
 
-// --- Step 2 tag helpers ---
-function _parseTags(str) {
-  return (str || '')
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean);
-}
-function _stringifyTags(arr) {
-  const seen = new Set(); const out = [];
-  for (const t of arr) {
-    const key = t.toLowerCase();
-    if (!seen.has(key)) { out.push(t); seen.add(key); }
-  }
-  return out.join(', ');
-}
-function _buildTagChip(tag, checked) {
-  const lbl = document.createElement('label');
-  lbl.className = 'inline-flex items-center space-x-2 px-3 py-1 rounded-full border text-sm cursor-pointer hover:bg-gray-50';
-  const cb = document.createElement('input');
-  cb.type = 'checkbox';
-  cb.value = tag;
-  cb.checked = !!checked;
-  cb.className = 'rounded';
-  const span = document.createElement('span');
-  span.textContent = tag;
-  lbl.appendChild(cb); lbl.appendChild(span);
-  return lbl;
-}
-
-// --- Step 5: Action row helpers ---
-function updateActionCount() {
-  const n = document.querySelectorAll('#action-plan-list input[name="action_plan_items[]"]').length;
-  const el = document.getElementById('action-count');
-  if (el) el.textContent = `${n} item${n===1?'':'s'}`;
-}
-function addActionItem(value = '') {
-  const container = document.getElementById("action-plan-list");
-  if (!container) return;
-  const row = document.createElement('div');
-  row.className = 'flex items-center gap-2 mt-2';
-
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.name = 'action_plan_items[]';
-  input.className = 'form-input flex-1 rounded border px-3 py-2';
-  input.placeholder = 'Enter action item';
-  input.value = value || '';
-
-  const up = document.createElement('button');
-  up.type = 'button';
-  up.title = 'Move up';
-  up.className = 'px-2 py-1 border rounded hover:bg-gray-50';
-  up.textContent = '↑';
-  up.onclick = () => {
-    const prev = row.previousElementSibling;
-    if (prev) container.insertBefore(row, prev);
-    debouncedSave();
-  };
-
-  const down = document.createElement('button');
-  down.type = 'button';
-  down.title = 'Move down';
-  down.className = 'px-2 py-1 border rounded hover:bg-gray-50';
-  down.textContent = '↓';
-  down.onclick = () => {
-    const next = row.nextElementSibling;
-    if (next) container.insertBefore(next, row);
-    debouncedSave();
-  };
-
-  const del = document.createElement('button');
-  del.type = 'button';
-  del.title = 'Remove';
-  del.className = 'px-2 py-1 border rounded text-red-700 hover:bg-red-50';
-  del.textContent = '✕';
-  del.onclick = () => { row.remove(); updateActionCount(); debouncedSave(); };
-
-  row.appendChild(input);
-  row.appendChild(up);
-  row.appendChild(down);
-  row.appendChild(del);
-
-  container.appendChild(row);
-  updateActionCount();
-}
-function addActionItemsBulk(items = []) {
-  items.forEach(txt => addActionItem(txt));
-}
-function buildNextUpCard(text, checked=false) {
-  const card = document.createElement('label');
-  card.className = 'flex items-start gap-2 p-2 border rounded hover:bg-gray-50 cursor-pointer';
-  const cb = document.createElement('input');
-  cb.type = 'checkbox';
-  cb.className = 'mt-1';
-  cb.checked = !!checked;
-  const span = document.createElement('span');
-  span.className = 'text-sm text-gray-700';
-  span.textContent = text;
-  card.appendChild(cb);
-  card.appendChild(span);
-  return { card, cb, span };
-}
+function updateActionCount(){const n=document.querySelectorAll('#action-plan-list input[name="action_plan_items[]"]').length;const el=document.getElementById('action-count');if(el) el.textContent=`${n} item${n===1?'':'s'}`;}
+function addActionItem(value=''){const c=document.getElementById("action-plan-list");if(!c)return;const row=document.createElement('div');row.className='flex items-center gap-2 mt-2';const input=document.createElement('input');input.type='text';input.name='action_plan_items[]';input.className='form-input flex-1 rounded border px-3 py-2';input.placeholder='Enter action item';input.value=value||'';const up=document.createElement('button');up.type='button';up.title='Move up';up.className='px-2 py-1 border rounded hover:bg-gray-50';up.textContent='↑';up.onclick=()=>{const p=row.previousElementSibling;if(p)c.insertBefore(row,p);debouncedSave();};const down=document.createElement('button');down.type='button';down.title='Move down';down.className='px-2 py-1 border rounded hover:bg-gray-50';down.textContent='↓';down.onclick=()=>{const n=row.nextElementSibling;if(n)c.insertBefore(n,row);debouncedSave();};const del=document.createElement('button');del.type='button';del.title='Remove';del.className='px-2 py-1 border rounded text-red-700 hover:bg-red-50';del.textContent='✕';del.onclick=()=>{row.remove();updateActionCount();debouncedSave();};row.appendChild(input);row.appendChild(up);row.appendChild(down);row.appendChild(del);c.appendChild(row);updateActionCount();}
+function addActionItemsBulk(items=[]){items.forEach(txt=>addActionItem(txt));}
+function buildNextUpCard(text,checked=false){const card=document.createElement('label');card.className='flex items-start gap-2 p-2 border rounded hover:bg-gray-50 cursor-pointer';const cb=document.createElement('input');cb.type='checkbox';cb.className='mt-1';cb.checked=!!checked;const span=document.createElement('span');span.className='text-sm text-gray-700';span.textContent=text;card.appendChild(cb);card.appendChild(span);return {card,cb,span};}
 
 // ====================== DOM Wiring ======================
 document.addEventListener('DOMContentLoaded', () => {
-  // --- Debounced autosave wiring ---
+  // Debounced autosave wiring
   window.debouncedSave = debounce(() => saveDraft(), 800);
+  ['draft_name','employee_id','concerns','concern_category','concern_tags','severity','frequency','start_date','review_date','meeting_date','meeting_time','meeting_venue']
+    .forEach(id => {const el=document.getElementById(id); el?.addEventListener('input',debouncedSave); el?.addEventListener('change',debouncedSave);});
+  const actionList=document.getElementById('action-plan-list');
+  actionList?.addEventListener('input',debouncedSave);
+  actionList?.addEventListener('click',(e)=>{if(e.target.tagName==='BUTTON') debouncedSave();});
 
-  // Common fields across steps
-  [
-    'draft_name','employee_id','concerns','concern_category','concern_tags',
-    'severity','frequency','start_date','review_date',
-    'meeting_date','meeting_time','meeting_venue'
-  ].forEach(id => {
-    const el = document.getElementById(id);
-    el?.addEventListener('input', debouncedSave);
-    el?.addEventListener('change', debouncedSave);
+  // Clickable stepper (validate+save on forward; save-only on back)
+  const currentStep = {{ step | int }};
+  document.querySelectorAll('.wizard-step').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const target = parseInt(btn.dataset.step||'0',10);
+      const enabled = btn.dataset.enabled === '1';
+      if (!enabled || target === currentStep) return;
+      const go = ()=>{ window.location = '{{ url_for("create_pip_wizard") }}?goto=' + target; };
+      if (target > currentStep) {
+        validateStep(currentStep, function(valid){
+          if (valid) saveDraft(go);
+        });
+      } else {
+        saveDraft(go);
+      }
+    });
   });
 
-  // Step 5 action list (inputs + ↑ ↓ ✕ buttons)
-  const actionList = document.getElementById('action-plan-list');
-  actionList?.addEventListener('input', debouncedSave);
-  actionList?.addEventListener('click', (e) => {
-    if (e.target.tagName === 'BUTTON') debouncedSave();
-  });
+  // Mirrors for validator (Step 4)
+  const d=document.getElementById('meeting_date'), t=document.getElementById('meeting_time');
+  const dMirror=document.getElementById('meeting_date_mirror'), tMirror=document.getElementById('meeting_time_mirror');
+  d?.addEventListener('input',()=>{ if(dMirror) dMirror.value=d.value; });
+  t?.addEventListener('input',()=>{ if(tMirror) tMirror.value=t.value; });
 
-  // --- Step 3/4 mirrors for validator ---
-  const d = document.getElementById('meeting_date');
-  const t = document.getElementById('meeting_time');
-  const dMirror = document.getElementById('meeting_date_mirror');
-  const tMirror = document.getElementById('meeting_time_mirror');
-  d?.addEventListener('input', () => { if (dMirror) dMirror.value = d.value; });
-  t?.addEventListener('input', () => { if (tMirror) tMirror.value = t.value; });
-
-  // --- Populate categories from taxonomy (optional enhancement) ---
-  const catSel = document.querySelector('#concern_category');
+  // Taxonomy: categories + suggested tags
+  const catSel=document.querySelector('#concern_category');
   if (catSel && !catSel.dataset.loaded) {
-    fetch('/taxonomy/categories')
-      .then(r => r.json())
-      .then(({ categories }) => {
-        if (!categories) return;
-        const current = catSel.value;
-        catSel.innerHTML = '<option value="">-- Select Category --</option>' +
-          categories.map(c => `<option value="${c}">${c}</option>`).join('');
-        if (current) catSel.value = current;
-        catSel.dataset.loaded = '1';
-      })
-      .catch(() => {});
+    fetch('/taxonomy/categories').then(r=>r.json()).then(({categories})=>{
+      if(!categories)return; const current=catSel.value;
+      catSel.innerHTML='<option value="">-- Select Category --</option>'+categories.map(c=>`<option value="${c}">${c}</option>`).join('');
+      if(current) catSel.value=current; catSel.dataset.loaded='1';
+    }).catch(()=>{});
   }
-
-  // --- STEP 2: Suggested tags (checkbox pills) ---
-  const catSel2 = document.querySelector('#concern_category');
-  const tagInput2 = document.querySelector('#concern_tags');
-  const suggWrap = document.querySelector('#suggested-tags');
-
-  async function loadSuggestedTags() {
-    if (!suggWrap) return;
-    const category = (catSel2?.value || '').trim();
-    const res = await fetch(`/taxonomy/tags_suggest?category=${encodeURIComponent(category)}&q=`);
-    const data = await res.json();
-    const current = _parseTags(tagInput2?.value || '');
-    suggWrap.innerHTML = '';
-    (data.tags || []).forEach(tg => {
-      const checked = current.map(x => x.toLowerCase()).includes(tg.toLowerCase());
-      const chip = _buildTagChip(tg, checked);
-      chip.querySelector('input[type="checkbox"]').addEventListener('change', (e) => {
-        const list = _parseTags(tagInput2.value);
-        const idx = list.findIndex(x => x.toLowerCase() === tg.toLowerCase());
-        if (e.target.checked) {
-          if (idx === -1) list.push(tg);
-        } else {
-          if (idx !== -1) list.splice(idx, 1);
-        }
-        tagInput2.value = _stringifyTags(list);
-        debouncedSave();
+  const catSel2=document.querySelector('#concern_category');
+  const tagInput2=document.querySelector('#concern_tags');
+  const suggWrap=document.querySelector('#suggested-tags');
+  async function loadSuggestedTags(){
+    if(!suggWrap) return;
+    const category=(catSel2?.value||'').trim();
+    const res=await fetch(`/taxonomy/tags_suggest?category=${encodeURIComponent(category)}&q=`);
+    const data=await res.json();
+    const current=_parseTags(tagInput2?.value||'');
+    suggWrap.innerHTML='';
+    (data.tags||[]).forEach(tg=>{
+      const checked=current.map(x=>x.toLowerCase()).includes(tg.toLowerCase());
+      const chip=_buildTagChip(tg,checked);
+      chip.querySelector('input[type="checkbox"]').addEventListener('change',(e)=>{
+        const list=_parseTags(tagInput2.value);
+        const idx=list.findIndex(x=>x.toLowerCase()===tg.toLowerCase());
+        if(e.target.checked){ if(idx===-1) list.push(tg); }
+        else { if(idx!==-1) list.splice(idx,1); }
+        tagInput2.value=_stringifyTags(list); debouncedSave();
       });
       suggWrap.appendChild(chip);
     });
   }
-  catSel2?.addEventListener('change', () => { loadSuggestedTags(); debouncedSave(); });
-
-  let syncTimer = null;
-  tagInput2?.addEventListener('input', () => {
-    clearTimeout(syncTimer);
-    syncTimer = setTimeout(() => {
-      const current = _parseTags(tagInput2.value);
-      const lowers = current.map(x => x.toLowerCase());
-      suggWrap?.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-        cb.checked = lowers.includes(cb.value.toLowerCase());
-      });
-      debouncedSave();
-    }, 150);
-  });
-
+  catSel2?.addEventListener('change', ()=>{ loadSuggestedTags(); debouncedSave(); });
+  let syncTimer=null;
+  tagInput2?.addEventListener('input', ()=>{ clearTimeout(syncTimer); syncTimer=setTimeout(()=>{
+    const cur=_parseTags(tagInput2.value); const lowers=cur.map(x=>x.toLowerCase());
+    suggWrap?.querySelectorAll('input[type="checkbox"]').forEach(cb=>{ cb.checked=lowers.includes(cb.value.toLowerCase()); });
+    debouncedSave();
+  },150); });
   if (suggWrap) loadSuggestedTags();
 
-  // --- Optional: typeahead dropdown tied to category ---
-  const tagInput = document.querySelector('#concern_tags');
-  let tagTimer = null;
-  const suggBox = document.createElement('div');
-  if (tagInput && tagInput.parentNode) {
-    suggBox.className = 'tags-suggest-box';
-    suggBox.style.position = 'absolute';
-    suggBox.style.zIndex = 10;
-    suggBox.style.display = 'none';
-    tagInput.parentNode.style.position = 'relative';
-    tagInput.parentNode.appendChild(suggBox);
-
-    function showTagSuggestions(q) {
-      fetch('/taxonomy/tags_suggest?q=' + encodeURIComponent(q || '') + '&category=' + encodeURIComponent(catSel?.value || ''))
-        .then(r => r.json())
-        .then(({ tags }) => {
-          if (!tags || !tags.length) { suggBox.style.display = 'none'; return; }
-          suggBox.innerHTML = tags.map(t => `<div class="px-2 py-1 hover:bg-gray-100 cursor-pointer">${t}</div>`).join('');
-          suggBox.style.left = tagInput.offsetLeft + 'px';
-          suggBox.style.top = (tagInput.offsetTop + tagInput.offsetHeight) + 'px';
-          suggBox.style.width = tagInput.offsetWidth + 'px';
-          suggBox.style.display = 'block';
-          Array.from(suggBox.children).forEach(el => {
-            el.onclick = () => {
-              const picked = el.textContent.trim();
-              const existing = (tagInput.value || '').split(',').map(x => x.trim()).filter(Boolean);
-              if (!existing.map(x => x.toLowerCase()).includes(picked.toLowerCase())) {
-                existing.push(picked);
-              }
-              tagInput.value = _stringifyTags(existing);
-              suggBox.style.display = 'none';
-              tagInput.focus();
-              debouncedSave();
+  // Lightweight tag typeahead
+  const tagInput=document.querySelector('#concern_tags'); let tagTimer=null; const suggBox=document.createElement('div');
+  if(tagInput && tagInput.parentNode){
+    suggBox.className='tags-suggest-box'; suggBox.style.position='absolute'; suggBox.style.zIndex=10; suggBox.style.display='none';
+    tagInput.parentNode.style.position='relative'; tagInput.parentNode.appendChild(suggBox);
+    function showTagSuggestions(q){
+      fetch('/taxonomy/tags_suggest?q='+encodeURIComponent(q||'')+'&category='+encodeURIComponent(catSel?.value||''))
+        .then(r=>r.json()).then(({tags})=>{
+          if(!tags||!tags.length){suggBox.style.display='none';return;}
+          suggBox.innerHTML=tags.map(t=>`<div class="px-2 py-1 hover:bg-gray-100 cursor-pointer">${t}</div>`).join('');
+          suggBox.style.left=tagInput.offsetLeft+'px';
+          suggBox.style.top=(tagInput.offsetTop+tagInput.offsetHeight)+'px';
+          suggBox.style.width=tagInput.offsetWidth+'px';
+          suggBox.style.display='block';
+          Array.from(suggBox.children).forEach(el=>{
+            el.onclick=()=>{ const picked=el.textContent.trim();
+              const existing=(tagInput.value||'').split(',').map(x=>x.trim()).filter(Boolean);
+              if(!existing.map(x=>x.toLowerCase()).includes(picked.toLowerCase())) existing.push(picked);
+              tagInput.value=_stringifyTags(existing); suggBox.style.display='none'; tagInput.focus(); debouncedSave();
             };
           });
-        })
-        .catch(() => { suggBox.style.display = 'none'; });
+        }).catch(()=>{suggBox.style.display='none';});
     }
-
-    tagInput.addEventListener('input', () => {
-      clearTimeout(tagTimer);
-      const last = (tagInput.value || '').split(',').pop().trim();
-      tagTimer = setTimeout(() => showTagSuggestions(last), 200);
-    });
-
-    document.addEventListener('click', (e) => {
-      if (!suggBox.contains(e.target) && e.target !== tagInput) {
-        suggBox.style.display = 'none';
-      }
-    });
+    tagInput.addEventListener('input', ()=>{ clearTimeout(tagTimer); const last=(tagInput.value||'').split(',').pop().trim(); tagTimer=setTimeout(()=>showTagSuggestions(last),200); });
+    document.addEventListener('click',(e)=>{ if(!suggBox.contains(e.target) && e.target!==tagInput){ suggBox.style.display='none'; }});
   }
 
-  // --- Step 5: AI suggest, clear, and insert selected Next Up ---
-  const aiBtn = document.querySelector('#ai-suggest-btn');
-  const aiList = document.querySelector('#ai-actions-list');
-  const clearAI = document.querySelector('#clear-ai');
-  const nextWrap = document.getElementById('next-up-suggestions');
-  const cards = document.getElementById('suggestion-cards');
+  // AI suggestions (Step 5)
+  const aiBtn=document.querySelector('#ai-suggest-btn');
+  const aiList=document.querySelector('#ai-actions-list');
+  const clearAI=document.querySelector('#clear-ai');
+  const nextWrap=document.getElementById('next-up-suggestions');
+  const cards=document.getElementById('suggestion-cards');
 
-  aiBtn?.addEventListener('click', async (e) => {
-    e.preventDefault();
-    aiBtn.disabled = true;
-    aiBtn.textContent = 'Thinking…';
-    if (aiList) aiList.innerHTML = '';
-
-    const payload = {
-      concerns: (document.querySelector('#concerns')?.value || '').trim(),
-      category: (document.querySelector('#concern_category')?.value || '').trim(),
-      severity: (document.querySelector('#severity')?.value || '').trim(),
-      frequency: (document.querySelector('#frequency')?.value || '').trim(),
-      tags: (document.querySelector('#concern_tags')?.value || '').trim()
-    };
-
-    try {
-      const csrf = document.querySelector('[name="csrf_token"]')?.value;
-      const res = await fetch('{{ url_for("suggest_actions_ai") }}', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrf
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await res.json();
-
-      const actions = Array.isArray(data.actions) ? data.actions : [];
-      if (actions.length) {
-        actions.forEach(a => {
-          const li = document.createElement('li');
-          li.textContent = a;
-          li.className = 'py-1';
-          aiList?.appendChild(li);
-        });
-        addActionItemsBulk(actions);
-        debouncedSave();
-      } else if (aiList) {
-        const li = document.createElement('li');
-        li.textContent = 'No suggestions returned.';
-        li.className = 'text-gray-500';
-        aiList.appendChild(li);
-      }
-
-      if (cards && nextWrap) {
-        cards.innerHTML = '';
-        const nexts = Array.isArray(data.next_up) ? data.next_up : [];
-        if (nexts.length) {
-          nextWrap.classList.remove('hidden');
-          nexts.forEach(t => {
-            const { card } = buildNextUpCard(t, false);
-            cards.appendChild(card);
-          });
-        } else {
-          nextWrap.classList.add('hidden');
-        }
-      }
-    } catch (err) {
-      if (aiList) {
-        const li = document.createElement('li');
-        li.textContent = 'Could not fetch suggestions.';
-        li.className = 'text-red-600';
-        aiList.appendChild(li);
-      }
-    } finally {
-      aiBtn.disabled = false;
-      aiBtn.textContent = '⚡ Suggest with AI';
-      updateActionCount();
-    }
+  aiBtn?.addEventListener('click', async (e)=>{
+    e.preventDefault(); aiBtn.disabled=true; aiBtn.textContent='Thinking…'; if(aiList) aiList.innerHTML='';
+    const payload={concerns:(document.querySelector('#concerns')?.value||'').trim(),
+      category:(document.querySelector('#concern_category')?.value||'').trim(),
+      severity:(document.querySelector('#severity')?.value||'').trim(),
+      frequency:(document.querySelector('#frequency')?.value||'').trim(),
+      tags:(document.querySelector('#concern_tags')?.value||'').trim()};
+    try{
+      const csrf=document.querySelector('[name="csrf_token"]')?.value;
+      const res=await fetch('{{ url_for("suggest_actions_ai") }}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify(payload)});
+      const data=await res.json();
+      const actions=Array.isArray(data.actions)?data.actions:[];
+      if(actions.length){ actions.forEach(a=>{const li=document.createElement('li'); li.textContent=a; li.className='py-1'; aiList?.appendChild(li);}); addActionItemsBulk(actions); debouncedSave(); }
+      else if(aiList){ const li=document.createElement('li'); li.textContent='No suggestions returned.'; li.className='text-gray-500'; aiList.appendChild(li); }
+      if(cards && nextWrap){ cards.innerHTML=''; const nexts=Array.isArray(data.next_up)?data.next_up:[]; if(nexts.length){ nextWrap.classList.remove('hidden'); nexts.forEach(t=>{const {card}=buildNextUpCard(t,false); cards.appendChild(card);}); } else { nextWrap.classList.add('hidden'); } }
+    }catch(err){
+      if(aiList){ const li=document.createElement('li'); li.textContent='Could not fetch suggestions.'; li.className='text-red-600'; aiList.appendChild(li); }
+    }finally{ aiBtn.disabled=false; aiBtn.textContent='⚡ Suggest with AI'; updateActionCount(); }
   });
-
-  clearAI?.addEventListener('click', () => {
-    if (aiList) aiList.innerHTML = '';
-  });
-
-  document.getElementById('insert-selected-nextup')?.addEventListener('click', () => {
-    if (!cards) return;
-    const picked = [];
-    cards.querySelectorAll('label').forEach(lbl => {
-      const cb = lbl.querySelector('input[type="checkbox"]');
-      const text = lbl.querySelector('span')?.textContent || '';
-      if (cb?.checked && text) picked.push(text);
-    });
-    if (picked.length) {
-      addActionItemsBulk(picked);
-      cards.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
-      updateActionCount();
-      debouncedSave();
-    }
-  });
+  clearAI?.addEventListener('click',()=>{ if(aiList) aiList.innerHTML=''; });
+  document.getElementById('insert-selected-nextup')?.addEventListener('click',()=>{ if(!cards)return; const picked=[]; cards.querySelectorAll('label').forEach(lbl=>{ const cb=lbl.querySelector('input[type="checkbox"]'); const text=lbl.querySelector('span')?.textContent||''; if(cb?.checked && text) picked.push(text);}); if(picked.length){ addActionItemsBulk(picked); cards.querySelectorAll('input[type="checkbox"]').forEach(cb=>cb.checked=false); updateActionCount(); debouncedSave(); }});
 });
 
 // ====================== Save Draft / Validation / Next ======================
-window.saveDraft = function (callback) {
-  const form = document.getElementById("wizardForm");
-  if (!form) return;
-  const formData = new FormData(form);
-  fetch("{{ url_for('save_pip_draft') }}", {
-    method: "POST",
-    body: formData
-  })
-  .then(res => res.json())
-  .then(() => {
-    const status = document.getElementById("autosave-status");
-    if (status) status.innerText = `Last saved: ${new Date().toLocaleTimeString()}`;
-    if (callback) callback();
-  })
-  .catch(err => {
-    console.error("Draft save failed:", err);
-    alert("Failed to save draft.");
-  });
+window.saveDraft=function(callback){const form=document.getElementById("wizardForm"); if(!form)return; const formData=new FormData(form);
+  fetch("{{ url_for('save_pip_draft') }}",{method:"POST",body:formData})
+    .then(res=>res.json()).then(()=>{const status=document.getElementById("autosave-status"); if(status) status.innerText=`Last saved: ${new Date().toLocaleTimeString()}`; if(callback) callback();})
+    .catch(()=>{alert("Failed to save draft.");});
 };
-
-function validateStep(step, callback) {
-  const form = document.getElementById("wizardForm");
-  if (!form) { callback(false); return; }
-  const formData = new FormData(form);
-  formData.append("step", step);
-  fetch("{{ url_for('validate_wizard_step') }}", {
-    method: "POST",
-    body: formData
-  })
-  .then(response => response.json())
-  .then(data => {
-    document.querySelectorAll(".wizard-error").forEach(el => el.remove());
-    if (!data.success && data.errors) {
-      for (const field in data.errors) {
-        const input = document.querySelector(`[name="${field}"]`);
-        if (input) {
-          const p = document.createElement("p");
-          p.className = "wizard-error text-red-600 text-sm mt-1";
-          p.textContent = data.errors[field];
-          input.insertAdjacentElement("afterend", p);
-        }
-      }
-    }
-    callback(data.success);
-  })
-  .catch(err => {
-    console.error("Validation error:", err);
-    callback(false);
-  });
+function validateStep(step,callback){const form=document.getElementById("wizardForm"); if(!form){callback(false);return;}
+  const formData=new FormData(form); formData.append("step",step);
+  fetch("{{ url_for('validate_wizard_step') }}",{method:"POST",body:formData})
+    .then(r=>r.json()).then(data=>{document.querySelectorAll(".wizard-error").forEach(el=>el.remove());
+      if(!data.success && data.errors){for(const field in data.errors){const input=document.querySelector(`[name="${field}"]`); if(input){const p=document.createElement("p"); p.className="wizard-error text-red-600 text-sm mt-1"; p.textContent=data.errors[field]; input.insertAdjacentElement("afterend",p);}}}
+      callback(data.success);
+    }).catch(()=>callback(false));
 }
+const currentStep={{ step | int }};
+document.getElementById("nextBtn")?.addEventListener("click",function(e){e.preventDefault(); validateStep(currentStep,function(valid){ if(valid){ saveDraft(function(){ document.getElementById("wizardForm").submit(); }); } });});
 
-const currentStep = {{ step | int }};
-document.getElementById("nextBtn")?.addEventListener("click", function (e) {
-  e.preventDefault();
-  validateStep(currentStep, function (valid) {
-    if (valid) {
-      saveDraft(function () {
-        document.getElementById("wizardForm").submit();
-      });
-    }
-  });
-});
-
-/* ---------- Quick-Add modal wiring ---------- */
-document.addEventListener("DOMContentLoaded", () => {
-  const modal = document.getElementById("quickAddModal");
-  const openBtn = document.getElementById("openQuickAdd");
-  const cancelBtn = document.getElementById("cancelQuickAdd");
-  const form = document.getElementById("quickAddForm");
-  const employeeSelect = document.getElementById("employee_id");
-
-  openBtn?.addEventListener("click", () => {
-    modal.classList.remove("hidden");
-    modal.classList.add("flex");
-  });
-
-  cancelBtn?.addEventListener("click", () => {
-    modal.classList.add("hidden");
-    modal.classList.remove("flex");
-  });
-
-  form?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const formData = Object.fromEntries(new FormData(form).entries());
-    try {
-      const res = await fetch("{{ url_for('quick_add_employee') }}", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData)
-      });
-      const data = await res.json();
-      if (data.success) {
-        const opt = document.createElement("option");
-        opt.value = data.id;
-        opt.textContent = data.display_name;
-        opt.selected = true;
-        employeeSelect.appendChild(opt);
-        const hiddenName = document.getElementById('employee_name');
-        if (hiddenName) hiddenName.value = data.display_name;
-        form.reset();
-        modal.classList.add("hidden");
-        modal.classList.remove("flex");
-        const toast = document.createElement("div");
-        toast.textContent = "✅ Employee added successfully";
-        toast.className = "fixed bottom-4 right-4 bg-[#005b5a] text-white py-2 px-4 rounded-lg shadow-lg";
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
-        debouncedSave();
-      } else {
-        alert(data.error || "Error adding employee");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Failed to add employee");
-    }
+/* Quick-Add modal */
+document.addEventListener("DOMContentLoaded",()=>{const modal=document.getElementById("quickAddModal"); const openBtn=document.getElementById("openQuickAdd"); const cancelBtn=document.getElementById("cancelQuickAdd"); const form=document.getElementById("quickAddForm"); const employeeSelect=document.getElementById("employee_id");
+  openBtn?.addEventListener("click",()=>{modal.classList.remove("hidden"); modal.classList.add("flex");});
+  cancelBtn?.addEventListener("click",()=>{modal.classList.add("hidden"); modal.classList.remove("flex");});
+  form?.addEventListener("submit",async(e)=>{e.preventDefault(); const formData=Object.fromEntries(new FormData(form).entries());
+    try{const res=await fetch("{{ url_for('quick_add_employee') }}",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(formData)}); const data=await res.json();
+      if(data.success){const opt=document.createElement("option"); opt.value=data.id; opt.textContent=data.display_name; opt.selected=true; employeeSelect.appendChild(opt); const hiddenName=document.getElementById('employee_name'); if(hiddenName) hiddenName.value=data.display_name; form.reset(); modal.classList.add("hidden"); modal.classList.remove("flex"); const toast=document.createElement("div"); toast.textContent="✅ Employee added successfully"; toast.className="fixed bottom-4 right-4 bg-[#005b5a] text-white py-2 px-4 rounded-lg shadow-lg"; document.body.appendChild(toast); setTimeout(()=>toast.remove(),3000); debouncedSave();
+      } else { alert(data.error || "Error adding employee"); }
+    }catch(err){ alert("Failed to add employee"); }
   });
 });
 </script>

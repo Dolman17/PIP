@@ -15,23 +15,44 @@
     </div>
   </div>
   <div class="flex gap-2 shrink-0">
-    <a href="{{ url_for('create_pip_wizard') }}"
-       class="px-3 py-2 rounded bg-[#005b5a] text-white hover:bg-[#004746]">Resume</a>
+    <!-- point Resume at the resume route -->
+    <a href="{{ url_for('pip_wizard_resume') }}"
+       class="px-3 py-2 rounded bg-[#005b5a] text-white hover:bg-[#004746]">
+      Resume
+    </a>
+
     <button id="dismissDraftBtn"
-       class="px-3 py-2 rounded border border-amber-300 text-amber-900 hover:bg-amber-100">Dismiss</button>
+       class="px-3 py-2 rounded border border-amber-300 text-amber-900 hover:bg-amber-100">
+      Dismiss
+    </button>
   </div>
 </div>
+
 <script>
-document.getElementById('dismissDraftBtn')?.addEventListener('click', async () => {
-  try {
-    const res = await fetch('{{ url_for("dismiss_draft") }}', { method: 'POST' });
-    if (res.ok) location.reload();
-  } catch (e) {}
-});
+(function () {
+  const btn = document.getElementById('dismissDraftBtn');
+  btn?.addEventListener('click', async () => {
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Dismissing…';
+    try {
+      const res = await fetch('{{ url_for("dismiss_draft") }}', { method: 'POST' });
+      if (res.ok) {
+        location.reload();
+      } else {
+        btn.disabled = false;
+        btn.textContent = original;
+        alert('Could not dismiss draft. Please try again.');
+      }
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = original;
+      alert('Network error while dismissing draft.');
+    }
+  });
+})();
 </script>
 {% endif %}
- 
-
 
   <!-- Summary Cards -->
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
