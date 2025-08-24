@@ -1,0 +1,54 @@
+{# Simple, composable UI macros. Import where needed:
+   {% from "_ui.html" import Button, Input, Select, Textarea, Field, ErrorText, HelpText %}
+#}
+
+{% macro Button(text, variant='primary', type='button', id=None, classes='') -%}
+  <button type="{{ type }}" {% if id %}id="{{ id }}"{% endif %}
+          class="btn btn-{{ variant }} {{ classes|trim }}">
+    {{ text }}
+  </button>
+{%- endmacro %}
+
+{% macro Input(name, value='', type='text', id=None, placeholder='', required=False, classes='') -%}
+  <input name="{{ name }}" id="{{ id or name }}" type="{{ type }}"
+         value="{{ value }}" placeholder="{{ placeholder }}"
+         class="input {{ classes|trim }}"
+         {% if required %}required{% endif %}>
+{%- endmacro %}
+
+{% macro Textarea(name, value='', id=None, rows=4, placeholder='', required=False, classes='') -%}
+  <textarea name="{{ name }}" id="{{ id or name }}" rows="{{ rows }}"
+            placeholder="{{ placeholder }}"
+            class="textarea {{ classes|trim }}"
+            {% if required %}required{% endif %}>{{ value }}</textarea>
+{%- endmacro %}
+
+{% macro Select(name, options, value='', id=None, required=False, classes='') -%}
+  <select name="{{ name }}" id="{{ id or name }}"
+          class="select {{ classes|trim }}"
+          {% if required %}required{% endif %}>
+    {% for val, label in options %}
+      <option value="{{ val }}" {% if value == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+{%- endmacro %}
+
+{% macro ErrorText(text) -%}
+  {% if text %}<p class="form-error">{{ text }}</p>{% endif %}
+{%- endmacro %}
+
+{% macro HelpText(text) -%}
+  {% if text %}<p class="form-help">{{ text }}</p>{% endif %}
+{%- endmacro %}
+
+{# Field wrapper with label + slot #}
+{% macro Field(label, for_id, help='', error='', required=False, classes='mb-4') -%}
+  <div class="{{ classes }}">
+    <label for="{{ for_id }}" class="form-label">
+      {{ label }}{% if required %} <span aria-hidden="true" class="text-red-600">*</span>{% endif %}
+    </label>
+    {{ caller() }}
+    {{ ErrorText(error) }}
+    {{ HelpText(help) }}
+  </div>
+{%- endmacro %}

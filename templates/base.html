@@ -1,9 +1,59 @@
 <!DOCTYPE html>
 <html lang="en">
+
+<style>
+  :root{
+    --brand-primary:#005b5a;      /* current ellipse teal */
+    --brand-primary-600:#004746;
+    --brand-bg:#f8fafc;           /* page background */
+    --text:#111827;               /* slate-900 */
+    --muted:#6b7280;              /* gray-500 */
+    --radius:12px;
+  }
+  html:focus-within { scroll-behavior: smooth; }
+  body{ color:var(--text); background:var(--brand-bg); }
+
+  /* Accessible focus ring everywhere (keyboard friendly) */
+  :focus-visible{
+    outline: 2px solid var(--brand-primary);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+
+  /* Reduced motion support for micro-interactions */
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; scroll-behavior:auto !important; }
+  }
+
+  /* Utility buttons with subtle micro-interactions */
+  .btn{
+    border-radius: var(--radius);
+    transition: transform .06s ease, box-shadow .12s ease, background-color .12s ease;
+  }
+  .btn:hover{ transform: translateY(-1px); }
+  .btn:active{ transform: translateY(0); }
+
+  /* Mobile niceties */
+  @media (max-width: 640px){
+    .actions-row{ flex-direction: column; gap:.5rem; }
+    .actions-row > *{ width:100%; }
+  }
+
+  /* Stepper: show overflow scroll on small screens */
+  .stepper{ overflow-x:auto; -webkit-overflow-scrolling: touch; }
+</style>
+
+<!-- Skip to content for keyboard / screen reader users -->
+<a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 bg-white px-3 py-2 rounded shadow">Skip to content</a>
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}Ellipse HR System{% endblock %}</title>
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ui.css') }}">
+
 
   <!-- Google Font + Tailwind + Ellipse config -->
   <link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">

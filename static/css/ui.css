@@ -1,0 +1,98 @@
+/* ---------- Base elements ---------- */
+html, body {
+  color: var(--color-text);
+  background: var(--color-bg);
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+}
+
+/* Labels, help, error */
+.form-label {
+  display: block;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: var(--space-1);
+}
+.form-help {
+  font-size: var(--fs-xs);
+  color: var(--color-subtle);
+  margin-top: var(--space-1);
+}
+.form-error {
+  font-size: var(--fs-sm);
+  color: var(--color-danger);
+  margin-top: var(--space-1);
+}
+
+/* Inputs */
+.input, .select, .textarea, .form-input, .form-select, .form-textarea {
+  width: 100%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  line-height: 1.4;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.input:focus, .select:focus, .textarea:focus,
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  border-color: var(--color-brand-600);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  padding: .5rem .9rem;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.btn-primary {
+  background: var(--color-brand-600);
+  color: #fff;
+}
+.btn-primary:hover { background: var(--color-brand-700); }
+
+.btn-ghost {
+  background: #fff;
+  color: var(--color-brand-600);
+  border-color: var(--color-border);
+}
+.btn-ghost:hover { border-color: var(--color-brand-600); }
+
+.btn-danger {
+  background: var(--color-danger);
+  color: #fff;
+}
+.btn-danger:hover { filter: brightness(0.95); }
+
+/* Cards */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+/* Badges */
+.badge {
+  display: inline-flex; align-items: center;
+  padding: 0 .5rem; height: 1.5rem;
+  border-radius: 9999px;
+  font-size: var(--fs-xs); font-weight: 600;
+  background: var(--color-brand-50); color: var(--color-brand-700);
+}
+
+/* Sticky action bar (opt-in for mobile forms) */
+.sticky-actions {
+  position: sticky; bottom: 0;
+  background: var(--color-surface);
+  padding: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
