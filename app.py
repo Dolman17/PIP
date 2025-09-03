@@ -1,6 +1,3 @@
-# =========================
-# app.py — Part 1 of 4
-# =========================
 import os
 import csv, io
 import zipfile
@@ -13,7 +10,6 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.sql import func
-from flask_login import login_required, current_user
 from sqlalchemy.exc import SQLAlchemyError
 
 from flask import (
@@ -30,6 +26,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import generate_csrf
+
+
+
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -84,6 +84,108 @@ def _merge_curated_and_recent(category: str, recent_tags: list[str], cap: int = 
         if len(out) >= cap: break
     return out
 
+# ---- Curated Action Plan Templates (by category + severity) ----
+# You can tune these freely later. Keep items short and concrete.
+ACTION_TEMPLATES = {
+    "Timekeeping": {
+        "Low": [
+            "Agree start-time target and grace window",
+            "Daily check-in for 2 weeks at start of shift",
+            "Keep punctuality log; review weekly",
+        ],
+        "Moderate": [
+            "Formal punctuality target with variance log",
+            "Escalate if 2+ breaches in a week",
+            "Buddy assigned for morning routine",
+        ],
+        "High": [
+            "Issue written reminder citing policy",
+            "Daily manager sign-off for 3 weeks",
+            "Escalation to formal stage if breaches continue",
+        ],
+        "_default": [
+            "Agree punctuality expectations",
+            "Daily check-in for first 2 weeks",
+            "Weekly review of log",
+        ],
+    },
+    "Performance": {
+        "Low": [
+            "Break down tasks into weekly milestones",
+            "Mid-week check-in with progress update",
+            "Share example of quality standard",
+        ],
+        "Moderate": [
+            "Set SMART targets per task",
+            "Stand-up updates Mon/Wed/Fri",
+            "Peer review before handoff",
+        ],
+        "High": [
+            "Written performance targets with deadlines",
+            "Daily status update for 10 working days",
+            "Escalate to formal PIP stage if no improvement",
+        ],
+        "_default": [
+            "Agree 2–3 SMART targets",
+            "Weekly progress review",
+            "Identify training/module to close gap",
+        ],
+    },
+    "Conduct": {
+        "_default": [
+            "Reference conduct policy and expectations",
+            "Agree behaviour standards; confirm by email",
+            "Book values refresher session",
+        ]
+    },
+    "Attendance": {
+        "_default": [
+            "Follow reporting procedure for absence",
+            "Return-to-work meeting after each absence",
+            "Pattern review after 4 weeks",
+        ]
+    },
+    "Communication": {
+        "_default": [
+            "Acknowledge messages within agreed SLA",
+            "Use agreed update template for stakeholders",
+            "Add handover note at end of shift",
+        ]
+    },
+    "Quality of Work": {
+        "_default": [
+            "Introduce checklist for critical steps",
+            "Peer review for first 4 weeks",
+            "Log defects and agree prevention steps",
+        ]
+    },
+    "Productivity": {
+        "_default": [
+            "Time-block key tasks; share plan daily",
+            "Weekly throughput targets",
+            "Remove low-value tasks with manager",
+        ]
+    },
+}
+
+def _pick_actions_from_templates(category: str, severity: str) -> list[str]:
+    cat = (category or "").strip()
+    sev = (severity or "").strip()
+    block = ACTION_TEMPLATES.get(cat) or {}
+    if not block:
+        # fall back to a generic pack
+        block = {"_default": ["Agree clear targets", "Weekly review", "Training / buddy support as needed"]}
+    # prefer exact severity, else _default, else any first list
+    if sev in block and block[sev]:
+        return block[sev]
+    if block.get("_default"):
+        return block["_default"]
+    # final fallback: first list found
+    for v in block.values():
+        if isinstance(v, list) and v:
+            return v
+    return []
+
 def _read_csv_bytes(file_bytes: bytes):
     text = file_bytes.decode("utf-8-sig", errors="replace")
     reader = csv.DictReader(io.StringIO(text))
@@ -121,6 +223,30 @@ def _parse_iso_date(s):
     except Exception:
         return None
 
+
+def _open_pips_scoped_query():
+    """
+    Returns a base query for *open* PIPs, automatically scoped to the current user's team
+    when admin_level == 0. Use this to build stats safely.
+    """
+    base = PIPRecord.query.filter(PIPRecord.status == 'Open')
+    if current_user.admin_level == 0:
+        base = base.join(Employee).filter(Employee.team_id == current_user.team_id)
+    return base
+
+def _counts_by_field(field_expr):
+    """
+    Utility to return {label: count} for a given PIPRecord field expression,
+    using the same scoped base (open PIPs only, team-limited for level 0).
+    """
+    q = _open_pips_scoped_query().with_entities(field_expr, func.count(PIPRecord.id))\
+                                 .group_by(field_expr)
+    rows = q.all()
+    # Normalize None → "Unspecified" for display
+    out = {}
+    for label, cnt in rows:
+        out[(label or "Unspecified")] = int(cnt or 0)
+    return out
 # ---------- Models & Forms ----------
 from models import (
     db, User, Employee, PIPRecord, PIPActionItem, TimelineEvent,
@@ -141,6 +267,10 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-only-secret')
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'pip_crm.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+WTF_CSRF_ENABLED=True,           # default True, make explicit
+WTF_CSRF_TIME_LIMIT=None,        # tokens never expire while you debug
+
 csrf = CSRFProtect(app)
 
 db.init_app(app)
@@ -150,6 +280,10 @@ migrate = Migrate(app, db)
 @app.context_processor
 def inject_module():
     return dict(active_module=session.get('active_module'))
+
+@app.context_processor
+def inject_csrf_token():
+    return dict(csrf_token=generate_csrf)
 
 # ----- Login -----
 login_manager = LoginManager()
@@ -181,11 +315,6 @@ def set_active_module():
         session['active_module'] = 'Probation'
     elif path == '/':
         session.pop('active_module', None)
-
-# =========================
-# app.py — Part 2 of 4
-# =========================
-
 # ===== Document Helpers (NEW unified system for [[ALL_CAPS]] placeholders) =====
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates" / "docx"
 # Put these files in the folder above:
@@ -204,7 +333,7 @@ def _iter_all_paragraphs(doc: Document):
     # Body paragraphs
     for p in doc.paragraphs:
         yield p
-    # Tables (not used in the new templates, but safe to include)
+    # Tables (safe to include)
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
@@ -266,7 +395,7 @@ def strip_outcome_conditionals(doc: Document, keep: str):
     keep_block = False
     to_delete = []
 
-    paragraphs = list(doc.paragraphs)  # only body for conditionals; headers/footers won't contain these
+    paragraphs = list(doc.paragraphs)  # only body for conditionals
 
     def contains_token(p, token):
         return any(token in r.text for r in p.runs) or token in p.text
@@ -286,20 +415,16 @@ def strip_outcome_conditionals(doc: Document, keep: str):
 
         if in_block:
             # Inside a conditional block
-            # If we're not keeping this block, mark paragraph for deletion
             if not keep_block and p not in to_delete:
                 to_delete.append(p)
 
             # Check for end of block
             end_token = f"[[/IF_{in_block}]]"
             if contains_token(p, end_token):
-                # Remove the end token
                 for r in p.runs:
                     r.text = r.text.replace(end_token, "")
-                # If we were deleting this block, ensure the end paragraph is also deleted
                 if not keep_block and p not in to_delete:
                     to_delete.append(p)
-                # Reset state
                 in_block = None
                 keep_block = False
 
@@ -312,6 +437,9 @@ def render_docx(template_filename: str, context: dict, outcome_choice: str | Non
     Loads a .docx template, applies replacements, optional outcome filtering, and returns an in-memory file.
     """
     template_path = TEMPLATE_DIR / template_filename
+    if not template_path.exists():
+        abort(404, f"Template not found: {template_path.name}")
+
     doc = Document(str(template_path))
     replace_placeholders_docx(doc, context or {})
     if outcome_choice:
@@ -321,6 +449,19 @@ def render_docx(template_filename: str, context: dict, outcome_choice: str | Non
     buf.seek(0)
     return buf
 # ===== End Document Helpers =====
+
+# --- Wizard helper: compute default review date (4 weeks) ---
+def _auto_review_date(start_date_str: str | None) -> str | None:
+    if not start_date_str:
+        return None
+    try:
+        dt = datetime.strptime(start_date_str.strip(), "%Y-%m-%d").date()
+        return (dt + timedelta(days=28)).isoformat()  # 'YYYY-MM-DD'
+    except Exception:
+        return None
+
+
+
 
 # ----- Routes: Home / Login / Admin -----
 @app.route('/')
@@ -458,7 +599,7 @@ def export_data():
                 ['id', 'pip_record_id', 'employee_id', 'event_type', 'notes', 'updated_by', 'timestamp'],
                 [{
                     'id': t.id,
-                    'pip_record_id': t.pip_record_id,
+                    'pip_record_id': t.pip_record_id if t.pip_record_id else '',
                     'employee_id': t.pip_record.employee_id if t.pip_record else '',
                     'event_type': getattr(t, 'event_type', ''),
                     'notes': getattr(t, 'notes', ''),
@@ -626,11 +767,6 @@ def backup_database():
     else:
         flash('Database file not found.', 'danger')
         return redirect(url_for('admin_dashboard'))
-
-# =========================
-# app.py — Part 3 of 4
-# =========================
-
 # ----- Employee & PIP management -----
 @app.route('/employee/<int:employee_id>')
 @login_required
@@ -844,6 +980,20 @@ def select_employee_for_pip():
         return redirect(url_for('create_pip', employee_id=request.form.get('employee_id')))
     return render_template('pip_select_employee.html', employees=employees)
 
+
+@app.route('/taxonomy/action_templates', methods=['GET'])
+@login_required
+def taxonomy_action_templates():
+    """
+    Returns curated action plan items for Step 5 based on category & severity.
+    Query: ?category=Timekeeping&severity=High
+    """
+    category = (request.args.get('category') or '').strip()
+    severity = (request.args.get('severity') or '').strip()
+    items = _pick_actions_from_templates(category, severity)
+    return jsonify({"category": category, "severity": severity, "items": items})
+
+
 # -------- Wizard entry ----------
 class DummyForm(FlaskForm):
     pass
@@ -871,7 +1021,7 @@ def create_pip_wizard():
         session['pip_data'] = {}
 
     step = session['wizard_step']
-    data = session.get('pip_data', {})
+    data = session.get('pip_data', {}) or {}
     wizard_errors = {}
     draft = None  # Enhance later: load a real draft by draft_id
 
@@ -886,6 +1036,16 @@ def create_pip_wizard():
             if 1 <= goto <= max_allowed:
                 session['wizard_step'] = goto
                 step = goto
+
+        # If we are viewing step 3 and we already have a start_date but no review_date,
+        # pre-populate review_date = start_date + 28 days and set flags for the banner.
+        if step == 3 and data.get('start_date') and not data.get('review_date'):
+            auto_val = _auto_review_date(data.get('start_date'))
+            if auto_val:
+                data['review_date'] = auto_val
+                data['auto_review_populated'] = True
+                data['auto_review_date'] = auto_val
+                session['pip_data'] = data
 
     if request.method == 'POST':
         if step == 1:
@@ -924,18 +1084,35 @@ def create_pip_wizard():
             })
 
         elif step == 3:
-            start_date = request.form.get('start_date')
-            review_date = request.form.get('review_date')
+            start_date = (request.form.get('start_date') or '').strip()
+            review_date = (request.form.get('review_date') or '').strip()
             draft_name = request.form.get('draft_name', '').strip()
+            # Optional: capture weeks control if present in the template
+            review_weeks = (request.form.get('review_weeks') or '').strip()
 
             if not start_date:
                 wizard_errors['start_date'] = "Start date is required."
-            if not review_date:
-                wizard_errors['review_date'] = "Review date is required."
+
+            # If review date is missing but we have a start date, auto-calc +28 days
+            auto_flag = False
+            if start_date and not review_date:
+                auto_val = _auto_review_date(start_date)
+                if auto_val:
+                    review_date = auto_val
+                    auto_flag = True
 
             if not wizard_errors:
                 data['start_date'] = start_date
                 data['review_date'] = review_date
+                # store the chosen weeks if provided; default to 4
+                if review_weeks.isdigit():
+                    data['review_weeks'] = int(review_weeks)
+                elif 'review_weeks' not in data:
+                    data['review_weeks'] = 4
+                # flags for Step 3 banner
+                data['auto_review_populated'] = bool(auto_flag)
+                data['auto_review_date'] = review_date if auto_flag else None
+
             data['draft_name'] = draft_name
 
         elif step == 4:
@@ -979,6 +1156,7 @@ def create_pip_wizard():
                     capability_meeting_venue=data.get('capability_meeting_venue'),
                     created_by=current_user.username
                 )
+
                 db.session.add(pip)
                 db.session.commit()
 
@@ -1006,10 +1184,10 @@ def create_pip_wizard():
                 print(f"[ERROR] Failed to save PIP: {e}")
                 flash(f"Error creating PIP: {str(e)}", "danger")
 
-        # Persist to session
+        # Persist to session after POST handling
         session['pip_data'] = data
 
-        # Move to next step if no errors and not at final commit step
+        # Move to next step if no errors and not at final commit step (Step 6 handled above)
         if not wizard_errors and step < 5:
             session['wizard_step'] = step + 1
             return redirect(url_for('create_pip_wizard'))
@@ -1026,9 +1204,11 @@ def create_pip_wizard():
         data=data,
         wizard_errors=wizard_errors,
         employees=employees,
-        max_allowed_step=max_allowed
+        max_allowed_step=max_allowed,
+        # expose flags for the Step 3 banner
+        auto_review_populated=bool(data.get('auto_review_populated')),
+        auto_review_date=data.get('auto_review_date')
     )
-
 # ----- AJAX validation for wizard -----
 @app.route('/validate_wizard_step', methods=['POST'])
 @login_required
@@ -1062,8 +1242,8 @@ def validate_wizard_step():
         review_date = request.form.get("review_date", "").strip()
         if not start_date:
             errors["start_date"] = "Please enter a start date."
-        if not review_date:
-            errors["review_date"] = "Please enter a review date."
+    # We don’t require review_date here; server will auto-populate it if missing.
+
 
     elif step == 4:
         meeting_date = request.form.get("meeting_date", "").strip()
@@ -1085,39 +1265,63 @@ def validate_wizard_step():
 @app.route('/suggest_actions_ai', methods=['POST'])
 @login_required
 def suggest_actions_ai():
-    data = request.get_json() or {}
-    concerns = (data.get('concerns') or '').strip()
-    severity = (data.get('severity') or '').strip()
-    frequency = (data.get('frequency') or '').strip()
-    tags = (data.get('tags') or '').strip()
-    category = (data.get('category') or '').strip()
+    """
+    Returns JSON: { success, actions: [...], next_up: [...] }
 
-    def _dedupe_clean(items):
+    Now seeded with curated template items (category + severity) as a soft prior.
+    """
+    data = request.get_json() or {}
+    concerns  = (data.get('concerns')  or '').strip()
+    severity  = (data.get('severity')  or '').strip()
+    frequency = (data.get('frequency') or '').strip()
+    tags      = (data.get('tags')      or '').strip()
+    category  = (data.get('category')  or '').strip()
+
+    # ---- Curated template "soft prior" (category + severity)
+    try:
+        prior_actions = _pick_actions_from_templates(category, severity)  # from ACTION_TEMPLATES helper
+    except Exception:
+        prior_actions = []
+
+    # small utility
+    def _dedupe_clean(items, cap=None):
         out, seen = [], set()
         for x in (items or []):
-            s = (x or '').strip()
+            s = (x or "").strip()
             if not s:
                 continue
-            key = s.lower()
-            if key not in seen:
+            k = s.lower()
+            if k not in seen:
                 out.append(s)
-                seen.add(key)
-        return out[:8]
+                seen.add(k)
+            if cap and len(out) >= cap:
+                break
+        return out
 
-    # ----- Build a strict-JSON prompt -----
+    # ----- Build a strict-JSON prompt seeded with template items -----
     sys_msg = (
-        "You are an HR advisor in the UK. "
-        "Return ONLY valid JSON with two arrays: "
-        '{"actions": ["short concrete manager actions"], "next_up": ["quick follow-ups or escalations"]}. '
-        "Actions must be specific, measurable where possible, and supportive. "
+        "You are an HR advisor in the UK.\n"
+        "Return ONLY valid JSON with two arrays:\n"
+        '{"actions": ["short concrete manager actions"], "next_up": ["quick follow-ups or escalations"]}.\n'
+        "Actions must be specific, measurable where possible, supportive, and suitable for a PIP context.\n"
         "No prose, no markdown, JSON only."
     )
+
+    # Include curated 'prior' suggestions to bias the model without forcing it
+    # Model should consider them first, adapt or add more based on inputs.
+    prior_block = ""
+    if prior_actions:
+        import json
+        prior_block = "Seed actions (consider and adapt as appropriate): " + json.dumps(prior_actions, ensure_ascii=False)
+
     user_msg = f"""
 Concern Category: {category or "[unspecified]"}
 Concerns: {concerns or "[none]"}
 Tags: {tags or "[none]"}
 Severity: {severity or "[unspecified]"}
 Frequency: {frequency or "[unspecified]"}
+
+{prior_block}
 
 Rules:
 - Provide 3–5 'actions' tailored to the inputs.
@@ -1126,7 +1330,8 @@ Rules:
 - JSON ONLY.
 """
 
-    actions, next_up = [], []
+    actions_llm, next_up_llm = [], []
+    raw = ""
 
     try:
         resp = client.chat.completions.create(
@@ -1141,56 +1346,55 @@ Rules:
         raw = (resp.choices[0].message.content or "").strip()
 
         # Try strict JSON parse
-        import json
+        import json, re
         m = re.search(r"\{[\s\S]*\}", raw)
         payload = json.loads(m.group(0) if m else raw)
 
-        actions = _dedupe_clean(payload.get("actions", []))
-        next_up = _dedupe_clean(payload.get("next_up", []))
+        actions_llm = payload.get("actions", []) or []
+        next_up_llm = payload.get("next_up", []) or []
 
     except Exception:
-        # Fallback: simple heuristic parsing if model didn't return JSON
-        lines = [ln.strip("-•* 0123456789.\t") for ln in (raw.splitlines() if 'raw' in locals() else [])]
-        actions = _dedupe_clean([ln for ln in lines if ln][:5])
+        # Fallback: very rough parse if model didn't return valid JSON
+        lines = [ln.strip("-•* 0123456789.\t") for ln in (raw.splitlines() if raw else [])]
+        actions_llm = [ln for ln in lines if ln][:5]
 
-    # Server-side enrichment
+    # ---- Merge with curated prior + server heuristics ----
+    # Start with model → then weave in prior to ensure they don't get lost.
+    merged_actions = _dedupe_clean(actions_llm, cap=None)
+    if prior_actions:
+        # place prior near the front while keeping dedupe
+        merged_actions = _dedupe_clean(prior_actions + merged_actions, cap=8)
+
+    # Server-side enrichment for 'next_up'
+    next_up = _dedupe_clean(next_up_llm, cap=None)
     tag_list = [t.strip().lower() for t in tags.split(",")] if tags else []
     cat = (category or "").lower()
     sev = (severity or "").lower()
     freq = (frequency or "").lower()
 
-    suggestions = []
+    enrich = []
     if 'lateness' in tag_list or 'timekeeping' in cat:
-        suggestions += [
-            "Daily start-time check-ins for 2 weeks",
-            "Agree punctuality targets; log variances",
-        ]
+        enrich += ["Daily start-time check-ins for 2 weeks", "Agree punctuality targets; log variances"]
     if 'conduct' in tag_list or cat == 'conduct':
-        suggestions += [
-            "Reference conduct policy; document conversations",
-            "Book values/behaviour refresher"
-        ]
+        enrich += ["Reference conduct policy; document conversations", "Book values/behaviour refresher"]
     if 'performance' in cat or ('missed deadlines' in (tags or '').lower()):
-        suggestions += [
-            "Weekly milestones with due dates",
-            "Stand-up updates Mon/Wed/Fri"
-        ]
+        enrich += ["Weekly milestones with due dates", "Stand-up updates Mon/Wed/Fri"]
     if sev == 'high':
-        suggestions += ["Escalate to formal stage if no progress"]
+        enrich += ["Escalate to formal stage if no progress"]
     if freq in ('frequent', 'persistent'):
-        suggestions += ["Increase monitoring and assign a buddy/mentor"]
+        enrich += ["Increase monitoring and assign a buddy/mentor"]
 
-    next_up = _dedupe_clean((next_up or []) + suggestions)
+    next_up = _dedupe_clean(next_up + enrich, cap=8)
+
+    # Ensure sensible caps
+    merged_actions = merged_actions[:8] if merged_actions else []
+    next_up = next_up[:8] if next_up else []
 
     return jsonify({
         "success": True,
-        "actions": actions,
+        "actions": merged_actions,
         "next_up": next_up
     }), 200
-
-# =========================
-# app.py — Part 4 of 4
-# =========================
 
 # ----- Probation module -----
 @app.route('/probation/<int:id>')
@@ -1416,34 +1620,63 @@ def inject_csrf_token():
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    # Top-level counters (global, not team-filtered)
     total_employees = Employee.query.count()
     active_pips = PIPRecord.query.filter_by(status='Open').count()
     completed_pips = PIPRecord.query.filter_by(status='Completed').count()
 
+    # Dates
     today = datetime.now(timezone.utc).date()
-
-    overdue_reviews = PIPRecord.query.filter(
-        PIPRecord.review_date < today,
-        PIPRecord.status == 'Open'
-    ).count()
-
-    recent_activity = TimelineEvent.query.order_by(TimelineEvent.timestamp.desc()).limit(10).all()
     upcoming_deadline = today + timedelta(days=7)
 
+    # Overdue count (Open + review_date before today)
+    overdue_reviews = PIPRecord.query.filter(
+        PIPRecord.status == 'Open',
+        PIPRecord.review_date < today
+    ).count()
+
+    # Team scoping for lists
+    # - Level 0 users see only their team’s data
+    # - Higher levels see everything
     if current_user.admin_level == 0:
-        upcoming_pips = PIPRecord.query.join(Employee).filter(
-            Employee.team_id == current_user.team_id,
+        # Build a base query scoped by team
+        q_open = PIPRecord.query.join(Employee).filter(Employee.team_id == current_user.team_id)
+        q_upcoming = q_open.filter(
             PIPRecord.status == 'Open',
             PIPRecord.review_date >= today,
             PIPRecord.review_date <= upcoming_deadline
-        ).order_by(PIPRecord.review_date).all()
+        )
+
+        # Lists
+        open_pips = q_open.filter(PIPRecord.status == 'Open') \
+                          .order_by(PIPRecord.review_date.asc().nullslast()).all()
+        upcoming_pips = q_upcoming.order_by(PIPRecord.review_date.asc()).all()
+
+        # Count due soon for this user’s team
+        due_soon_count = q_upcoming.count()
+
     else:
+        # Org-wide
+        open_pips = PIPRecord.query.filter(PIPRecord.status == 'Open') \
+                                   .join(Employee) \
+                                   .order_by(PIPRecord.review_date.asc().nullslast()).all()
+
         upcoming_pips = PIPRecord.query.filter(
             PIPRecord.status == 'Open',
             PIPRecord.review_date >= today,
             PIPRecord.review_date <= upcoming_deadline
-        ).order_by(PIPRecord.review_date).all()
+        ).order_by(PIPRecord.review_date.asc()).all()
 
+        due_soon_count = PIPRecord.query.filter(
+            PIPRecord.status == 'Open',
+            PIPRecord.review_date >= today,
+            PIPRecord.review_date <= upcoming_deadline
+        ).count()
+
+    # Recent activity (kept as-is)
+    recent_activity = TimelineEvent.query.order_by(TimelineEvent.timestamp.desc()).limit(10).all()
+
+    # Active draft banner
     draft = get_active_draft_for_user(current_user.id)
 
     return render_template(
@@ -1454,8 +1687,47 @@ def dashboard():
         overdue_reviews=overdue_reviews,
         recent_activity=recent_activity,
         upcoming_pips=upcoming_pips,
+        open_pips=open_pips,
+        due_soon_count=due_soon_count,
         draft=draft
     )
+
+@app.route('/dashboard/stats.json')
+@login_required
+def dashboard_stats_json():
+    """
+    Tiny JSON payload for dashboard charts.
+    - by_category: counts of Open PIPs by concern_category
+    - by_severity: counts of Open PIPs by severity
+    - totals: quick summary used by UI (open, due_soon, overdue)
+    """
+    today = datetime.now(timezone.utc).date()
+    upcoming_deadline = today + timedelta(days=7)
+
+    # Base scoped query (open PIPs)
+    base = _open_pips_scoped_query()
+
+    # Counts
+    by_category = _counts_by_field(PIPRecord.concern_category)
+    by_severity = _counts_by_field(PIPRecord.severity)
+
+    # Totals for header chips (scoped the same way)
+    open_total = base.count()
+    due_soon = base.filter(
+        PIPRecord.review_date >= today,
+        PIPRecord.review_date <= upcoming_deadline
+    ).count()
+    overdue = base.filter(PIPRecord.review_date < today).count()
+
+    return jsonify({
+        "by_category": by_category,
+        "by_severity": by_severity,
+        "totals": {
+            "open": open_total,
+            "due_soon": due_soon,
+            "overdue": overdue
+        }
+    })
 
 # ----- Employee add/list/quick-add -----
 @app.route('/employee/add', methods=['GET', 'POST'])
@@ -1502,7 +1774,7 @@ def quick_add_employee():
     emp = Employee(
         first_name=first,
         last_name=last,
-        role=role,
+        role=role,  # NOTE: kept as-is to avoid changing your models/routes
         service=service,
         manager_id=getattr(current_user, "id", None)
     )
@@ -1788,12 +2060,12 @@ def generate_invite_letter(id):
             f"{(pip.capability_meeting_time or '')}"
         ).strip(),
         "[[CONCERNS_SUMMARY]]": pip.concerns or "",
-        "[[EVIDENCE_SUMMARY]]": "",  # populate if you track evidence summary
-        "[[SUPPORT_LIST]]": "",      # populate from your support list field if present
+        "[[EVIDENCE_SUMMARY]]": "",
+        "[[SUPPORT_LIST]]": "",
         "[[PIP_START_DATE]]": pip.start_date.strftime("%d %B %Y") if pip.start_date else "",
-        "[[REVIEW_PERIOD_WEEKS]]": "",  # fill if you track review weeks
-        "[[HR_CONTACT_NAME]]": "",      # fill if you store HR contact
-        "[[HR_CONTACT_EMAIL]]": "",     # fill if you store HR contact
+        "[[REVIEW_PERIOD_WEEKS]]": "",
+        "[[HR_CONTACT_NAME]]": "",
+        "[[HR_CONTACT_EMAIL]]": "",
     }
 
     buf = render_docx("PIP_Invite_Letter_Template_v2025-08-28.docx", context)
@@ -1827,7 +2099,7 @@ def generate_plan_document(id):
         "[[JOB_TITLE]]": emp.job_title or "",
         "[[DEPARTMENT]]": emp.service or "",
         "[[MANAGER_NAME]]": pip.created_by or getattr(current_user, "username", ""),
-        "[[REVIEWER_NAME]]": "",  # fill if you track a reviewer on PIP
+        "[[REVIEWER_NAME]]": "",
         "[[HR_CONTACT_NAME]]": "",
         "[[PIP_START_DATE]]": pip.start_date.strftime("%d %B %Y") if pip.start_date else "",
         "[[PIP_END_DATE]]": pip.review_date.strftime("%d %B %Y") if pip.review_date else "",

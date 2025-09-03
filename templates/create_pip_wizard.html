@@ -68,222 +68,442 @@
   <form method="POST" id="wizardForm">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-    {% if step == 1 %}
-      <div class="mb-4">
-        <label for="employee_id" class="block text-gray-700 font-medium">Select Employee:</label>
-        <div class="flex items-center space-x-2">
-          <select id="employee_id" name="employee_id" class="border border-gray-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-[#005b5a]">
-            <option value="">-- Select Employee --</option>
-            {% for emp in employees %}
-              <option value="{{ emp.id }}" {% if data.employee_id == emp.id %}selected{% endif %}>
-                {{ emp.first_name }} {{ emp.last_name }}
-              </option>
-            {% endfor %}
-          </select>
-          <button type="button" id="openQuickAdd" class="px-3 py-2 bg-[#005b5a] text-white rounded-lg hover:bg-[#004746]">+ Add</button>
-        </div>
-        <input type="hidden" name="employee_name" id="employee_name" value="{{ data.employee_name or '' }}">
-        {% if wizard_errors.employee_id %}
-          <p class="text-red-600 text-sm mt-1">{{ wizard_errors.employee_id }}</p>
-        {% endif %}
-      </div>
-
-      <script>
-        (function () {
-          const sel = document.getElementById('employee_id');
-          const hidden = document.getElementById('employee_name');
-          function setName() {
-            const t = sel.options[sel.selectedIndex]?.text || '';
-            hidden.value = t;
-          }
-          sel?.addEventListener('change', setName);
-          if (sel && sel.value && !hidden.value) setName();
-        })();
-      </script>
-
-    {% elif step == 2 %}
-      <div class="space-y-6">
-        <div>
-          <label for="concerns" class="block text-sm font-medium text-gray-700">Describe Concerns:</label>
-          <textarea id="concerns" name="concerns" rows="4" class="form-textarea mt-1 block w-full rounded-md border-gray-300 shadow-sm">{{ data.concerns or '' }}</textarea>
-          {% if wizard_errors.concerns %}
-            <p class="text-red-600 text-sm mt-1">{{ wizard_errors.concerns }}</p>
-          {% endif %}
-        </div>
-
-        <div>
-          <label for="concern_category" class="block text-sm font-medium text-gray-700">Concern Category:</label>
-          <select name="concern_category" id="concern_category" class="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-            <option value="">-- Select Category --</option>
-            {# will be hydrated by /taxonomy/categories; initial values below are fallback #}
-            {% for cat in ['Performance', 'Conduct', 'Timekeeping', 'Attendance', 'Communication', 'Quality of Work', 'Productivity'] %}
-              <option value="{{ cat }}" {% if data.concern_category == cat %}selected{% endif %}>{{ cat }}</option>
-            {% endfor %}
-          </select>
-          {% if wizard_errors.concern_category %}
-            <p class="text-red-600 text-sm mt-1">{{ wizard_errors.concern_category }}</p>
-          {% endif %}
-        </div>
-
-        <!-- Concern Tags (Free Text Input + Suggested Pills) -->
-        <div>
-          <label for="concern_tags" class="block text-sm font-medium text-gray-700">Concern Tags (comma-separated):</label>
-          <input type="text" name="concern_tags" id="concern_tags"
-                 class="form-input mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-                 placeholder="e.g. missed deadlines, attitude"
-                 value="{{ data.concern_tags or '' }}">
-          <div id="suggested-tags" class="mt-3 flex flex-wrap gap-2"></div>
-          <p class="text-xs text-gray-500 mt-1">Tip: click tags to add/remove; they sync with the box above.</p>
-        </div>
-
-        <div>
-          <label for="severity" class="block text-sm font-medium text-gray-700">Severity:</label>
-          <select name="severity" id="severity" class="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-            <option value="">-- Select Severity --</option>
-            {% for level in ['Low', 'Moderate', 'High'] %}
-              <option value="{{ level }}" {% if data.severity == level %}selected{% endif %}>{{ level }}</option>
-            {% endfor %}
-          </select>
-          {% if wizard_errors.severity %}
-            <p class="text-red-600 text-sm mt-1">{{ wizard_errors.severity }}</p>
-          {% endif %}
-        </div>
-
-        <div>
-          <label for="frequency" class="block text-sm font-medium text-gray-700">Frequency:</label>
-          <select name="frequency" id="frequency" class="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-            <option value="">-- Select Frequency --</option>
-            {% for freq in ['One-off', 'Occasional', 'Frequent', 'Persistent'] %}
-              <option value="{{ freq }}" {% if data.frequency == freq %}selected{% endif %}>{{ freq }}</option>
-            {% endfor %}
-          </select>
-          {% if wizard_errors.frequency %}
-            <p class="text-red-600 text-sm mt-1">{{ wizard_errors.frequency }}</p>
-          {% endif %}
-        </div>
-      </div>
-
-{% elif step == 3 %}
-  <div class="grid grid-cols-1 gap-4">
-    {% call Field("Start Date:", "start_date", error=wizard_errors.start_date) %}
-      <input type="date" name="start_date" id="start_date" class="form-input mt-1 block w-full border rounded px-3 py-2" value="{{ data.start_date or '' }}">
-    {% endcall %}
-    {% call Field("Review Date:", "review_date", error=wizard_errors.review_date) %}
-      <input type="date" name="review_date" id="review_date" class="form-input mt-1 block w-full border rounded px-3 py-2" value="{{ data.review_date or '' }}">
-    {% endcall %}
+   {% if step == 1 %}
+  <div class="mb-4">
+    <label for="employee_id" class="block text-gray-700 font-medium">Select Employee:</label>
+    <div class="flex items-center space-x-2">
+      <select id="employee_id" name="employee_id" class="border border-gray-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-[#005b5a]">
+        <option value="">-- Select Employee --</option>
+        {% for emp in employees %}
+          <option value="{{ emp.id }}" {% if data.employee_id == emp.id %}selected{% endif %}>
+            {{ emp.first_name }} {{ emp.last_name }}
+          </option>
+        {% endfor %}
+      </select>
+      <button type="button" id="openQuickAdd" class="px-3 py-2 bg-[#005b5a] text-white rounded-lg hover:bg-[#004746]">+ Add</button>
+    </div>
+    <input type="hidden" name="employee_name" id="employee_name" value="{{ data.employee_name or '' }}">
+    {% if wizard_errors.employee_id %}
+      <p class="text-red-600 text-sm mt-1">{{ wizard_errors.employee_id }}</p>
+    {% endif %}
   </div>
 
-    {% elif step == 4 %}
+  <script>
+    (function () {
+      const sel = document.getElementById('employee_id');
+      const hidden = document.getElementById('employee_name');
+      function setName() {
+        const t = sel.options[sel.selectedIndex]?.text || '';
+        hidden.value = t;
+      }
+      sel?.addEventListener('change', setName);
+      if (sel && sel.value && !hidden.value) setName();
+    })();
+  </script>
+
+{% elif step == 2 %}
+  <div class="space-y-6">
+    <div>
+      <label for="concerns" class="block text-sm font-medium text-gray-700">Describe Concerns:</label>
+      <textarea id="concerns" name="concerns" rows="4" class="form-textarea mt-1 block w-full rounded-md border-gray-300 shadow-sm">{{ data.concerns or '' }}</textarea>
+      {% if wizard_errors.concerns %}
+        <p class="text-red-600 text-sm mt-1">{{ wizard_errors.concerns }}</p>
+      {% endif %}
+    </div>
+
+    <div>
+      <label for="concern_category" class="block text-sm font-medium text-gray-700">Concern Category:</label>
+      <select name="concern_category" id="concern_category" class="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+        <option value="">-- Select Category --</option>
+        {# will be hydrated by /taxonomy/categories; initial values below are fallback #}
+        {% for cat in ['Performance', 'Conduct', 'Timekeeping', 'Attendance', 'Communication', 'Quality of Work', 'Productivity'] %}
+          <option value="{{ cat }}" {% if data.concern_category == cat %}selected{% endif %}>{{ cat }}</option>
+        {% endfor %}
+      </select>
+      {% if wizard_errors.concern_category %}
+        <p class="text-red-600 text-sm mt-1">{{ wizard_errors.concern_category }}</p>
+      {% endif %}
+    </div>
+
+    <!-- Concern Tags (Free Text Input + Suggested Pills) -->
+    <div>
+      <label for="concern_tags" class="block text-sm font-medium text-gray-700">Concern Tags (comma-separated):</label>
+      <input type="text" name="concern_tags" id="concern_tags"
+             class="form-input mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+             placeholder="e.g. missed deadlines, attitude"
+             value="{{ data.concern_tags or '' }}">
+      <div id="suggested-tags" class="mt-3 flex flex-wrap gap-2"></div>
+      <p class="text-xs text-gray-500 mt-1">Tip: click tags to add/remove; they sync with the box above.</p>
+    </div>
+
+    <div>
+      <label for="severity" class="block text-sm font-medium text-gray-700">Severity:</label>
+      <select name="severity" id="severity" class="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+        <option value="">-- Select Severity --</option>
+        {% for level in ['Low', 'Moderate', 'High'] %}
+          <option value="{{ level }}" {% if data.severity == level %}selected{% endif %}>{{ level }}</option>
+        {% endfor %}
+      </select>
+      {% if wizard_errors.severity %}
+        <p class="text-red-600 text-sm mt-1">{{ wizard_errors.severity }}</p>
+      {% endif %}
+    </div>
+
+    <div>
+      <label for="frequency" class="block text-sm font-medium text-gray-700">Frequency:</label>
+      <select name="frequency" id="frequency" class="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+        <option value="">-- Select Frequency --</option>
+        {% for freq in ['One-off', 'Occasional', 'Frequent', 'Persistent'] %}
+          <option value="{{ freq }}" {% if data.frequency == freq %}selected{% endif %}>{{ freq }}</option>
+        {% endfor %}
+      </select>
+      {% if wizard_errors.frequency %}
+        <p class="text-red-600 text-sm mt-1">{{ wizard_errors.frequency }}</p>
+      {% endif %}
+    </div>
+  </div>
+
+{% elif step == 3 %}
+  {% if auto_review_populated %}
+    <div class="mb-3 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-900">
+      We've auto-populated a <strong>4-week review date</strong> of
+      <strong>{{ auto_review_date }}</strong>. You can overwrite this if your review period differs.
+    </div>
+  {% endif %}
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+    <!-- Start date -->
+    <div>
+      <label for="start_date" class="block text-sm font-medium text-gray-700">Start date</label>
+      <input
+        type="date"
+        id="start_date"
+        name="start_date"
+        class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+        value="{{ data.start_date or '' }}"
+        required
+      />
+      {% if wizard_errors.start_date %}
+        <p class="mt-1 text-sm text-red-600">{{ wizard_errors.start_date }}</p>
+      {% endif %}
+    </div>
+
+    <!-- Review period (weeks) -->
+    <div>
+      <label for="review_weeks" class="block text-sm font-medium text-gray-700">Review period (weeks)</label>
+      <div class="mt-1 flex items-center gap-2">
+        <input
+          type="number"
+          id="review_weeks"
+          name="review_weeks"
+          class="w-28 rounded-md border border-slate-300 px-3 py-2"
+          min="1" max="52" step="1"
+          value="{{ data.get('review_weeks') or 4 }}"
+          aria-describedby="review_weeks_help"
+        />
+        <button type="button" id="reset_review_weeks"
+                class="rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
+          Reset
+        </button>
+      </div>
+      <p id="review_weeks_help" class="mt-1 text-xs text-slate-500">
+        Changing this recalculates the review date unless you've edited it manually.
+      </p>
+    </div>
+
+    <!-- Review date -->
+    <div>
+      <label for="review_date" class="block text-sm font-medium text-gray-700">Review date</label>
+      <input
+        type="date"
+        id="review_date"
+        name="review_date"
+        class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+        value="{{ data.review_date or '' }}"
+      />
+      {% if wizard_errors.review_date %}
+        <p class="mt-1 text-sm text-red-600">{{ wizard_errors.review_date }}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Live recalculation (client-side) -->
+  <script>
+  (function(){
+    const start  = document.getElementById('start_date');
+    const weeks  = document.getElementById('review_weeks');
+    const review = document.getElementById('review_date');
+    const reset  = document.getElementById('reset_review_weeks');
+
+    let manualOverride = false;
+
+    function ymd(d) {
+      const tzOffsetMs = d.getTimezoneOffset() * 60000;
+      const local = new Date(d.getTime() - tzOffsetMs);
+      return local.toISOString().slice(0,10);
+    }
+
+    function addDays(dateStr, days) {
+      const d = new Date(dateStr);
+      if (String(d) === 'Invalid Date') return '';
+      d.setDate(d.getDate() + days);
+      return ymd(d);
+    }
+
+    function recalc() {
+      if (manualOverride) return;
+      if (!start.value)   return;
+      const w = parseInt(weeks.value, 10);
+      if (isNaN(w) || w < 1) return;
+      review.value = addDays(start.value, w * 7);
+    }
+
+    // Recalc when start/weeks change
+    start.addEventListener('change', recalc);
+    weeks.addEventListener('input', recalc);
+
+    // Manual override detection
+    review.addEventListener('input', function() {
+      manualOverride = true;
+    });
+
+    // Reset brings back auto mode and recalculates
+    if (reset) {
+      reset.addEventListener('click', function() {
+        manualOverride = false;
+        // Put the weeks back to 4 by design of the Reset button
+        if (weeks && weeks.value !== '4') weeks.value = '4';
+        recalc();
+      });
+    }
+
+    // Initial run: if review empty, compute once
+    document.addEventListener('DOMContentLoaded', function() {
+      if (!review.value) recalc();
+    });
+  })();
+  </script>
+
+{% elif step == 4 %}
+  <div>
+    <label for="meeting_date">Meeting Date:</label>
+    <input
+      type="date"
+      id="meeting_date"
+      name="capability_meeting_date"
+      class="form-input w-full mt-2"
+      value="{{ data.get('capability_meeting_date', '') }}"
+      required
+    >
+  </div>
+
+  <div class="mt-4">
+    <label for="meeting_time">Time:</label>
+    <input
+      type="time"
+      id="meeting_time"
+      name="capability_meeting_time"
+      class="form-input w-full mt-2"
+      value="{{ data.get('capability_meeting_time', '') }}"
+      required
+    >
+  </div>
+
+  <div class="mt-4">
+    <label for="meeting_venue">Venue:</label>
+    <input
+      type="text"
+      id="meeting_venue"
+      name="capability_meeting_venue"
+      class="form-input w-full mt-2"
+      value="{{ data.get('capability_meeting_venue', '') }}"
+      required
+    >
+  </div>
+
+  <!-- Hidden mirrors for AJAX validator (expects meeting_date / meeting_time) -->
+  <input type="hidden" name="meeting_date" id="meeting_date_mirror" value="{{ data.get('capability_meeting_date','') }}">
+  <input type="hidden" name="meeting_time" id="meeting_time_mirror" value="{{ data.get('capability_meeting_time','') }}">
+
+{% elif step == 5 %}
+  <div class="space-y-4">
+    <!-- Template pack controls -->
+    <div class="flex flex-wrap items-end gap-3">
       <div>
-        <label for="meeting_date">Meeting Date:</label>
+        <label for="tpl_category" class="block text-sm font-medium text-gray-700">Template pack</label>
         <input
-          type="date"
-          id="meeting_date"
-          name="capability_meeting_date"
-          class="form-input w-full mt-2"
-          value="{{ data.get('capability_meeting_date', '') }}"
-          required
-        >
+          type="text" id="tpl_category" readonly
+          class="mt-1 w-56 rounded-md border border-gray-300 px-3 py-2 bg-gray-50"
+          value="{{ data.concern_category or '' }}"
+          title="Derived from Concern Category"
+        />
       </div>
-
-      <div class="mt-4">
-        <label for="meeting_time">Time:</label>
+      <div>
+        <label for="tpl_severity" class="block text-sm font-medium text-gray-700">Severity</label>
         <input
-          type="time"
-          id="meeting_time"
-          name="capability_meeting_time"
-          class="form-input w-full mt-2"
-          value="{{ data.get('capability_meeting_time', '') }}"
-          required
-        >
+          type="text" id="tpl_severity" readonly
+          class="mt-1 w-40 rounded-md border border-gray-300 px-3 py-2 bg-gray-50"
+          value="{{ data.severity or '' }}"
+          title="Derived from Severity"
+        />
       </div>
+      <button type="button" id="btnLoadTemplates"
+              class="mt-6 inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
+        📦 Load template actions
+      </button>
+      <button type="button" id="btnInsertTemplates"
+              class="mt-6 inline-flex items-center gap-2 bg-ellipse-teal text-white px-3 py-2 rounded-md hover:bg-ellipse-hover text-sm disabled:opacity-60"
+              disabled>
+        ➕ Insert selected
+      </button>
+      <span id="tplStatus" class="mt-6 text-xs text-gray-500"></span>
+    </div>
 
-      <div class="mt-4">
-        <label for="meeting_venue">Venue:</label>
-        <input
-          type="text"
-          id="meeting_venue"
-          name="capability_meeting_venue"
-          class="form-input w-full mt-2"
-          value="{{ data.get('capability_meeting_venue', '') }}"
-          required
-        >
-      </div>
+    <!-- Loaded template items (pick which to insert) -->
+    <div id="tplContainer" class="hidden border rounded-md p-3">
+      <div class="text-sm font-medium text-gray-700 mb-2">Template items</div>
+      <div id="tplList" class="grid grid-cols-1 gap-2"></div>
+    </div>
 
-      <!-- Hidden mirrors for AJAX validator (expects meeting_date / meeting_time) -->
-      <input type="hidden" name="meeting_date" id="meeting_date_mirror" value="{{ data.get('capability_meeting_date','') }}">
-      <input type="hidden" name="meeting_time" id="meeting_time_mirror" value="{{ data.get('capability_meeting_time','') }}">
+    <ul id="ai-actions-list" class="list-disc pl-6"></ul>
 
-    {% elif step == 5 %}
-      <div class="space-y-4">
-        <ul id="ai-actions-list" class="list-disc pl-6"></ul>
+    <div class="flex items-center justify-between">
+      <h3 class="text-sm font-medium text-gray-700">Action Plan Items</h3>
+      <span id="action-count" class="text-xs text-gray-500">0 items</span>
+    </div>
 
-        <div class="flex items-center justify-between">
-          <h3 class="text-sm font-medium text-gray-700">Action Plan Items</h3>
-          <span id="action-count" class="text-xs text-gray-500">0 items</span>
+    <div id="action-plan-list" class="mb-2">
+      {# Rehydrate any existing items from the session #}
+      {% for it in (data.action_plan_items or []) %}
+        <div class="flex items-center gap-2 mt-2">
+          <input type="text" name="action_plan_items[]" class="form-input flex-1 rounded border px-3 py-2" value="{{ it }}">
+          <button type="button" class="px-2 py-1 border rounded hover:bg-gray-50" title="Move up">↑</button>
+          <button type="button" class="px-2 py-1 border rounded hover:bg-gray-50" title="Move down">↓</button>
+          <button type="button" class="px-2 py-1 border rounded text-red-700 hover:bg-red-50" title="Remove">✕</button>
         </div>
-        <div id="action-plan-list" class="mb-2">
-          {# Rehydrate any existing items from the session #}
-          {% for it in (data.action_plan_items or []) %}
-            <div class="flex items-center gap-2 mt-2">
-              <input type="text" name="action_plan_items[]" class="form-input flex-1 rounded border px-3 py-2" value="{{ it }}">
-              <button type="button" class="px-2 py-1 border rounded hover:bg-gray-50" title="Move up">↑</button>
-              <button type="button" class="px-2 py-1 border rounded hover:bg-gray-50" title="Move down">↓</button>
-              <button type="button" class="px-2 py-1 border rounded text-red-700 hover:bg-red-50" title="Remove">✕</button>
-            </div>
-          {% endfor %}
-        </div>
+      {% endfor %}
+    </div>
 
-        <div class="flex flex-wrap gap-3">
-          <button type="button" onclick="addActionItem()" class="text-sm text-ellipse-teal hover:underline">+ Add Action Item</button>
-          <button type="button" id="ai-suggest-btn" class="text-sm bg-ellipse-teal text-white px-3 py-1 rounded hover:bg-ellipse-hover transition">⚡ Suggest with AI</button>
-          <button type="button" id="clear-ai" class="text-sm border px-3 py-1 rounded hover:bg-gray-50 transition">Clear AI results</button>
-        </div>
+    <div class="flex flex-wrap gap-3">
+      <button type="button" onclick="addActionItem()" class="text-sm text-ellipse-teal hover:underline">+ Add Action Item</button>
+      <button type="button" id="ai-suggest-btn" class="text-sm bg-ellipse-teal text-white px-3 py-1 rounded hover:bg-ellipse-hover transition">
+        ⚡ Suggest with AI
+      </button>
+      <button type="button" id="clear-ai" class="text-sm border px-3 py-1 rounded hover:bg-gray-50 transition">Clear AI results</button>
+    </div>
 
-        {% if wizard_errors.action_plan_items %}
-          <p class="text-red-600 text-sm mt-1">{{ wizard_errors.action_plan_items }}</p>
-        {% endif %}
-
-        <div id="next-up-suggestions" class="hidden mt-6">
-          <div class="flex items-center justify-between">
-            <h3 class="text-sm font-medium text-gray-700">Next Up Suggestions</h3>
-            <button type="button" id="insert-selected-nextup" class="text-xs bg-gray-800 text-white px-2 py-1 rounded hover:bg-gray-700">Insert selected</button>
-          </div>
-          <div id="suggestion-cards" class="grid grid-cols-1 gap-2 mt-2"></div>
-          <p class="text-xs text-gray-500 mt-1">Tick items you want to add to the action plan, then click “Insert selected”.</p>
-        </div>
-      </div>
-
-    {% elif step == 6 %}
-      <div class="space-y-4 text-sm text-gray-700">
-        <p><strong>Employee:</strong> {{ data.employee_name or '' }}</p>
-        <p><strong>Concerns:</strong> {{ data.concerns }}</p>
-        <p><strong>Category:</strong> {{ data.concern_category }}</p>
-        <p><strong>Severity:</strong> {{ data.severity }}</p>
-        <p><strong>Frequency:</strong> {{ data.frequency }}</p>
-        <p><strong>Tags:</strong> {{ data.concern_tags }}</p>
-        <p><strong>Start Date:</strong> {{ data.start_date }}</p>
-        <p><strong>Review Date:</strong> {{ data.review_date }}</p>
-        <p><strong>Meeting Date:</strong> {{ data.capability_meeting_date }}</p>
-        <p><strong>Meeting Time:</strong> {{ data.capability_meeting_time }}</p>
-        <p><strong>Venue:</strong> {{ data.capability_meeting_venue }}</p>
-        <p><strong>Draft Name:</strong> {{ data.draft_name }}</p>
-
-        <div class="pt-2">
-          <strong>Action Plan:</strong>
-          {% set items = data.action_plan_items or [] %}
-          {% if items %}
-            <ul class="list-disc pl-5 mt-1">
-              {% for it in items %}
-                <li>{{ it }}</li>
-              {% endfor %}
-            </ul>
-          {% else %}
-            <p class="text-gray-500">No actions captured.</p>
-          {% endif %}
-        </div>
-      </div>
+    {% if wizard_errors.action_plan_items %}
+      <p class="text-red-600 text-sm mt-1">{{ wizard_errors.action_plan_items }}</p>
     {% endif %}
+
+    <div id="next-up-suggestions" class="hidden mt-6">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-medium text-gray-700">Next Up Suggestions</h3>
+        <button type="button" id="insert-selected-nextup" class="text-xs bg-gray-800 text-white px-2 py-1 rounded hover:bg-gray-700">Insert selected</button>
+      </div>
+      <div id="suggestion-cards" class="grid grid-cols-1 gap-2 mt-2"></div>
+      <p class="text-xs text-gray-500 mt-1">Tick items you want to add to the action plan, then click “Insert selected”.</p>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    const btnLoad = document.getElementById('btnLoadTemplates');
+    const btnInsert = document.getElementById('btnInsertTemplates');
+    const tplList = document.getElementById('tplList');
+    const tplWrap = document.getElementById('tplContainer');
+    const tplStatus = document.getElementById('tplStatus');
+
+    function setTplStatus(msg){ if(tplStatus) tplStatus.textContent = msg || ''; }
+    function clearTplUI(){
+      tplList.innerHTML = '';
+      tplWrap.classList.add('hidden');
+      btnInsert.disabled = true;
+      setTplStatus('');
+    }
+
+    btnLoad?.addEventListener('click', async ()=>{
+      clearTplUI();
+      const cat = (document.getElementById('tpl_category')?.value || '').trim();
+      const sev = (document.getElementById('tpl_severity')?.value || '').trim();
+      if(!cat){
+        setTplStatus('Pick a category in Step 2 to get template suggestions.');
+        return;
+      }
+      setTplStatus('Loading templates…');
+      try{
+        const res = await fetch(`/taxonomy/action_templates?category=${encodeURIComponent(cat)}&severity=${encodeURIComponent(sev)}`);
+        const data = await res.json();
+        const items = Array.isArray(data.items) ? data.items : [];
+        if(!items.length){ setTplStatus('No templates available for this selection.'); return; }
+        tplWrap.classList.remove('hidden');
+        tplList.innerHTML = items.map((t, i)=>`
+          <label class="flex items-start gap-2 p-2 border rounded hover:bg-gray-50 cursor-pointer">
+            <input type="checkbox" data-idx="${i}" class="mt-1">
+            <span class="text-sm text-gray-700">${t.replace(/</g,'&lt;')}</span>
+          </label>
+        `).join('');
+        btnInsert.disabled = false;
+        setTplStatus(`${items.length} template item${items.length===1?'':'s'} loaded`);
+        // stash on element for quick readback
+        tplList.dataset.items = JSON.stringify(items);
+      }catch(e){
+        setTplStatus('Failed to load templates.');
+      }
+    });
+
+    btnInsert?.addEventListener('click', ()=>{
+      try{
+        const items = JSON.parse(tplList.dataset.items || '[]');
+        const picked = [];
+        tplList.querySelectorAll('input[type="checkbox"]').forEach((cb)=>{
+          const idx = parseInt(cb.getAttribute('data-idx')||'-1', 10);
+          if(cb.checked && idx>=0 && items[idx]) picked.push(items[idx]);
+        });
+        if(!picked.length){ setTplStatus('Select at least one template item.'); return; }
+        picked.forEach(txt => addActionItem(txt));
+        updateActionCount();
+        window.__dirty = true;
+        if (window.debouncedSave) window.debouncedSave();
+        setTplStatus(`${picked.length} item${picked.length===1?'':'s'} inserted`);
+      }catch(_){
+        setTplStatus('Could not insert items.');
+      }
+    });
+  })();
+  </script>
+
+{% elif step == 6 %}
+  <div class="space-y-4 text-sm text-gray-700">
+    <p><strong>Employee:</strong> {{ data.employee_name or '' }}</p>
+    <p><strong>Concerns:</strong> {{ data.concerns }}</p>
+    <p><strong>Category:</strong> {{ data.concern_category }}</p>
+    <p><strong>Severity:</strong> {{ data.severity }}</p>
+    <p><strong>Frequency:</strong> {{ data.frequency }}</p>
+    <p><strong>Tags:</strong> {{ data.concern_tags }}</p>
+    <p><strong>Start Date:</strong> {{ data.start_date }}</p>
+    <p><strong>Review Date:</strong> {{ data.review_date }}</p>
+    <p><strong>Meeting Date:</strong> {{ data.capability_meeting_date }}</p>
+    <p><strong>Meeting Time:</strong> {{ data.capability_meeting_time }}</p>
+    <p><strong>Venue:</strong> {{ data.capability_meeting_venue }}</p>
+    <p><strong>Draft Name:</strong> {{ data.draft_name }}</p>
+
+    <div class="pt-2">
+      <strong>Action Plan:</strong>
+      {% set items = data.action_plan_items or [] %}
+      {% if items %}
+        <ul class="list-disc pl-5 mt-1">
+          {% for it in items %}
+            <li>{{ it }}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-gray-500">No actions captured.</p>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+
 
     <!-- Navigation Buttons -->
     <div class="mt-8 flex flex-wrap justify-between items-center gap-4">
@@ -297,7 +517,7 @@
             class="relative inline-flex items-center gap-2 bg-ellipse-teal text-white px-4 py-2 rounded shadow hover:bg-ellipse-hover transition disabled:opacity-70 disabled:cursor-not-allowed">
             <svg class="next-spinner hidden absolute left-3 h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+              <path class="opacity-75" fill="currentColor" d="M4 12a 8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
             </svg>
             <span class="next-label">{% if step == 6 %}Submit{% elif step == 5 %}Next: Review{% else %}Next{% endif %}</span>
           </button>
@@ -358,7 +578,7 @@ function buildNextUpCard(text,checked=false){const card=document.createElement('
 document.addEventListener('DOMContentLoaded', () => {
   // Debounced autosave
   window.debouncedSave = debounce(() => saveDraft(), 800);
-  ['draft_name','employee_id','concerns','concern_category','concern_tags','severity','frequency','start_date','review_date','meeting_date','meeting_time','meeting_venue']
+  ['draft_name','employee_id','concerns','concern_category','concern_tags','severity','frequency','start_date','review_weeks','review_date','meeting_date','meeting_time','meeting_venue']
     .forEach(id=>{const el=document.getElementById(id); el?.addEventListener('input',()=>{window.__dirty=true;debouncedSave();}); el?.addEventListener('change',()=>{window.__dirty=true;debouncedSave();});});
   const actionList=document.getElementById('action-plan-list');
   actionList?.addEventListener('input',debouncedSave);
@@ -371,7 +591,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const enabled = btn.dataset.enabled === '1';
       const target = parseInt(btn.dataset.step||'0',10);
       if (!enabled || target === currentStep) { ev.preventDefault(); return; }
-      const go = ()=>{ window.location = '{{ url_for("create_pip_wizard") }}?goto=' + target; };
+      const go = ()=>{
+        window.__navigating = true;   // ✅ suppress beforeunload
+        window.__dirty = false;       // optional: avoid flicker if save was noop
+        window.location = '{{ url_for("create_pip_wizard") }}?goto=' + target;
+    };
+
       if (target > currentStep) {
         ev.preventDefault();
         validateStep(currentStep, function(valid){
@@ -486,16 +711,19 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /* ===== Save Draft / Validation / Next ===== */
-window.saveDraft=function(callback){
-  const form=document.getElementById("wizardForm"); if(!form)return;
-  const formData=new FormData(form);
-  fetch("{{ url_for('save_pip_draft') }}",{method:"POST",body:formData})
-    .then(res=>res.json()).then(()=>{
-      const status=document.getElementById("autosave-status");
-      if(status) status.innerText=`Last saved: ${new Date().toLocaleTimeString()}`;
-      if(callback) callback();
+window.saveDraft = function(callback){
+  const form = document.getElementById("wizardForm"); 
+  if (!form) return;
+  const formData = new FormData(form);
+  fetch("{{ url_for('save_pip_draft') }}", { method:"POST", body: formData })
+    .then(res => res.json()).then(() => {
+      const status = document.getElementById("autosave-status");
+      if (status) status.innerText = `Last saved: ${new Date().toLocaleTimeString()}`;
+      // ✅ consider the page "clean" after we save successfully
+      window.__dirty = false;
+      if (callback) callback();
     })
-    .catch(()=>{alert("Failed to save draft.");});
+    .catch(() => { alert("Failed to save draft."); });
 };
 function validateStep(step,callback){
   const form=document.getElementById("wizardForm"); if(!form){callback(false);return;}
@@ -518,12 +746,18 @@ function validateStep(step,callback){
     }).catch(()=>callback(false));
 }
 const currentStep={{ step | int }};
-document.getElementById("nextBtn")?.addEventListener("click",function(e){
+document.getElementById("nextBtn")?.addEventListener("click", function(e){
   e.preventDefault();
-  validateStep(currentStep,function(valid){
-    if(valid){ saveDraft(function(){ document.getElementById("wizardForm").submit(); }); }
+  validateStep(currentStep, function(valid){
+    if (!valid) return;
+    saveDraft(function(){
+      window.__navigating = true;   // ✅ intentional nav
+      window.__dirty = false;
+      document.getElementById("wizardForm").submit();
+    });
   });
 });
+
 
 /* Quick-Add modal */
 document.addEventListener("DOMContentLoaded",()=>{
@@ -564,7 +798,17 @@ document.addEventListener("DOMContentLoaded",()=>{
 });
 
 // Unload guard
-window.addEventListener('beforeunload', (e)=>{ if(!window.__dirty) return; e.preventDefault(); e.returnValue=''; });
+// --- put this near the top of your big <script> block or before other handlers ---
+window.__dirty = window.__dirty || false;
+window.__navigating = false;
+
+// Only warn if user has unsaved edits AND we are not doing an intentional nav.
+window.addEventListener('beforeunload', (e) => {
+  if (window.__navigating) return;
+  if (!window.__dirty) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 
 // Pull employee fields if needed (final step safety)
 function hydrateFinalHiddenFields(){

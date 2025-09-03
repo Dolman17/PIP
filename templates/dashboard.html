@@ -1,132 +1,458 @@
 {% extends "base.html" %}
-{% block title %}Employee Dashboard{% endblock %}
-{% block page_title %}📊 Performance Dashboard{% endblock %}
-
 {% block content %}
 
-<!-- Resume Draft Banner -->
-{% if draft %}
-<div class="mb-6 p-4 rounded-lg border bg-amber-50 border-amber-200 flex items-start justify-between gap-4">
-  <div>
-    <div class="font-semibold text-amber-900">You have an active PIP draft</div>
-    <div class="text-sm text-amber-800">
-      {{ draft.data.get('draft_name') or 'Untitled draft' }}
-      · last updated {{ draft.updated_at.strftime('%d %b %Y %H:%M') }}
-    </div>
-  </div>
-  <div class="flex gap-2 shrink-0">
-    <!-- point Resume at the resume route -->
-    <a href="{{ url_for('pip_wizard_resume') }}"
-       class="px-3 py-2 rounded bg-[#005b5a] text-white hover:bg-[#004746]">
-      Resume
-    </a>
+<div class="max-w-7xl mx-auto px-4 py-8">
 
-    <button id="dismissDraftBtn"
-       class="px-3 py-2 rounded border border-amber-300 text-amber-900 hover:bg-amber-100">
-      Dismiss
-    </button>
-  </div>
-</div>
-
-<script>
-(function () {
-  const btn = document.getElementById('dismissDraftBtn');
-  btn?.addEventListener('click', async () => {
-    const original = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = 'Dismissing…';
-    try {
-      const res = await fetch('{{ url_for("dismiss_draft") }}', { method: 'POST' });
-      if (res.ok) {
-        location.reload();
-      } else {
-        btn.disabled = false;
-        btn.textContent = original;
-        alert('Could not dismiss draft. Please try again.');
-      }
-    } catch (e) {
-      btn.disabled = false;
-      btn.textContent = original;
-      alert('Network error while dismissing draft.');
-    }
-  });
-})();
-</script>
-{% endif %}
-
-  <!-- Summary Cards -->
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-    <!-- Total Employees -->
-    <div class="bg-[#e6f3f3] p-6 rounded-xl shadow border border-gray-200 text-center hover:shadow-lg transition duration-300">
-      <div class="flex justify-center items-center w-12 h-12 mx-auto rounded-full bg-ellipse-teal text-white text-2xl mb-3">
-        👥
+  <!-- Hero / Welcome -->
+  <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#0f6b6a] to-[#0a4d4c] text-white p-6 shadow-lg">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">Welcome back{% if current_user and current_user.username %}, {{ current_user.username|title }}{% endif %} 👋</h1>
+        <p class="text-white/90 mt-1">Here’s a snapshot of your Performance Improvement work.</p>
       </div>
-      <div class="text-sm text-gray-600">Total Employees</div>
-      <div class="text-3xl font-bold text-ellipse-teal">{{ total_employees }}</div>
+      <div class="flex flex-wrap items-center gap-3">
+        <a href="{{ url_for('create_pip_wizard') }}"
+           class="inline-flex items-center gap-2 rounded-lg bg-white/95 text-[#0f6b6a] hover:bg-white px-4 py-2 font-medium shadow">
+          ➕ Start New PIP
+        </a>
+        <a href="{{ url_for('pip_list') }}"
+           class="inline-flex items-center gap-2 rounded-lg border border-white/40 text-white hover:bg-white/10 px-4 py-2">
+          📄 View All PIPs
+        </a>
+      </div>
     </div>
 
-    <!-- Active PIPs -->
-    <div class="bg-[#e6f3f3] p-6 rounded-xl shadow border border-gray-200 text-center hover:shadow-lg transition duration-300">
-      <div class="flex justify-center items-center w-12 h-12 mx-auto rounded-full bg-yellow-500 text-white text-2xl mb-3">
-        📂
+    <!-- Quick stats -->
+    <div class="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div class="rounded-xl bg-white/10 backdrop-blur p-4">
+        <div class="text-sm text-white/80">Employees</div>
+        <div class="text-2xl font-semibold">{{ total_employees or 0 }}</div>
       </div>
-      <div class="text-sm text-gray-600">Active PIPs</div>
-      <div class="text-3xl font-bold text-yellow-600">{{ active_pips }}</div>
-    </div>
-
-    <!-- Completed PIPs -->
-    <div class="bg-[#e6f3f3] p-6 rounded-xl shadow border border-gray-200 text-center hover:shadow-lg transition duration-300">
-      <div class="flex justify-center items-center w-12 h-12 mx-auto rounded-full bg-green-600 text-white text-2xl mb-3">
-        ✅
+      <div class="rounded-xl bg-white/10 backdrop-blur p-4">
+        <div class="text-sm text-white/80">Active PIPs</div>
+        <div class="text-2xl font-semibold">{{ active_pips or 0 }}</div>
       </div>
-      <div class="text-sm text-gray-600">Completed PIPs</div>
-      <div class="text-3xl font-bold text-green-600">{{ completed_pips }}</div>
-    </div>
-
-    <!-- Overdue Reviews -->
-    <div class="bg-[#e6f3f3] p-6 rounded-xl shadow border border-gray-200 text-center hover:shadow-lg transition duration-300">
-      <div class="flex justify-center items-center w-12 h-12 mx-auto rounded-full bg-red-600 text-white text-2xl mb-3">
-        ⏰
+      <div class="rounded-xl bg-white/10 backdrop-blur p-4">
+        <div class="text-sm text-white/80">Completed</div>
+        <div class="text-2xl font-semibold">{{ completed_pips or 0 }}</div>
       </div>
-      <div class="text-sm text-gray-600">Overdue Reviews</div>
-      <div class="text-3xl font-bold text-red-600">{{ overdue_reviews }}</div>
+      <div class="rounded-xl bg-white/10 backdrop-blur p-4">
+        <div class="text-sm text-white/80">Overdue Reviews</div>
+        <div class="text-2xl font-semibold">{{ overdue_reviews or 0 }}</div>
+      </div>
     </div>
   </div>
 
-  <!-- Activity + Upcoming PIPs -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-    <!-- Recent Activity -->
-    <div class="bg-[#e6f3f3] p-6 rounded-xl shadow border border-gray-200">
-      <h2 class="text-lg font-semibold text-ellipse-teal mb-3">🕒 Recent Activity</h2>
-      <ul class="divide-y divide-gray-200">
-        {% for event in recent_activity %}
-          <li class="py-2">
-            <div class="text-sm text-gray-700">{{ event.notes }}</div>
-            <div class="text-xs text-gray-400">{{ event.timestamp.strftime('%d %b %Y %H:%M') }} by {{ event.updated_by }}</div>
-          </li>
-        {% else %}
-          <li class="text-gray-400">No recent activity.</li>
-        {% endfor %}
-      </ul>
+  <!-- Draft resume banner -->
+  {% if draft %}
+  <div class="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-900 p-4 flex items-start gap-4">
+    <div class="text-xl">📄</div>
+    <div class="flex-1">
+      <div class="font-semibold">Draft available</div>
+      <div class="text-sm">
+        You have an unsent PIP draft{% if draft.updated_at %} (last updated {{ draft.updated_at.strftime('%d %b %Y %H:%M') }} UTC){% endif %}.
+      </div>
+      <div class="mt-3 flex items-center gap-2">
+        <a href="{{ url_for('pip_wizard_resume') }}"
+           class="inline-flex items-center gap-2 rounded-md bg-[#0f6b6a] text-white px-3 py-1.5 hover:bg-[#0c5858]">
+          ▶ Resume draft
+        </a>
+        <button id="dismissDraftBtn"
+                class="inline-flex items-center gap-2 rounded-md border border-emerald-300 px-3 py-1.5 hover:bg-white">
+          Dismiss
+        </button>
+      </div>
     </div>
+  </div>
+  {% endif %}
 
-    <!-- Upcoming Reviews -->
-    <div class="bg-[#e6f3f3] p-6 rounded-xl shadow border border-gray-200">
-      <h2 class="text-lg font-semibold text-ellipse-teal mb-3">📅 Upcoming Reviews (7 Days)</h2>
-      <ul class="divide-y divide-gray-200">
-        {% for pip in upcoming_pips %}
-          <li class="py-2">
-            <div class="text-sm">
-              {{ pip.employee.first_name }} {{ pip.employee.last_name }} — 
-              <span class="text-gray-600 text-sm">{{ pip.review_date.strftime('%d %b %Y') }}</span>
-              <a href="{{ url_for('pip_detail', id=pip.id) }}" class="text-blue-600 text-xs ml-2 underline">View</a>
+  <!-- Highlights -->
+  <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="rounded-xl border border-red-200 bg-red-50 p-4">
+      <div class="text-sm text-red-800/80">Overdue reviews</div>
+      <div class="mt-1 text-2xl font-semibold text-red-900">{{ overdue_reviews or 0 }}</div>
+      <p class="text-xs text-red-800/70 mt-1">Reviews with a date before today and still open.</p>
+    </div>
+    <div class="rounded-xl border border-amber-200 bg-amber-50 p-4">
+      <div class="text-sm text-amber-900/80">Due in next 7 days</div>
+      <div class="mt-1 text-2xl font-semibold text-amber-900">
+        {{ (upcoming_pips|selectattr('review_date','defined')|selectattr('review_date','ne',None)|list|length) or 0 }}
+      </div>
+      <p class="text-xs text-amber-900/70 mt-1">Upcoming review deadlines.</p>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <div class="text-sm text-slate-700/80">Recent activity entries</div>
+      <div class="mt-1 text-2xl font-semibold text-slate-900">{{ recent_activity|length if recent_activity else 0 }}</div>
+      <p class="text-xs text-slate-700/70 mt-1">Latest timeline updates across PIPs.</p>
+    </div>
+  </div>
+
+  <!-- Timeline: Upcoming reviews -->
+  <div class="mt-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-lg font-semibold text-slate-900">Upcoming Reviews</h2>
+      <div class="text-sm text-slate-500">Next 1–2 weeks</div>
+    </div>
+    {% set items = upcoming_pips or [] %}
+    {% if items %}
+      <div class="overflow-x-auto">
+        <div class="relative flex items-center gap-6 py-4 px-1 min-w-full">
+          {% for p in items %}
+            <div class="flex flex-col items-start min-w-[220px]">
+              <div class="flex items-center gap-2">
+                <span class="inline-block h-2.5 w-2.5 rounded-full
+                  {% if p.severity == 'High' %}bg-red-500
+                  {% elif p.severity == 'Moderate' %}bg-amber-500
+                  {% else %}bg-emerald-500{% endif %}"></span>
+                <span class="text-sm font-medium text-slate-800">
+                  {{ p.employee.first_name }} {{ p.employee.last_name }}
+                </span>
+              </div>
+              <div class="text-xs text-slate-500 mt-1">
+                {{ p.review_date.strftime('%d %b %Y') if p.review_date else 'No date' }}
+                · {{ p.concern_category or 'Uncategorised' }}
+              </div>
+              <a href="{{ url_for('pip_detail', id=p.id) }}"
+                 class="mt-2 inline-flex items-center text-xs text-[#0f6b6a] hover:underline">
+                View PIP →
+              </a>
             </div>
-          </li>
-        {% else %}
-          <li class="text-gray-400">No upcoming reviews.</li>
-        {% endfor %}
-      </ul>
+          {% endfor %}
+        </div>
+      </div>
+    {% else %}
+      <div class="text-sm text-slate-500">No upcoming reviews in the next week.</div>
+    {% endif %}
+  </div>
+
+  <!-- Filters -->
+  <div class="mt-8 flex flex-wrap items-center gap-3">
+    <div class="relative">
+      <input id="searchInput" type="text" placeholder="Search employee…"
+             class="peer w-64 rounded-lg border border-slate-300 pl-9 pr-3 py-2 focus:ring-2 focus:ring-[#0f6b6a] focus:outline-none">
+      <span class="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400">🔎</span>
+    </div>
+
+    <select id="filterCategory" class="rounded-lg border border-slate-300 px-3 py-2">
+      <option value="">All categories</option>
+      <option>Timekeeping</option><option>Attendance</option>
+      <option>Quality of Work</option><option>Productivity</option>
+      <option>Conduct</option><option>Communication</option>
+      <option>Teamwork/Collaboration</option><option>Compliance/Process</option>
+      <option>Customer Service</option><option>Health & Safety</option>
+      <option>Performance</option>
+    </select>
+
+    <select id="filterSeverity" class="rounded-lg border border-slate-300 px-3 py-2">
+      <option value="">All severities</option>
+      <option>Low</option><option>Moderate</option><option>High</option>
+    </select>
+
+    <button id="clearFilters"
+            class="rounded-lg border border-slate-300 px-3 py-2 hover:bg-slate-50">
+      Clear
+    </button>
+
+    <!-- Analytics -->
+<div class="mt-8 rounded-2xl border border-slate-200 bg-white shadow-sm">
+  <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+    <h3 class="text-base font-semibold text-slate-900">Analytics</h3>
+    <span id="statsMeta" class="text-xs text-slate-500">Loading…</span>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-4">
+    <div class="rounded-xl border border-slate-100 p-4">
+      <div class="text-sm text-slate-700 mb-3">Open PIPs by Category</div>
+      <canvas id="chartCategory" height="180"></canvas>
+    </div>
+    <div class="rounded-xl border border-slate-100 p-4">
+      <div class="text-sm text-slate-700 mb-3">Open PIPs by Severity</div>
+      <canvas id="chartSeverity" height="180"></canvas>
     </div>
   </div>
 </div>
+
+<!-- Chart.js + Loader -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  const fmt = (n)=> new Intl.NumberFormat().format(n||0);
+
+  async function loadStats(){
+    const res = await fetch('{{ url_for("dashboard_stats_json") }}', { headers: { 'Accept': 'application/json' }});
+    if (!res.ok) throw new Error('Failed to load stats');
+    return res.json();
+  }
+
+  function makeDoughnut(ctx, labels, data){
+    return new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{
+          data,
+          // Chart.js will auto-pick colors; keep it simple & consistent
+        }]
+      },
+      options: {
+        plugins: {
+          legend: { position: 'bottom' }
+        },
+        cutout: '58%'
+      }
+    });
+  }
+
+  function makeBar(ctx, labels, data){
+    return new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{ data }]
+      },
+      options: {
+        scales: {
+          y: { beginAtZero: true, ticks: { precision: 0 } }
+        },
+        plugins: {
+          legend: { display: false }
+        }
+      }
+    });
+  }
+
+  try {
+    const payload = await loadStats();
+    const byCategory = payload.by_category || {};
+    const bySeverity = payload.by_severity || {};
+    const totals = payload.totals || {};
+
+    const catLabels = Object.keys(byCategory);
+    const catData = catLabels.map(k => byCategory[k] || 0);
+
+    const sevOrder = ['High','Moderate','Low','Unspecified'];
+    const sevLabels = sevOrder.filter(k => k in bySeverity).concat(
+      Object.keys(bySeverity).filter(k => !sevOrder.includes(k))
+    );
+    const sevData = sevLabels.map(k => bySeverity[k] || 0);
+
+    const elMeta = document.getElementById('statsMeta');
+    if (elMeta){
+      elMeta.textContent = `Open: ${fmt(totals.open)} · Due soon: ${fmt(totals.due_soon)} · Overdue: ${fmt(totals.overdue)}`;
+    }
+
+    const ctxCat = document.getElementById('chartCategory');
+    const ctxSev = document.getElementById('chartSeverity');
+    if (ctxCat) makeDoughnut(ctxCat, catLabels, catData);
+    if (ctxSev) makeBar(ctxSev, sevLabels, sevData);
+  } catch (e) {
+    const elMeta = document.getElementById('statsMeta');
+    if (elMeta) elMeta.textContent = 'Unable to load stats';
+    // Silent fail in UI; console for developers
+    console.warn(e);
+  }
+});
+</script>
+
+  </div>
+  <!-- Upcoming PIPs – interactive table -->
+  <div class="mt-4 rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+      <h3 class="text-base font-semibold text-slate-900">Upcoming PIPs</h3>
+      <div class="text-sm text-slate-500">
+        Showing {{ (upcoming_pips|length) or 0 }} record{{ (upcoming_pips|length) == 1 and '' or 's' }}
+      </div>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="bg-slate-50 text-slate-600">
+            <th class="text-left px-4 py-3">Employee</th>
+            <th class="text-left px-4 py-3">Category</th>
+            <th class="text-left px-4 py-3">Severity</th>
+            <th class="text-left px-4 py-3">Review Date</th>
+            <th class="text-left px-4 py-3">Status</th>
+            <th class="px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody id="upcomingTableBody">
+          {% for p in (upcoming_pips or []) %}
+          {% set rid = 'row_' ~ p.id %}
+          <tr class="border-b border-slate-100 hover:bg-slate-50" data-name="{{ (p.employee.first_name ~ ' ' ~ p.employee.last_name)|lower }}"
+              data-category="{{ (p.concern_category or '')|lower }}" data-severity="{{ (p.severity or '')|lower }}">
+            <td class="px-4 py-3 font-medium text-slate-900">
+              {{ p.employee.first_name }} {{ p.employee.last_name }}
+            </td>
+            <td class="px-4 py-3">{{ p.concern_category or '—' }}</td>
+            <td class="px-4 py-3">
+              <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs
+                {% if p.severity == 'High' %}bg-red-100 text-red-800
+                {% elif p.severity == 'Moderate' %}bg-amber-100 text-amber-800
+                {% else %}bg-emerald-100 text-emerald-800{% endif %}">
+                ● {{ p.severity or 'Unknown' }}
+              </span>
+            </td>
+            <td class="px-4 py-3">{{ p.review_date.strftime('%d %b %Y') if p.review_date else '—' }}</td>
+            <td class="px-4 py-3">{{ p.status or 'Open' }}</td>
+            <td class="px-4 py-3 text-right">
+              <div class="inline-flex items-center gap-2">
+                <a href="{{ url_for('pip_detail', id=p.id) }}"
+                   class="rounded-md border border-slate-300 px-2 py-1 hover:bg-slate-50">Open</a>
+                <button type="button" class="toggleRow rounded-md bg-[#0f6b6a] text-white px-2 py-1 hover:bg-[#0c5858]"
+                        data-target="#{{ rid }}">Details</button>
+              </div>
+            </td>
+          </tr>
+          <tr id="{{ rid }}" class="hidden border-b border-slate-100 bg-slate-50/60">
+            <td colspan="6" class="px-6 py-4">
+              <div class="grid md:grid-cols-3 gap-4 text-sm">
+                <div>
+                    <div class="text-slate-500">Concerns</div>
+                    <div class="mt-1 text-slate-800">{{ p.concerns or '—' }}</div>
+                </div>
+                <div>
+                    <div class="text-slate-500">Tags</div>
+                    <div class="mt-1 text-slate-800">{{ p.tags or '—' }}</div>
+                </div>
+                <div>
+                    <div class="text-slate-500">Action items (first 3)</div>
+                    <ul class="mt-1 list-disc pl-5 text-slate-800">
+                      {# FIXED: safe preview + empty state #}
+                      {% set preview_items = p.action_items[:3] if p.action_items else [] %}
+                      {% if preview_items %}
+                        {% for ai in preview_items %}
+                          <li>{{ ai.description }}</li>
+                        {% endfor %}
+                      {% else %}
+                        <li class="list-none text-slate-500">No action items yet.</li>
+                      {% endif %}
+                    </ul>
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+          {% if not upcoming_pips or upcoming_pips|length == 0 %}
+          <tr><td colspan="6" class="px-4 py-8 text-center text-slate-500">Nothing due soon.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Recent activity -->
+  <div class="mt-8 rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="p-4 border-b border-slate-100">
+      <h3 class="text-base font-semibold text-slate-900">Recent Activity</h3>
+    </div>
+    <div class="divide-y divide-slate-100">
+      {% for ev in (recent_activity or []) %}
+      <div class="p-4 flex items-start gap-3">
+        <div class="mt-1">🕑</div>
+        <div class="flex-1">
+          <div class="text-sm text-slate-900">
+            <span class="font-semibold">{{ ev.event_type }}</span>
+            {% if ev.updated_by %}<span class="text-slate-500"> · {{ ev.updated_by }}</span>{% endif %}
+          </div>
+          {% if ev.notes %}<div class="text-sm text-slate-700 mt-1">{{ ev.notes }}</div>{% endif %}
+          {% if ev.timestamp %}<div class="text-xs text-slate-500 mt-1">{{ ev.timestamp.strftime('%d %b %Y %H:%M') }} UTC</div>{% endif %}
+        </div>
+      </div>
+      {% else %}
+      <div class="p-6 text-center text-slate-500 text-sm">No recent activity.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Quick actions -->
+  <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+    <a href="{{ url_for('create_pip_wizard') }}"
+       class="rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition">
+      <div class="text-lg">✨ Create a new PIP</div>
+      <div class="text-sm text-slate-600">Kick off the guided wizard.</div>
+    </a>
+    <a href="{{ url_for('employee_list') }}"
+       class="rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition">
+      <div class="text-lg">👥 Employees</div>
+      <div class="text-sm text-slate-600">Browse and manage employees.</div>
+    </a>
+    <a href="{{ url_for('export_data') }}"
+       class="rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition">
+      <div class="text-lg">⬇ Export data</div>
+      <div class="text-sm text-slate-600">Download a zip of current records.</div>
+    </a>
+  </div>
+
+</div> <!-- /container -->
+
+<!-- Scripts: filters, toggles, draft dismiss -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // Toggle details rows
+  document.querySelectorAll('.toggleRow').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sel = btn.getAttribute('data-target');
+      const row = sel ? document.querySelector(sel) : null;
+      if (row) row.classList.toggle('hidden');
+    });
+  });
+
+  // Simple client-side filtering
+  const q = document.getElementById('searchInput');
+  const cat = document.getElementById('filterCategory');
+  const sev = document.getElementById('filterSeverity');
+  const clear = document.getElementById('clearFilters');
+  const rows = Array.from(document.querySelectorAll('#upcomingTableBody tr')).filter((_,i)=>i%2===0); // data rows
+
+  function applyFilters(){
+    const query = (q?.value || '').trim().toLowerCase();
+    const c = (cat?.value || '').trim().toLowerCase();
+    const s = (sev?.value || '').trim().toLowerCase();
+    rows.forEach(r => {
+      const name = r.getAttribute('data-name') || '';
+      const rc = r.getAttribute('data-category') || '';
+      const rs = r.getAttribute('data-severity') || '';
+      const matchQ = !query || name.includes(query);
+      const matchC = !c || rc === c;
+      const matchS = !s || rs === s;
+      const show = matchQ && matchC && matchS;
+      r.classList.toggle('hidden', !show);
+      const details = r.nextElementSibling;
+      if (details && details.id && details.tagName === 'TR') {
+        if (!show) details.classList.add('hidden');
+      }
+    });
+  }
+  q?.addEventListener('input', applyFilters);
+  cat?.addEventListener('change', applyFilters);
+  sev?.addEventListener('change', applyFilters);
+  clear?.addEventListener('click', () => {
+    if (q) q.value = '';
+    if (cat) cat.value = '';
+    if (sev) sev.value = '';
+    applyFilters();
+  });
+
+  // Dismiss draft banner
+  const dismissBtn = document.getElementById('dismissDraftBtn');
+  if (dismissBtn) {
+    dismissBtn.addEventListener('click', async () => {
+      try {
+        const res = await fetch('{{ url_for("dismiss_draft") }}', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          const banner = dismissBtn.closest('.rounded-xl, .rounded-2xl, .rounded');
+          if (banner) banner.remove();
+        } else {
+          alert(data.message || 'Could not dismiss draft.');
+        }
+      } catch {
+        alert('Could not dismiss draft.');
+      }
+    });
+  }
+});
+</script>
+
 {% endblock %}
