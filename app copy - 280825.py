@@ -1,6 +1,3 @@
-# =========================
-# app.py — Part 1 of 4
-# =========================
 import os
 import csv, io
 import zipfile
@@ -9,8 +6,6 @@ import re
 from io import BytesIO
 from functools import wraps
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from sqlalchemy.sql import func
 from flask_login import login_required, current_user
@@ -31,13 +26,16 @@ from werkzeug.utils import secure_filename
 from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect
 
+from docxtpl import DocxTemplate
+from openai import OpenAI
 from dotenv import load_dotenv
 load_dotenv()
 
-# Use python-docx for our new templates system
-from docx import Document
+import csv, io, tempfile
+from datetime import datetime
+from werkzeug.utils import secure_filename
 
-# If you have openpyxl installed, we can read .xlsx; otherwise CSV only.
+# If you have openpyxl installed, we can read .xlsx; otherwise we’ll allow CSV only.
 try:
     import openpyxl  # noqa: F401
     XLSX_ENABLED = True
@@ -46,16 +44,16 @@ except Exception:
 
 ALLOWED_EXTS = {"csv", "xlsx"} if XLSX_ENABLED else {"csv"}
 
-# Map Employee model fields to import
+# Map *your* Employee model fields here.
+# Keep this list in sync with your actual columns.
+# Map Employee model fields you actually want to import
+# Matches your export columns and templates
 EMPLOYEE_FIELDS = [
     "first_name", "last_name", "email", "job_title", "line_manager",
     "service", "team_id", "start_date"
 ]
 
-# Minimal required fields
-REQUIRED_FIELDS = ["first_name", "last_name"]
-
-# ---- Curated concern tags (can move to DB later) ----
+# ---- Curated concern tags (lightweight, can move to DB later) ----
 CURATED_TAGS = {
     "Timekeeping": ["lateness", "missed clock-in", "extended breaks", "early finish", "timekeeping policy"],
     "Attendance": ["unauthorised absence", "short notice absence", "patterns of absence", "fit note", "return to work"],
@@ -76,6 +74,7 @@ def _merge_curated_and_recent(category: str, recent_tags: list[str], cap: int = 
     for t in cat_list:
         if t.lower() not in seen:
             out.append(t); seen.add(t.lower())
+    # Add recent (keep original casing where possible)
     for t in recent_tags:
         if not t: continue
         key = t.lower().strip()
@@ -83,6 +82,9 @@ def _merge_curated_and_recent(category: str, recent_tags: list[str], cap: int = 
             out.append(t.strip()); seen.add(key)
         if len(out) >= cap: break
     return out
+
+# Minimal required fields — adjust if you need more
+REQUIRED_FIELDS = ["first_name", "last_name"]
 
 def _read_csv_bytes(file_bytes: bytes):
     text = file_bytes.decode("utf-8-sig", errors="replace")
@@ -115,13 +117,22 @@ def _try_parse_date(value):
             continue
     return None
 
-def _parse_iso_date(s):
-    try:
-        return datetime.strptime((s or "").strip(), "%Y-%m-%d").date()
-    except Exception:
-        return None
+def _max_wizard_step(data: dict) -> int:
+    """
+    Gate progression. Only unlock Step 6 (Review) when Action Items exist.
+    """
+    s = 1
+    if data.get('employee_id'): s = 2
+    if all(data.get(k) for k in ('concerns', 'concern_category', 'severity', 'frequency')): s = 3
+    if all(data.get(k) for k in ('start_date', 'review_date')): s = 4
+    if all(data.get(k) for k in ('capability_meeting_date', 'capability_meeting_time', 'capability_meeting_venue')): s = 5
+    # Only allow review (6) if at least one action item is present
+    items = data.get('action_plan_items') or []
+    if s == 5 and isinstance(items, list) and any((x or '').strip() for x in items):
+        s = 6
+    return s
 
-# ---------- Models & Forms ----------
+# --- Models & Forms ---
 from models import (
     db, User, Employee, PIPRecord, PIPActionItem, TimelineEvent,
     ProbationRecord, ProbationReview, ProbationPlan, DraftPIP, DraftProbation
@@ -131,11 +142,10 @@ from forms import (
     ProbationReviewForm, ProbationPlanForm, UserForm
 )
 
-# ---------- OpenAI ----------
-from openai import OpenAI
+# Initialize OpenAI v1 client (will pick up OPENAI_API_KEY env var)
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-# ---------- Flask Init ----------
+# Initialize Flask
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-only-secret')
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -151,11 +161,12 @@ migrate = Migrate(app, db)
 def inject_module():
     return dict(active_module=session.get('active_module'))
 
-# ----- Login -----
+# Initialize Login
 login_manager = LoginManager()
 login_manager.login_view = 'login'
 login_manager.init_app(app)
 
+# ----- User Loader -----
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
@@ -182,147 +193,7 @@ def set_active_module():
     elif path == '/':
         session.pop('active_module', None)
 
-# =========================
-# app.py — Part 2 of 4
-# =========================
-
-# ===== Document Helpers (NEW unified system for [[ALL_CAPS]] placeholders) =====
-TEMPLATE_DIR = Path(__file__).resolve().parent / "templates" / "docx"
-# Put these files in the folder above:
-#   PIP_Invite_Letter_Template_v2025-08-28.docx
-#   PIP_Action_Plan_Template_v2025-08-28.docx
-#   PIP_Outcome_Letter_Template_v2025-08-28.docx
-
-# Optional: support old keys alongside new ones if you still populate legacy fields
-LEGACY_TO_NEW_KEYS = {
-    # "employee_name": "[[EMPLOYEE_NAME]]",
-    # "{EmployeeName}": "[[EMPLOYEE_NAME]]",
-    # "{{employee.first_name}}": "[[EMPLOYEE_FIRST_NAME]]",
-}
-
-def _iter_all_paragraphs(doc: Document):
-    # Body paragraphs
-    for p in doc.paragraphs:
-        yield p
-    # Tables (not used in the new templates, but safe to include)
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for p in cell.paragraphs:
-                    yield p
-    # Headers/footers for each section
-    for section in doc.sections:
-        for p in section.header.paragraphs:
-            yield p
-        for p in section.footer.paragraphs:
-            yield p
-
-def _replace_in_runs(paragraph, mapping: dict):
-    """Safer replacement that keeps run-level formatting if tokens aren't split across runs."""
-    for run in paragraph.runs:
-        text = run.text
-        for k, v in mapping.items():
-            if k in text:
-                text = text.replace(k, v)
-        run.text = text
-
-def replace_placeholders_docx(doc: Document, context: dict):
-    """
-    Replace [[KEY]] placeholders throughout the document.
-    Also maps any legacy keys to the new scheme if present in context.
-    """
-    # Build a single mapping of [[KEY]] → value (strings)
-    mapping = {k: str(v) for k, v in (context or {}).items()}
-
-    # Map any legacy keys in the context to the new keys
-    for legacy_key, new_key in LEGACY_TO_NEW_KEYS.items():
-        if legacy_key in (context or {}):
-            mapping[new_key] = str(context[legacy_key])
-
-    # Auto-fill some sensible defaults if missing
-    now_uk = datetime.now(ZoneInfo("Europe/London"))
-    mapping.setdefault("[[GENERATED_DATE]]", now_uk.strftime("%d %B %Y"))
-    mapping.setdefault("[[DOC_VERSION]]", now_uk.strftime("v%Y.%m.%d"))
-
-    # Replace across all paragraphs (runs to preserve formatting)
-    for p in _iter_all_paragraphs(doc):
-        _replace_in_runs(p, mapping)
-
-def strip_outcome_conditionals(doc: Document, keep: str):
-    """
-    Keep exactly one block among [[IF_SUCCESSFUL]]...[[/IF_SUCCESSFUL]],
-    [[IF_EXTENSION]]...[[/IF_EXTENSION]], [[IF_UNSUCCESSFUL]]...[[/IF_UNSUCCESSFUL]].
-    Removes the others entirely. `keep` must be one of: "SUCCESSFUL", "EXTENSION", "UNSUCCESSFUL".
-    """
-    valid = {"SUCCESSFUL", "EXTENSION", "UNSUCCESSFUL"}
-    choice = (keep or "").upper().strip()
-    if choice not in valid:
-        raise ValueError(f"Invalid outcome choice: {keep}")
-
-    start_tokens = {f"[[IF_{tag}]]": tag for tag in valid}
-
-    # We’ll scan once and mark paragraphs to delete as needed
-    in_block = None
-    keep_block = False
-    to_delete = []
-
-    paragraphs = list(doc.paragraphs)  # only body for conditionals; headers/footers won't contain these
-
-    def contains_token(p, token):
-        return any(token in r.text for r in p.runs) or token in p.text
-
-    for p in paragraphs:
-        # Check for block start
-        for token, tag in start_tokens.items():
-            if contains_token(p, token):
-                in_block = tag
-                keep_block = (tag == choice)
-                # Remove the token itself
-                for r in p.runs:
-                    r.text = r.text.replace(token, "")
-                if not keep_block:
-                    to_delete.append(p)
-                break
-
-        if in_block:
-            # Inside a conditional block
-            # If we're not keeping this block, mark paragraph for deletion
-            if not keep_block and p not in to_delete:
-                to_delete.append(p)
-
-            # Check for end of block
-            end_token = f"[[/IF_{in_block}]]"
-            if contains_token(p, end_token):
-                # Remove the end token
-                for r in p.runs:
-                    r.text = r.text.replace(end_token, "")
-                # If we were deleting this block, ensure the end paragraph is also deleted
-                if not keep_block and p not in to_delete:
-                    to_delete.append(p)
-                # Reset state
-                in_block = None
-                keep_block = False
-
-    # Physically remove any paragraphs marked for deletion
-    for p in to_delete:
-        p._element.getparent().remove(p._element)
-
-def render_docx(template_filename: str, context: dict, outcome_choice: str | None = None) -> BytesIO:
-    """
-    Loads a .docx template, applies replacements, optional outcome filtering, and returns an in-memory file.
-    """
-    template_path = TEMPLATE_DIR / template_filename
-    doc = Document(str(template_path))
-    replace_placeholders_docx(doc, context or {})
-    if outcome_choice:
-        strip_outcome_conditionals(doc, outcome_choice)
-    buf = BytesIO()
-    doc.save(buf)
-    buf.seek(0)
-    return buf
-# ===== End Document Helpers =====
-
-# ----- Routes: Home / Login / Admin -----
+# ----- Routes -----
 @app.route('/')
 @login_required
 def home():
@@ -339,6 +210,11 @@ def login():
         flash('Invalid username or password', 'danger')
     return render_template('login.html', form=form, hide_sidebar=True, current_year=datetime.now().year)
 
+# Get active (not dismissed) draft for current user
+def get_active_draft_for_user(user_id):
+    return DraftPIP.query.filter_by(user_id=user_id, is_dismissed=False)\
+                         .order_by(DraftPIP.updated_at.desc()).first()
+
 @app.route('/logout')
 @login_required
 def logout():
@@ -353,47 +229,12 @@ def admin_dashboard():
         return redirect(url_for('home'))
     return render_template('admin_dashboard.html')
 
-# ----- Taxonomy (curated tags + categories) -----
 @app.route('/taxonomy/predefined_tags', methods=['GET'])
 @login_required
 def taxonomy_predefined_tags():
     cat = (request.args.get('category') or '').strip()
     tags = CURATED_TAGS.get(cat, [])
     return jsonify({"category": cat, "tags": tags})
-
-@app.route('/taxonomy/categories', methods=['GET'])
-@login_required
-def taxonomy_categories():
-    categories = list(CURATED_TAGS.keys())
-    return jsonify({"categories": categories})
-
-@app.route('/taxonomy/tags_suggest', methods=['GET'])
-@login_required
-def taxonomy_tags_suggest():
-    """
-    Suggest tags from curated set (by ?category=) + recent PIP tags (comma lists), optional filter ?q=
-    """
-    q = (request.args.get('q') or '').strip().lower()
-    category = (request.args.get('category') or '').strip()
-
-    # Recent from DB
-    try:
-        recent_rows = db.session.query(PIPRecord.tags).order_by(PIPRecord.id.desc()).limit(200).all()
-    except Exception:
-        recent_rows = []
-
-    recent = []
-    for (tag_str,) in recent_rows:
-        if not tag_str: continue
-        for t in (tag_str.split(',') if isinstance(tag_str, str) else []):
-            t = (t or '').strip()
-            if t: recent.append(t)
-
-    merged = _merge_curated_and_recent(category, recent, cap=40)
-    if q:
-        merged = [t for t in merged if q in t.lower()]
-
-    return jsonify({"tags": merged[:30]})
 
 # ----- Export Data -----
 @app.route('/admin/export')
@@ -511,7 +352,7 @@ def export_data():
                 } for r in reviews]
             )
 
-            # Probation Plans
+            # Probation Plans (objectives/outcome/deadline)
             plans = ProbationPlan.query.all()
             write_csv(
                 'probation_plans.csv',
@@ -530,15 +371,6 @@ def export_data():
     return send_file(zip_buffer, mimetype='application/zip', as_attachment=True, download_name=f'export_{timestamp}.zip')
 
 # ----- User Management -----
-@app.route('/admin/users')
-@login_required
-def manage_users():
-    if not current_user.is_superuser():
-        flash('Access denied.', 'danger')
-        return redirect(url_for('dashboard'))
-    users = User.query.all()
-    return render_template('admin_users.html', users=users)
-
 @app.route('/admin/users/edit/<int:user_id>', methods=['GET', 'POST'])
 @login_required
 def edit_user(user_id):
@@ -613,25 +445,7 @@ def delete_user(user_id):
     flash("User deleted successfully.", "success")
     return redirect(url_for('manage_users'))
 
-@app.route('/admin/backup')
-@login_required
-def backup_database():
-    if not current_user.is_superuser():
-        flash('Access denied: Superuser only.', 'danger')
-        return redirect(url_for('home'))
-
-    db_path = os.path.join(os.getcwd(), 'pip_crm.db')
-    if os.path.exists(db_path):
-        return send_file(db_path, as_attachment=True)
-    else:
-        flash('Database file not found.', 'danger')
-        return redirect(url_for('admin_dashboard'))
-
-# =========================
-# app.py — Part 3 of 4
-# =========================
-
-# ----- Employee & PIP management -----
+# ----- Employee and PIP management -----
 @app.route('/employee/<int:employee_id>')
 @login_required
 def employee_detail(employee_id):
@@ -836,6 +650,366 @@ def pip_list():
     pips = PIPRecord.query.join(Employee).all()
     return render_template('pip_list.html', pips=pips)
 
+# -------- Wizard entry ----------
+@app.route("/probation/create-wizard", methods=["GET"])
+@login_required
+def probation_create_wizard():
+    # Most recent active draft for this user
+    draft = (DraftProbation.query
+             .filter_by(user_id=current_user.id, is_dismissed=False)
+             .order_by(DraftProbation.updated_at.desc())
+             .first())
+
+    # Optional preselect (?employee_id=123)
+    preselect_employee_id = request.args.get("employee_id", type=int)
+
+    # Employees for Step 1 selector
+    employees = Employee.query.order_by(Employee.last_name.asc(), Employee.first_name.asc()).all()
+
+    return render_template(
+        "create_probation_wizard.html",
+        draft=draft,
+        employees=employees,
+        preselect_employee_id=preselect_employee_id,
+        module="Probation"
+    )
+
+def _parse_iso_date(s):
+    try:
+        return datetime.strptime((s or "").strip(), "%Y-%m-%d").date()
+    except Exception:
+        return None
+
+def _flatten_draft_payload(draft):
+    flat = {}
+    for _, v in (draft.payload or {}).items():
+        if isinstance(v, dict):
+            flat.update(v)
+    return flat
+
+
+
+
+
+# -------- Save draft (AJAX) ----------
+@app.route("/probation/save_draft", methods=["POST"])
+@login_required
+@csrf.exempt 
+def probation_save_draft():
+    data = request.get_json() or {}
+    step = int(data.get("step", 1))
+    payload_delta = data.get("payload", {})  # only the current step’s data
+    draft_id = data.get("draft_id")
+    employee_id = data.get("employee_id")
+
+    # Find or create draft (limit to one active per user)
+    draft = None
+    if draft_id:
+        draft = DraftProbation.query.filter_by(id=draft_id, user_id=current_user.id).first()
+    if not draft:
+        draft = (DraftProbation.query
+                 .filter_by(user_id=current_user.id, is_dismissed=False)
+                 .order_by(DraftProbation.updated_at.desc())
+                 .first())
+    if not draft:
+        draft = DraftProbation(user_id=current_user.id)
+
+    # merge payload
+    merged = draft.payload or {}
+    merged[str(step)] = payload_delta
+    draft.payload = merged
+    draft.step = max(draft.step or 1, step)
+    if employee_id:
+        draft.employee_id = employee_id
+
+    try:
+        db.session.add(draft)
+        db.session.commit()
+        return jsonify({"ok": True, "draft_id": draft.id,
+                        "saved_at": datetime.utcnow().isoformat() + "Z"})
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"ok": False, "error": "DB_SAVE_FAILED"}), 500
+
+# -------- Validate step (AJAX) ----------
+@app.route("/probation/validate_wizard_step", methods=["POST"])
+@login_required
+@csrf.exempt  
+def probation_validate_wizard_step():
+    data = request.get_json() or {}
+    step = int(data.get("step", 1))
+    payload = data.get("payload", {})
+
+    errors = {}
+
+    if step == 1:
+        required = ["employee_id", "probation_start", "probation_end"]
+        for f in required:
+            if not payload.get(f):
+                errors[f] = "Required"
+    elif step == 2:
+        if not payload.get("concern_category") and not payload.get("tags"):
+            errors["concern_category"] = "Pick a category or add tags"
+    elif step == 3:
+        if not payload.get("expected_standards"):
+            errors["expected_standards"] = "Add minimum standards"
+    elif step == 4:
+        # At least one actionable item
+        items = payload.get("action_items") or []
+        if len(items) == 0:
+            errors["action_items"] = "Add at least one action"
+    elif step == 5:
+        dates = payload.get("review_dates") or []
+        if len(dates) == 0:
+            errors["review_dates"] = "Add one or more review dates"
+
+    return jsonify({"ok": len(errors) == 0, "errors": errors})
+
+# Helper to finalize (call inside your submit endpoint or within the wizard route)
+def finalize_probation_from_draft(draft: 'DraftProbation'):
+    """
+    Create Probation records from a DraftProbation payload, then dismiss the draft.
+    Returns the created ProbationRecord.
+    """
+    data = _flatten_draft_payload(draft)
+
+    employee_id = draft.employee_id or data.get("employee_id")
+    if not employee_id:
+        raise ValueError("Missing employee_id in draft")
+
+    # Map wizard fields → ProbationRecord columns
+    start_date = _parse_iso_date(data.get("probation_start"))
+    end_date   = _parse_iso_date(data.get("probation_end"))
+
+    # Roll some useful context into notes
+    notes_parts = []
+    if data.get("summary_of_concerns"):
+        notes_parts.append(f"Concerns: {data.get('summary_of_concerns')}")
+    if data.get("expected_standards"):
+        notes_parts.append(f"Standards: {data.get('expected_standards')}")
+    if data.get("evidence_notes"):
+        notes_parts.append(f"Evidence: {data.get('evidence_notes')}")
+    notes = "\n\n".join(notes_parts) if notes_parts else None
+
+    probation = ProbationRecord(
+        employee_id=int(employee_id),
+        start_date=start_date,
+        expected_end_date=end_date,
+        notes=notes,
+        status="Open"
+    )
+    db.session.add(probation)
+    db.session.flush()  # get probation.id
+
+    # Actions → ProbationPlan(objectives, outcome, deadline)
+    for item in (data.get("action_items") or []):
+        if not isinstance(item, dict):
+            continue
+        objectives = (item.get("action") or "").strip()
+        if not objectives:
+            continue
+        deadline = _parse_iso_date(item.get("due_date"))
+        plan = ProbationPlan(
+            probation_id=probation.id,
+            objectives=objectives,
+            outcome=(item.get("metric") or "").strip() or None,
+            deadline=deadline
+        )
+        db.session.add(plan)
+
+    # Reviews
+    reviewer = (data.get("reviewer") or getattr(current_user, "username", "") or "").strip()
+    for d in (data.get("review_dates") or []):
+        rd = _parse_iso_date(d)
+        if not rd:
+            continue
+        review = ProbationReview(
+            probation_id=probation.id,
+            review_date=rd,
+            reviewer=reviewer,
+            summary=""
+        )
+        db.session.add(review)
+
+    # Timeline event
+    evt = TimelineEvent(
+        pip_record_id=None,
+        event_type="Probation Created",
+        notes=f"Created from wizard by {current_user.username}",
+        updated_by=current_user.username
+    )
+    db.session.add(evt)
+
+    # Dismiss draft
+    draft.is_dismissed = True
+    draft.updated_at = datetime.now(timezone.utc)
+
+    db.session.commit()
+    return probation
+
+# -------- Finalize draft (AJAX) ----------
+@app.route("/probation/finalize_from_draft", methods=["POST"])
+@login_required
+def probation_finalize_from_draft():
+    payload = request.get_json(force=True, silent=True) or {}
+    draft_id = payload.get("draft_id")
+    if not draft_id:
+        return jsonify({"ok": False, "error": "NO_DRAFT_ID"}), 400
+
+    draft = (DraftProbation.query
+             .filter_by(id=draft_id, user_id=current_user.id, is_dismissed=False)
+             .first())
+    if not draft:
+        return jsonify({"ok": False, "error": "DRAFT_NOT_FOUND"}), 404
+
+    try:
+        probation = finalize_probation_from_draft(draft)
+        return jsonify({
+            "ok": True,
+            "probation_id": probation.id,
+            "redirect": url_for("view_probation", id=probation.id)
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"ok": False, "error": str(e)}), 400
+
+
+from flask_wtf.csrf import generate_csrf
+
+@app.context_processor
+def inject_csrf_token():
+    return dict(csrf_token=generate_csrf)
+
+
+
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    total_employees = Employee.query.count()
+    active_pips = PIPRecord.query.filter_by(status='Open').count()
+    completed_pips = PIPRecord.query.filter_by(status='Completed').count()
+
+    today = datetime.now(timezone.utc).date()
+
+    overdue_reviews = PIPRecord.query.filter(
+        PIPRecord.review_date < today,
+        PIPRecord.status == 'Open'
+    ).count()
+
+    recent_activity = TimelineEvent.query.order_by(TimelineEvent.timestamp.desc()).limit(10).all()
+    upcoming_deadline = today + timedelta(days=7)
+
+    if current_user.admin_level == 0:
+        upcoming_pips = PIPRecord.query.join(Employee).filter(
+            Employee.team_id == current_user.team_id,
+            PIPRecord.status == 'Open',
+            PIPRecord.review_date >= today,
+            PIPRecord.review_date <= upcoming_deadline
+        ).order_by(PIPRecord.review_date).all()
+    else:
+        upcoming_pips = PIPRecord.query.filter(
+            PIPRecord.status == 'Open',
+            PIPRecord.review_date >= today,
+            PIPRecord.review_date <= upcoming_deadline
+        ).order_by(PIPRecord.review_date).all()
+
+    draft = get_active_draft_for_user(current_user.id)
+
+    return render_template(
+        'dashboard.html',
+        total_employees=total_employees,
+        active_pips=active_pips,
+        completed_pips=completed_pips,
+        overdue_reviews=overdue_reviews,
+        recent_activity=recent_activity,
+        upcoming_pips=upcoming_pips,
+        draft=draft
+    )
+
+@app.route('/employee/add', methods=['GET', 'POST'])
+@login_required
+def add_employee():
+    if current_user.admin_level < 1:
+        flash('Access denied.')
+        return redirect(url_for('home'))
+    form = EmployeeForm()
+    if form.validate_on_submit():
+        emp = Employee(
+            first_name=form.first_name.data,
+            last_name=form.last_name.data,
+            job_title=form.job_title.data,
+            line_manager=form.line_manager.data,
+            service=form.service.data,
+            start_date=form.start_date.data,
+            team_id=form.team_id.data,
+            email=form.email.data
+        )
+        db.session.add(emp)
+        db.session.commit()
+        flash('New employee added.')
+        return redirect(url_for('employee_list'))
+    return render_template('add_employee.html', form=form)
+
+@app.route('/employee/quick-add', methods=['POST'])
+@login_required
+@csrf.exempt
+def quick_add_employee():
+    """
+    Minimal quick-add endpoint for use in wizard Step 1.
+    Expects JSON: { first_name, last_name, role, service }
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    first = (data.get("first_name") or "").strip()
+    last = (data.get("last_name") or "").strip()
+    role = (data.get("role") or "").strip()
+    service = (data.get("service") or "").strip()
+
+    if not first or not last:
+        return jsonify({"success": False, "error": "First and last name are required"}), 400
+
+    emp = Employee(
+        first_name=first,
+        last_name=last,
+        role=role,
+        service=service,
+        manager_id=getattr(current_user, "id", None)
+    )
+    db.session.add(emp)
+    db.session.commit()
+
+    # Optional: log event
+    try:
+        evt = TimelineEvent(
+            event_type="Employee Created",
+            notes="Employee created via Quick-Add in wizard",
+            updated_by=current_user.username
+        )
+        db.session.add(evt)
+        db.session.commit()
+    except Exception:
+        pass
+
+    return jsonify({"success": True, "id": emp.id, "display_name": f"{emp.first_name} {emp.last_name}"})
+
+@app.route('/employee/list')
+@login_required
+def employee_list():
+    # Choose template by active module, but always apply role-based filtering
+    template = 'probation_employee_list.html' if session.get('active_module') == 'Probation' else 'employee_list.html'
+
+    q = Employee.query
+    if current_user.admin_level == 0:
+        # Line managers: only their team
+        if current_user.team_id:
+            q = q.filter(Employee.team_id == current_user.team_id)
+        else:
+            # No team assigned -> return empty list rather than error
+            q = q.filter(False)
+
+    employees = q.order_by(Employee.last_name.asc(), Employee.first_name.asc()).all()
+    return render_template(template, employees=employees)
+
 @app.route('/pip/select-employee', methods=['GET', 'POST'])
 @login_required
 def select_employee_for_pip():
@@ -844,24 +1018,70 @@ def select_employee_for_pip():
         return redirect(url_for('create_pip', employee_id=request.form.get('employee_id')))
     return render_template('pip_select_employee.html', employees=employees)
 
-# -------- Wizard entry ----------
+# ----- Document Generation -----
+@app.route('/pip/<int:id>/generate/invite')
+@login_required
+def generate_invite_letter(id):
+    pip = PIPRecord.query.get_or_404(id)
+    tpl = DocxTemplate('templates/docx/invite_letter_template.docx')
+
+    context = {
+        'employee': pip.employee,
+        'pip': pip,
+        'current_user': current_user,
+        'current_date': datetime.utcnow().strftime('%d %B %Y'),
+        'created_by': pip.created_by or current_user.username
+    }
+
+    tpl.render(context)
+    out = BytesIO()
+    tpl.save(out)
+    out.seek(0)
+
+    return send_file(
+        out,
+        as_attachment=True,
+        download_name=f"Invite_Letter_{pip.employee.last_name}_{pip.id}.docx",
+        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
+
+@app.route('/pip/<int:id>/generate/plan')
+@login_required
+def generate_plan_document(id):
+    pip = PIPRecord.query.get_or_404(id)
+    tpl = DocxTemplate('templates/docx/plan_template.docx')
+    tpl.render({'employee': pip.employee, 'pip': pip, 'current_user': current_user})
+    out = BytesIO()
+    tpl.save(out)
+    out.seek(0)
+    return send_file(
+        out,
+        as_attachment=True,
+        download_name=f"PIP_Plan_{pip.employee.last_name}_{pip.id}.docx",
+        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
+
+@app.route('/pip/<int:id>/generate/outcome')
+@login_required
+def generate_outcome_letter(id):
+    pip = PIPRecord.query.get_or_404(id)
+    tpl = DocxTemplate('templates/docx/outcome_letter_template.docx')
+    date_obj = pip.last_updated or pip.created_at or pip.start_date or datetime.now()
+    date_str = date_obj.strftime('%d %b %Y')
+    tpl.render({'employee': pip.employee, 'pip': pip, 'current_user': current_user, 'date_str': date_str})
+    out = BytesIO()
+    tpl.save(out)
+    out.seek(0)
+    return send_file(
+        out,
+        as_attachment=True,
+        download_name=f"Outcome_Letter_{pip.employee.last_name}_{pip.id}.docx",
+        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
+
+# ----- Wizard -----
 class DummyForm(FlaskForm):
     pass
-
-def _max_wizard_step(data: dict) -> int:
-    """
-    Gate progression. Only unlock Step 6 (Review) when Action Items exist.
-    """
-    s = 1
-    if data.get('employee_id'): s = 2
-    if all(data.get(k) for k in ('concerns', 'concern_category', 'severity', 'frequency')): s = 3
-    if all(data.get(k) for k in ('start_date', 'review_date')): s = 4
-    if all(data.get(k) for k in ('capability_meeting_date', 'capability_meeting_time', 'capability_meeting_venue')): s = 5
-    # Only allow review (6) if at least one action item is present
-    items = data.get('action_plan_items') or []
-    if s == 5 and isinstance(items, list) and any((x or '').strip() for x in items):
-        s = 6
-    return s
 
 @app.route('/pip/create-wizard', methods=['GET', 'POST'])
 @login_required
@@ -888,6 +1108,9 @@ def create_pip_wizard():
                 step = goto
 
     if request.method == 'POST':
+        print(f"[DEBUG] POST request received at step {step}")
+        print(f"[DEBUG] Form data: {request.form}")
+
         if step == 1:
             employee_id = request.form.get('employee_id')
             draft_name = request.form.get('draft_name', '').strip()
@@ -945,21 +1168,25 @@ def create_pip_wizard():
             data['draft_name'] = request.form.get('draft_name', '').strip()
 
         elif step == 5:
-            # Step 5 validates and stores items; DB commit happens on Step 6
+            # Step 5 now ONLY validates and stores the items,
+            # the DB commit happens on Step 6 (Review & Submit).
             action_items = request.form.getlist('action_plan_items[]')
             valid_items = [item.strip() for item in action_items if item.strip()]
             if not valid_items:
                 wizard_errors['action_plan_items'] = "Add at least one action plan item."
             else:
                 data['action_plan_items'] = valid_items
+                # Persist and move to Review step
                 session['pip_data'] = data
                 session['wizard_step'] = 6
                 return redirect(url_for('create_pip_wizard'))
 
         elif step == 6:
+            # Final COMMIT — create PIP and Action Items
             try:
                 items = data.get('action_plan_items') or []
                 if not any((x or '').strip() for x in items):
+                    # Safety net: if somehow we got here with no items, send back to step 5
                     flash("Please add at least one action plan item.", "warning")
                     session['wizard_step'] = 5
                     return redirect(url_for('create_pip_wizard'))
@@ -1006,6 +1233,10 @@ def create_pip_wizard():
                 print(f"[ERROR] Failed to save PIP: {e}")
                 flash(f"Error creating PIP: {str(e)}", "danger")
 
+        # Always keep draft name if present
+        if 'draft_name' in request.form:
+            data['draft_name'] = request.form.get('draft_name')
+
         # Persist to session
         session['pip_data'] = data
 
@@ -1015,6 +1246,7 @@ def create_pip_wizard():
             return redirect(url_for('create_pip_wizard'))
 
     employees = Employee.query.all() if step == 1 else []
+    print(f"[DEBUG] Rendering step {step} with data: {data}")
 
     # Compute allowed max step for template (clickable stepper)
     max_allowed = _max_wizard_step(data)
@@ -1026,7 +1258,7 @@ def create_pip_wizard():
         data=data,
         wizard_errors=wizard_errors,
         employees=employees,
-        max_allowed_step=max_allowed
+        max_allowed_step=max_allowed  # <-- for the clickable stepper UI
     )
 
 # ----- AJAX validation for wizard -----
@@ -1052,6 +1284,7 @@ def validate_wizard_step():
             errors["concerns"] = "Please describe the concern."
         if not category:
             errors["concern_category"] = "Please select a concern category."
+        # tags optional to match wizard
         if not severity:
             errors["severity"] = "Please select severity."
         if not frequency:
@@ -1079,7 +1312,116 @@ def validate_wizard_step():
         if not actions:
             errors["action_plan_items"] = "Please add at least one action item."
 
+    # Step 6 has no extra client-side fields; server handles final commit
+
     return jsonify({"success": not errors, "errors": errors})
+
+# ----- Concern taxonomy (categories + tag suggestions) -----
+@app.route('/taxonomy/categories', methods=['GET'])
+@login_required
+def taxonomy_categories():
+    """
+    Simple static set to start with. You can later load from DB/Settings.
+    """
+    categories = [
+        "Timekeeping",
+        "Attendance",
+        "Quality of Work",
+        "Productivity",
+        "Conduct",
+        "Communication",
+        "Teamwork/Collaboration",
+        "Compliance/Process",
+        "Customer Service",
+        "Health & Safety"
+    ]
+    return jsonify({"categories": categories})
+
+@app.route('/taxonomy/tags_suggest', methods=['GET'])
+@login_required
+def taxonomy_tags_suggest():
+    """
+    Suggest tags from curated set (by ?category=) + recent PIP tags (comma lists), optional filter ?q=
+    """
+    q = (request.args.get('q') or '').strip().lower()
+    category = (request.args.get('category') or '').strip()
+
+    # Recent from DB
+    try:
+        recent_rows = db.session.query(PIPRecord.tags).order_by(PIPRecord.id.desc()).limit(200).all()
+    except Exception:
+        recent_rows = []
+
+    recent = []
+    for (tag_str,) in recent_rows:
+        if not tag_str: continue
+        for t in (tag_str.split(',') if isinstance(tag_str, str) else []):
+            t = (t or '').strip()
+            if t: recent.append(t)
+
+    merged = _merge_curated_and_recent(category, recent, cap=40)
+
+    if q:
+        merged = [t for t in merged if q in t.lower()]
+
+    return jsonify({"tags": merged[:30]})
+
+# ----- Draft handling -----
+@app.route('/dismiss_draft', methods=['POST'])
+@login_required
+@csrf.exempt
+def dismiss_draft():
+    draft = DraftPIP.query.filter_by(user_id=current_user.id, is_dismissed=False).first()
+    if draft:
+        draft.is_dismissed = True
+        draft.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
+        return jsonify({"success": True})
+    return jsonify({"success": False, "message": "No active draft found"}), 404
+
+@app.route('/save_pip_draft', methods=['POST'])
+@login_required
+@csrf.exempt
+def save_pip_draft():
+    try:
+        data = {
+            'employee_id': request.form.get('employee_id'),
+            'draft_name': request.form.get('draft_name', '').strip(),
+            'concerns': request.form.get('concerns', '').strip(),
+            'concern_category': request.form.get('concern_category', '').strip(),
+            'severity': request.form.get('severity', '').strip(),
+            'frequency': request.form.get('frequency', '').strip(),
+            'concern_tags': request.form.get('concern_tags', '').strip(),
+            'start_date': request.form.get('start_date'),
+            'review_date': request.form.get('review_date'),
+            'capability_meeting_date': request.form.get('capability_meeting_date'),
+            'capability_meeting_time': request.form.get('capability_meeting_time'),
+            'capability_meeting_venue': request.form.get('capability_meeting_venue'),
+            'action_plan_items': request.form.getlist('action_plan_items[]')
+        }
+
+        cleaned_data = {k: v for k, v in data.items() if v not in [None, '', []]}
+
+        existing_draft = DraftPIP.query.filter_by(user_id=current_user.id, is_dismissed=False).first()
+        if existing_draft:
+            db.session.delete(existing_draft)
+            db.session.commit()
+
+        new_draft = DraftPIP(
+            user_id=current_user.id,
+            data=cleaned_data,
+            step=session.get('wizard_step', 1),
+            is_dismissed=False,
+            updated_at=datetime.now(timezone.utc)
+        )
+        db.session.add(new_draft)
+        db.session.commit()
+
+        return jsonify({"success": True, "message": "Draft saved."})
+
+    except Exception as e:
+        print(f"[ERROR] Failed to save draft: {e}")
+        return jsonify({"success": False, "message": "Failed to save draft."}), 500
 
 # ----- AI Action Suggestions -----
 @app.route('/suggest_actions_ai', methods=['POST'])
@@ -1102,7 +1444,7 @@ def suggest_actions_ai():
             if key not in seen:
                 out.append(s)
                 seen.add(key)
-        return out[:8]
+        return out[:8]  # keep it tidy
 
     # ----- Build a strict-JSON prompt -----
     sys_msg = (
@@ -1141,19 +1483,21 @@ Rules:
         raw = (resp.choices[0].message.content or "").strip()
 
         # Try strict JSON parse
-        import json
+        import json, re
+        # Extract the first {...} block just in case
         m = re.search(r"\{[\s\S]*\}", raw)
         payload = json.loads(m.group(0) if m else raw)
 
         actions = _dedupe_clean(payload.get("actions", []))
         next_up = _dedupe_clean(payload.get("next_up", []))
 
-    except Exception:
+    except Exception as e:
         # Fallback: simple heuristic parsing if model didn't return JSON
+        # Split lines, grab up to 5 actions
         lines = [ln.strip("-•* 0123456789.\t") for ln in (raw.splitlines() if 'raw' in locals() else [])]
         actions = _dedupe_clean([ln for ln in lines if ln][:5])
 
-    # Server-side enrichment
+    # Server-side "Next Up" enrichment (defensive, additive)
     tag_list = [t.strip().lower() for t in tags.split(",")] if tags else []
     cat = (category or "").lower()
     sev = (severity or "").lower()
@@ -1170,7 +1514,7 @@ Rules:
             "Reference conduct policy; document conversations",
             "Book values/behaviour refresher"
         ]
-    if 'performance' in cat or ('missed deadlines' in (tags or '').lower()):
+    if 'performance' in cat or 'missed deadlines' in tags.lower():
         suggestions += [
             "Weekly milestones with due dates",
             "Stand-up updates Mon/Wed/Fri"
@@ -1180,6 +1524,7 @@ Rules:
     if freq in ('frequent', 'persistent'):
         suggestions += ["Increase monitoring and assign a buddy/mentor"]
 
+    # Merge + clean
     next_up = _dedupe_clean((next_up or []) + suggestions)
 
     return jsonify({
@@ -1187,10 +1532,6 @@ Rules:
         "actions": actions,
         "next_up": next_up
     }), 200
-
-# =========================
-# app.py — Part 4 of 4
-# =========================
 
 # ----- Probation module -----
 @app.route('/probation/<int:id>')
@@ -1333,209 +1674,78 @@ def probation_employee_list():
     employees = Employee.query.all()
     return render_template('probation_employee_list.html', employees=employees)
 
-# ----- Draft helpers -----
-def get_active_draft_for_user(user_id):
-    return DraftPIP.query.filter_by(user_id=user_id, is_dismissed=False)\
-                         .order_by(DraftPIP.updated_at.desc()).first()
-
-@app.route('/dismiss_draft', methods=['POST'])
+@app.route('/admin/users')
 @login_required
-@csrf.exempt
-def dismiss_draft():
-    draft = DraftPIP.query.filter_by(user_id=current_user.id, is_dismissed=False).first()
-    if draft:
-        draft.is_dismissed = True
-        draft.updated_at = datetime.now(timezone.utc)
-        db.session.commit()
-        return jsonify({"success": True})
-    return jsonify({"success": False, "message": "No active draft found"}), 404
-
-@app.route('/save_pip_draft', methods=['POST'])
-@login_required
-@csrf.exempt
-def save_pip_draft():
-    try:
-        data = {
-            'employee_id': request.form.get('employee_id'),
-            'draft_name': request.form.get('draft_name', '').strip(),
-            'concerns': request.form.get('concerns', '').strip(),
-            'concern_category': request.form.get('concern_category', '').strip(),
-            'severity': request.form.get('severity', '').strip(),
-            'frequency': request.form.get('frequency', '').strip(),
-            'concern_tags': request.form.get('concern_tags', '').strip(),
-            'start_date': request.form.get('start_date'),
-            'review_date': request.form.get('review_date'),
-            'capability_meeting_date': request.form.get('capability_meeting_date'),
-            'capability_meeting_time': request.form.get('capability_meeting_time'),
-            'capability_meeting_venue': request.form.get('capability_meeting_venue'),
-            'action_plan_items': request.form.getlist('action_plan_items[]')
-        }
-
-        cleaned_data = {k: v for k, v in data.items() if v not in [None, '', []]}
-
-        existing_draft = DraftPIP.query.filter_by(user_id=current_user.id, is_dismissed=False).first()
-        if existing_draft:
-            db.session.delete(existing_draft)
-            db.session.commit()
-
-        new_draft = DraftPIP(
-            user_id=current_user.id,
-            data=cleaned_data,
-            step=session.get('wizard_step', 1),
-            is_dismissed=False,
-            updated_at=datetime.now(timezone.utc)
-        )
-        db.session.add(new_draft)
-        db.session.commit()
-
-        return jsonify({"success": True, "message": "Draft saved."})
-
-    except Exception as e:
-        print(f"[ERROR] Failed to save draft: {e}")
-        return jsonify({"success": False, "message": "Failed to save draft."}), 500
-
-@app.route('/pip/wizard/resume', methods=['GET'])
-@login_required
-def pip_wizard_resume():
-    """Hydrate the wizard session from the latest active DraftPIP and jump to the furthest valid step."""
-    draft = get_active_draft_for_user(current_user.id)
-    if not draft or not draft.data:
-        flash("No active draft to resume.", "warning")
+def manage_users():
+    if not current_user.is_superuser():
+        flash('Access denied.', 'danger')
         return redirect(url_for('dashboard'))
+    users = User.query.all()
+    return render_template('admin_users.html', users=users)
 
-    session['pip_data'] = dict(draft.data)
-    session['wizard_step'] = _max_wizard_step(session['pip_data'])
-    return redirect(url_for('create_pip_wizard'))
-
-# ----- Dashboard -----
-from flask_wtf.csrf import generate_csrf
-@app.context_processor
-def inject_csrf_token():
-    return dict(csrf_token=generate_csrf)
-
-@app.route('/dashboard')
+@app.route('/admin/backup')
 @login_required
-def dashboard():
-    total_employees = Employee.query.count()
-    active_pips = PIPRecord.query.filter_by(status='Open').count()
-    completed_pips = PIPRecord.query.filter_by(status='Completed').count()
-
-    today = datetime.now(timezone.utc).date()
-
-    overdue_reviews = PIPRecord.query.filter(
-        PIPRecord.review_date < today,
-        PIPRecord.status == 'Open'
-    ).count()
-
-    recent_activity = TimelineEvent.query.order_by(TimelineEvent.timestamp.desc()).limit(10).all()
-    upcoming_deadline = today + timedelta(days=7)
-
-    if current_user.admin_level == 0:
-        upcoming_pips = PIPRecord.query.join(Employee).filter(
-            Employee.team_id == current_user.team_id,
-            PIPRecord.status == 'Open',
-            PIPRecord.review_date >= today,
-            PIPRecord.review_date <= upcoming_deadline
-        ).order_by(PIPRecord.review_date).all()
-    else:
-        upcoming_pips = PIPRecord.query.filter(
-            PIPRecord.status == 'Open',
-            PIPRecord.review_date >= today,
-            PIPRecord.review_date <= upcoming_deadline
-        ).order_by(PIPRecord.review_date).all()
-
-    draft = get_active_draft_for_user(current_user.id)
-
-    return render_template(
-        'dashboard.html',
-        total_employees=total_employees,
-        active_pips=active_pips,
-        completed_pips=completed_pips,
-        overdue_reviews=overdue_reviews,
-        recent_activity=recent_activity,
-        upcoming_pips=upcoming_pips,
-        draft=draft
-    )
-
-# ----- Employee add/list/quick-add -----
-@app.route('/employee/add', methods=['GET', 'POST'])
-@login_required
-def add_employee():
-    if current_user.admin_level < 1:
-        flash('Access denied.')
+def backup_database():
+    if not current_user.is_superuser():
+        flash('Access denied: Superuser only.', 'danger')
         return redirect(url_for('home'))
-    form = EmployeeForm()
-    if form.validate_on_submit():
-        emp = Employee(
-            first_name=form.first_name.data,
-            last_name=form.last_name.data,
-            job_title=form.job_title.data,
-            line_manager=form.line_manager.data,
-            service=form.service.data,
-            start_date=form.start_date.data,
-            team_id=form.team_id.data,
-            email=form.email.data
-        )
-        db.session.add(emp)
-        db.session.commit()
-        flash('New employee added.')
-        return redirect(url_for('employee_list'))
-    return render_template('add_employee.html', form=form)
 
-@app.route('/employee/quick-add', methods=['POST'])
+    db_path = os.path.join(os.getcwd(), 'pip_crm.db')
+    if os.path.exists(db_path):
+        return send_file(db_path, as_attachment=True)
+    else:
+        flash('Database file not found.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+@app.route("/employee/import", methods=["GET", "POST"])
 @login_required
-@csrf.exempt
-def quick_add_employee():
+@superuser_required
+def employee_import():
     """
-    Minimal quick-add endpoint for use in wizard Step 1.
-    Expects JSON: { first_name, last_name, role, service }
+    GET: render basic upload page (you can wire a simple template later).
+    POST: read file, return preview (headers + first 10 rows), and a temp_id.
     """
-    data = request.get_json(force=True, silent=True) or {}
-    first = (data.get("first_name") or "").strip()
-    last = (data.get("last_name") or "").strip()
-    role = (data.get("role") or "").strip()
-    service = (data.get("service") or "").strip()
+    if request.method == "GET":
+        # If you have a template, render it; otherwise return a tiny placeholder.
+        return render_template("employee_import.html")  # create later
 
-    if not first or not last:
-        return jsonify({"success": False, "error": "First and last name are required"}), 400
+    file = request.files.get("file")
+    if not file or file.filename == "":
+        abort(400, "No file uploaded")
 
-    emp = Employee(
-        first_name=first,
-        last_name=last,
-        role=role,
-        service=service,
-        manager_id=getattr(current_user, "id", None)
-    )
-    db.session.add(emp)
-    db.session.commit()
+    filename = secure_filename(file.filename)
+    ext = filename.rsplit(".", 1)[-1].lower()
+    if ext not in ALLOWED_EXTS:
+        abort(400, f"Unsupported file type: .{ext}")
 
-    try:
-        evt = TimelineEvent(
-            event_type="Employee Created",
-            notes="Employee created via Quick-Add in wizard",
-            updated_by=current_user.username
-        )
-        db.session.add(evt)
-        db.session.commit()
-    except Exception:
-        pass
+    file_bytes = file.read()
 
-    return jsonify({"success": True, "id": emp.id, "display_name": f"{emp.first_name} {emp.last_name}"})
+    if ext == "csv":
+        headers, rows = _read_csv_bytes(file_bytes)
+    else:
+        headers, rows = _read_xlsx_bytes(file_bytes)
 
-@app.route('/employee/list')
-@login_required
-def employee_list():
-    template = 'probation_employee_list.html' if session.get('active_module') == 'Probation' else 'employee_list.html'
-    q = Employee.query
-    if current_user.admin_level == 0:
-        if current_user.team_id:
-            q = q.filter(Employee.team_id == current_user.team_id)
-        else:
-            q = q.filter(False)
-    employees = q.order_by(Employee.last_name.asc(), Employee.first_name.asc()).all()
-    return render_template(template, employees=employees)
+    # Basic normalised headers for mapping convenience
+    normalised_headers = [{ "raw": h, "norm": _normalize_header(h) } for h in (headers or [])]
 
-# ----- Employee Import: upload/validate/commit -----
+    # Stash raw file in a temp file; return a token the browser will send back later
+    tmp = tempfile.NamedTemporaryFile(prefix="emp_import_", suffix=f".{ext}", delete=False)
+    tmp.write(file_bytes)
+    tmp.flush()
+    temp_id = tmp.name  # path as token; you can swap to DB-backed jobs later
+
+    # Only preview first 10 rows to keep payload small
+    preview = rows[:10] if rows else []
+
+    return jsonify({
+        "temp_id": temp_id,
+        "headers": headers,
+        "headers_norm": normalised_headers,
+        "suggested_mapping": _suggest_mapping(headers),
+        "preview_rows": preview,
+        "xlsx_enabled": XLSX_ENABLED
+    }), 200
+
 def _suggest_mapping(headers):
     mapping = {}
     for h in headers or []:
@@ -1558,51 +1768,19 @@ def _suggest_mapping(headers):
             mapping[h] = ""  # not mapped yet
     return mapping
 
-@app.route("/employee/import", methods=["GET", "POST"])
-@login_required
-@superuser_required
-def employee_import():
-    if request.method == "GET":
-        return render_template("employee_import.html")
-
-    file = request.files.get("file")
-    if not file or file.filename == "":
-        abort(400, "No file uploaded")
-
-    filename = secure_filename(file.filename)
-    ext = filename.rsplit(".", 1)[-1].lower()
-    if ext not in ALLOWED_EXTS:
-        abort(400, f"Unsupported file type: .{ext}")
-
-    file_bytes = file.read()
-
-    if ext == "csv":
-        headers, rows = _read_csv_bytes(file_bytes)
-    else:
-        headers, rows = _read_xlsx_bytes(file_bytes)
-
-    normalised_headers = [{ "raw": h, "norm": _normalize_header(h) } for h in (headers or [])]
-
-    tmp = tempfile.NamedTemporaryFile(prefix="emp_import_", suffix=f".{ext}", delete=False)
-    tmp.write(file_bytes)
-    tmp.flush()
-    temp_id = tmp.name
-
-    preview = rows[:10] if rows else []
-
-    return jsonify({
-        "temp_id": temp_id,
-        "headers": headers,
-        "headers_norm": normalised_headers,
-        "suggested_mapping": _suggest_mapping(headers),
-        "preview_rows": preview,
-        "xlsx_enabled": XLSX_ENABLED
-    }), 200
-
 @app.route("/employee/import/validate", methods=["POST"])
 @login_required
 @superuser_required
 def employee_import_validate():
+    """
+    Body JSON:
+    {
+      "temp_id": "<tmp path from /employee/import>",
+      "mapping": { "<file header>": "<employee_field>" },
+      "unique_key": "email" | "first_name,last_name"
+    }
+    Returns a validation report (missing requireds, duplicates, unmapped).
+    """
     data = request.get_json(force=True, silent=True) or {}
     temp_id = data.get("temp_id")
     mapping = data.get("mapping") or {}
@@ -1619,6 +1797,7 @@ def employee_import_validate():
     ext = temp_id.rsplit(".", 1)[-1].lower()
     headers, rows = (_read_csv_bytes(file_bytes) if ext == "csv" else _read_xlsx_bytes(file_bytes))
 
+    # Build normalised row dicts by applying mapping
     mapped_rows = []
     unmapped_headers = []
     for h in headers or []:
@@ -1651,15 +1830,17 @@ def employee_import_validate():
         seen = set()
         for idx, r in enumerate(mapped_rows, start=1):
             key_tuple = tuple((r.get(k.strip()) or "").lower() for k in keys)
-            if all(key_tuple):
+            if all(key_tuple):  # only consider non-empty key
                 if key_tuple in seen:
                     duplicates_in_file.append({"row": idx, "key": key_tuple})
                 else:
                     seen.add(key_tuple)
 
-    # Duplicate checks (in DB)
+    # Duplicate checks (in DB) — only if key fields map to actual columns we have
     duplicates_in_db = []
     try:
+        from sqlalchemy import or_, and_
+        # Build a query for emails or name pair
         if unique_key == "email" and any(r.get("email") for r in mapped_rows):
             emails = list({r.get("email") for r in mapped_rows if r.get("email")})
             existing = set(e[0].lower() for e in db.session.query(Employee.email).filter(Employee.email.in_(emails)).all())
@@ -1668,6 +1849,7 @@ def employee_import_validate():
                 if em and em in existing:
                     duplicates_in_db.append({"row": idx, "email": r.get("email")})
         elif unique_key == "first_name,last_name":
+            # Crude name-based check
             pairs = {( (r.get("first_name") or "").lower(), (r.get("last_name") or "").lower() )
                      for r in mapped_rows if r.get("first_name") and r.get("last_name")}
             if pairs:
@@ -1678,6 +1860,7 @@ def employee_import_validate():
                     if all(t) and t in existing_pairs:
                         duplicates_in_db.append({"row": idx, "name": f"{r.get('first_name')} {r.get('last_name')}"})
     except Exception as e:
+        # Don’t fail validation if the DB check had an issue (e.g., missing column). Report it.
         duplicates_in_db = [{"error": f"DB duplicate check skipped: {e}"}]
 
     report = {
@@ -1688,12 +1871,23 @@ def employee_import_validate():
         "rows_ready": len(mapped_rows) - len(missing_required) - len(duplicates_in_file) - len(duplicates_in_db),
         "total_rows": len(mapped_rows)
     }
+    # Keep the mapped rows for the commit step (send them back to client, or if preferred store server-side)
     return jsonify({"temp_id": temp_id, "report": report}), 200
 
 @app.route("/employee/import/commit", methods=["POST"])
 @login_required
 @superuser_required
 def employee_import_commit():
+    """
+    Body JSON:
+    {
+      "temp_id": "<tmp path>",
+      "mapping": { "<file header>": "<employee_field>" },
+      "unique_key": "email" | "first_name,last_name",
+      "confirm": true
+    }
+    Creates Employee rows for all *valid* entries.
+    """
     data = request.get_json(force=True, silent=True) or {}
     temp_id = data.get("temp_id")
     mapping = data.get("mapping") or {}
@@ -1756,143 +1950,60 @@ def employee_import_commit():
 
     db.session.commit()
 
+    # Log a single summary event (adjust if you prefer per-employee)
     try:
+        # Replace with your current_user import if needed
         username = getattr(current_user, "username", "system")
         notes = f"Employee Import: created={created}, skipped={skipped}, errors={len(errors)}"
         evt = TimelineEvent(event_type="Import", notes=notes, updated_by=username)
         db.session.add(evt)
         db.session.commit()
     except Exception:
-        pass
+        pass  # If TimelineEvent doesn’t fit here, skip logging silently
 
     return jsonify({"created": created, "skipped": skipped, "errors": errors}), 200
 
-# ----- New DOCX-based document generation (Invite / Plan / Outcome) -----
-@app.route('/pip/<int:id>/generate/invite')
+def _parse_numbered_list(text, max_items=6):
+        """
+        Turn LLM output into a clean list of items.
+        Accepts '1. Do X', '- Do X', or plain lines.
+        """
+        if not text:
+            return []
+        lines = [l.strip() for l in text.splitlines() if l.strip()]
+        items = []
+        for l in lines:
+            # Strip leading bullets / numbering like "1) ", "2. ", "- ", "• "
+            l = re.sub(r'^\s*(?:[-*•]|\d+[\).\]]?)\s*', '', l).strip()
+            if l:
+                items.append(l)
+            if len(items) >= max_items:
+                break
+        # Deduplicate while preserving order
+        seen = set()
+        out = []
+        for it in items:
+            if it not in seen:
+                out.append(it)
+                seen.add(it)
+        return out
+
+
+@app.route('/pip/wizard/resume', methods=['GET'])
 @login_required
-def generate_invite_letter(id):
-    pip = PIPRecord.query.get_or_404(id)
-    emp = pip.employee
+def pip_wizard_resume():
+    """Hydrate the wizard session from the latest active DraftPIP and jump to the furthest valid step."""
+    draft = get_active_draft_for_user(current_user.id)
+    if not draft or not draft.data:
+        flash("No active draft to resume.", "warning")
+        return redirect(url_for('dashboard'))
 
-    context = {
-        "[[LETTER_DATE]]": datetime.now(ZoneInfo("Europe/London")).strftime("%d %B %Y"),
-        "[[EMPLOYEE_NAME]]": f"{emp.first_name} {emp.last_name}",
-        "[[EMPLOYEE_FIRST_NAME]]": emp.first_name or "",
-        "[[JOB_TITLE]]": emp.job_title or "",
-        "[[DEPARTMENT]]": emp.service or "",
-        "[[MANAGER_NAME]]": pip.created_by or getattr(current_user, "username", ""),
-        "[[MANAGER_TITLE]]": getattr(emp, "line_manager", "") or "",
-        "[[MEETING_LOCATION]]": pip.capability_meeting_venue or "",
-        "[[MEETING_DATETIME]]": (
-            f"{(pip.capability_meeting_date.strftime('%d %B %Y') if pip.capability_meeting_date else '')} "
-            f"{(pip.capability_meeting_time or '')}"
-        ).strip(),
-        "[[CONCERNS_SUMMARY]]": pip.concerns or "",
-        "[[EVIDENCE_SUMMARY]]": "",  # populate if you track evidence summary
-        "[[SUPPORT_LIST]]": "",      # populate from your support list field if present
-        "[[PIP_START_DATE]]": pip.start_date.strftime("%d %B %Y") if pip.start_date else "",
-        "[[REVIEW_PERIOD_WEEKS]]": "",  # fill if you track review weeks
-        "[[HR_CONTACT_NAME]]": "",      # fill if you store HR contact
-        "[[HR_CONTACT_EMAIL]]": "",     # fill if you store HR contact
-    }
+    # Load draft into session and jump to the max allowed step
+    session['pip_data'] = dict(draft.data)
+    session['wizard_step'] = _max_wizard_step(session['pip_data'])
+    return redirect(url_for('create_pip_wizard'))
 
-    buf = render_docx("PIP_Invite_Letter_Template_v2025-08-28.docx", context)
-    filename = f"Invite_Letter_{emp.last_name}_{pip.id}.docx"
-    return send_file(buf, as_attachment=True, download_name=filename,
-                     mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-
-@app.route('/pip/<int:id>/generate/plan')
-@login_required
-def generate_plan_document(id):
-    pip = PIPRecord.query.get_or_404(id)
-    emp = pip.employee
-
-    # Build per-objective values 1..5 (or loop dynamically if you support more)
-    obj_ctx = {}
-    for i, obj in enumerate(pip.objectives[:5] if hasattr(pip, "objectives") else pip.action_items[:5], start=1):
-        # If you don’t have a separate Objectives model, map from action_items
-        text = getattr(obj, "text", None) or getattr(obj, "description", "") or ""
-        obj_ctx.update({
-            f"[[OBJ{i}_TEXT]]": text,
-            f"[[OBJ{i}_SUCCESS]]": getattr(obj, "success_criteria", "") or "",
-            f"[[OBJ{i}_ACTIONS_EMPLOYEE]]": getattr(obj, "actions_employee", "") or "",
-            f"[[OBJ{i}_ACTIONS_MANAGER]]": getattr(obj, "actions_manager", "") or "",
-            f"[[OBJ{i}_SUPPORT]]": getattr(obj, "support", "") or "",
-            f"[[OBJ{i}_DEADLINE]]": (obj.deadline.strftime("%d %B %Y") if getattr(obj, "deadline", None) else ""),
-            f"[[OBJ{i}_METRICS]]": getattr(obj, "metrics", "") or "",
-        })
-
-    context = {
-        "[[EMPLOYEE_NAME]]": f"{emp.first_name} {emp.last_name}",
-        "[[JOB_TITLE]]": emp.job_title or "",
-        "[[DEPARTMENT]]": emp.service or "",
-        "[[MANAGER_NAME]]": pip.created_by or getattr(current_user, "username", ""),
-        "[[REVIEWER_NAME]]": "",  # fill if you track a reviewer on PIP
-        "[[HR_CONTACT_NAME]]": "",
-        "[[PIP_START_DATE]]": pip.start_date.strftime("%d %B %Y") if pip.start_date else "",
-        "[[PIP_END_DATE]]": pip.review_date.strftime("%d %B %Y") if pip.review_date else "",
-        "[[REVIEW_PERIOD_WEEKS]]": "",
-        "[[POLICY_REFERENCE]]": getattr(pip, "policy_reference", "") or "",
-        "[[CONCERN_CATEGORIES]]": getattr(pip, "concern_category", "") or "",
-        "[[CONCERN_TAGS]]": (pip.tags or ""),
-        "[[SEVERITY_RATING]]": getattr(pip, "severity", "") or "",
-        "[[FREQUENCY_RATING]]": getattr(pip, "frequency", "") or "",
-        "[[CONFIDENTIAL_NOTES]]": getattr(pip, "confidential_notes", "") or "",
-        "[[REVIEW_DATES_LIST]]": getattr(pip, "review_dates_str", "") or "",
-        "[[REPORTING_METHOD]]": getattr(pip, "reporting_method", "") or "",
-        "[[ADJUSTMENTS]]": getattr(pip, "adjustments", "") or "",
-        "[[TRAINING_PLAN]]": getattr(pip, "training_plan", "") or "",
-        **obj_ctx,
-    }
-
-    buf = render_docx("PIP_Action_Plan_Template_v2025-08-28.docx", context)
-    filename = f"PIP_Plan_{emp.last_name}_{pip.id}.docx"
-    return send_file(buf, as_attachment=True, download_name=filename,
-                     mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-
-@app.route('/pip/<int:id>/generate/outcome')
-@login_required
-def generate_outcome_letter(id):
-    pip = PIPRecord.query.get_or_404(id)
-    emp = pip.employee
-
-    # Decide which outcome to keep via query param: ?outcome=successful|extension|unsuccessful
-    choice = (request.args.get("outcome", "SUCCESSFUL") or "SUCCESSFUL").upper()
-
-    # Build per-objective outcomes (1..5)
-    obj_ctx = {}
-    for i, obj in enumerate(pip.objectives[:5] if hasattr(pip, "objectives") else pip.action_items[:5], start=1):
-        text = getattr(obj, "text", None) or getattr(obj, "description", "") or ""
-        obj_ctx.update({
-            f"[[OBJ{i}_TEXT]]": text,
-            f"[[OBJ{i}_OUTCOME]]": getattr(obj, "outcome_text", "") or "",
-            f"[[OBJ{i}_EVIDENCE]]": getattr(obj, "outcome_evidence", "") or "",
-        })
-
-    context = {
-        "[[LETTER_DATE]]": datetime.now(ZoneInfo("Europe/London")).strftime("%d %B %Y"),
-        "[[EMPLOYEE_NAME]]": f"{emp.first_name} {emp.last_name}",
-        "[[EMPLOYEE_FIRST_NAME]]": emp.first_name or "",
-        "[[JOB_TITLE]]": emp.job_title or "",
-        "[[DEPARTMENT]]": emp.service or "",
-        "[[MANAGER_NAME]]": pip.created_by or getattr(current_user, "username", ""),
-        "[[MANAGER_TITLE]]": getattr(emp, "line_manager", "") or "",
-        "[[PIP_START_DATE]]": pip.start_date.strftime("%d %B %Y") if pip.start_date else "",
-        "[[PIP_END_DATE]]": pip.review_date.strftime("%d %B %Y") if pip.review_date else "",
-        "[[ONGOING_SUPPORT]]": getattr(pip, "ongoing_support", "") or "",
-        "[[EXTENSION_WEEKS]]": str(getattr(pip, "extension_weeks", "") or ""),
-        "[[HR_CONTACT_NAME]]": "",
-        "[[HR_CONTACT_EMAIL]]": "",
-        "[[APPENDIX_DETAIL]]": getattr(pip, "outcome_appendix", "") or "",
-        **obj_ctx,
-    }
-
-    buf = render_docx("PIP_Outcome_Letter_Template_v2025-08-28.docx", context, outcome_choice=choice)
-    filename = f"Outcome_Letter_{emp.last_name}_{pip.id}.docx"
-    return send_file(buf, as_attachment=True, download_name=filename,
-                     mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-
-# ----- Create DB if missing -----
+# Create DB if missing
 with app.app_context():
     if not os.path.exists(os.path.join(basedir, 'pip_crm.db')):
         db.create_all()

@@ -19,7 +19,8 @@
   {% if data.employee_id %}{% set _max_jinja = 2 %}{% endif %}
   {% if data.concerns and data.concern_category and data.severity and data.frequency %}{% set _max_jinja = 3 %}{% endif %}
   {% if data.start_date and data.review_date %}{% set _max_jinja = 4 %}{% endif %}
-  {% if data.capability_meeting_date and data.capability_meeting_time and data.capability_meeting_venue %}{% set _max_jinja = 6 %}{% endif %}
+  {% if data.capability_meeting_date and data.capability_meeting_time and data.capability_meeting_venue %}{% set _max_jinja = 5 %}{% endif %}
+  {% if data.action_plan_items and data.action_plan_items|select('string')|list %}{% set _max_jinja = 6 %}{% endif %}
   {% set allowed = max_allowed_step if max_allowed_step is defined else _max_jinja %}
 
   <!-- Visual Step Tracker with Icons (clickable up to max_allowed_step) -->
@@ -34,22 +35,32 @@
     ] %}
 
     {% for i, label in steps %}
-      {% set _allowed = i <= (max_allowed_step or 1) %}
+      {% set is_enabled = i <= (allowed or 1) %}
       {% set is_current = (step == i) %}
 
-      {% if _allowed %}
-        <a href="{{ url_for('create_pip_wizard') }}?goto={{ i }}"
-           class="flex-1 text-center px-1 transition {% if is_current %}text-ellipse-teal font-bold{% else %}hover:text-ellipse-teal{% endif %}">
+      {% if is_enabled %}
+        <a
+          href="{{ url_for('create_pip_wizard') }}?goto={{ i }}"
+          class="wizard-step flex-1 text-center px-1 transition {% if is_current %}text-ellipse-teal font-bold{% else %}hover:text-ellipse-teal{% endif %}"
+          data-step="{{ i }}"
+          data-enabled="1"
+        >
           {{ label }}
         </a>
       {% else %}
-        <div class="flex-1 text-center px-1 opacity-50 cursor-not-allowed" aria-disabled="true" title="Complete previous steps first">
+        <div
+          class="wizard-step flex-1 text-center px-1 opacity-50 cursor-not-allowed"
+          data-step="{{ i }}"
+          data-enabled="0"
+          aria-disabled="true"
+          title="Complete previous steps first"
+        >
           {{ label }}
         </div>
       {% endif %}
 
       {% if not loop.last %}
-        <div class="w-5 h-1 mx-1 {% if i < (max_allowed_step or 1) %}bg-ellipse-teal{% else %}bg-gray-300{% endif %}"></div>
+        <div class="w-5 h-1 mx-1 {% if i < (allowed or 1) %}bg-ellipse-teal{% else %}bg-gray-300{% endif %}"></div>
       {% endif %}
     {% endfor %}
   </div>
@@ -91,39 +102,66 @@
       </script>
 
     {% elif step == 2 %}
-<div class="space-y-6">
-  {% call Field("Describe Concerns:", "concerns", error=wizard_errors.concerns) %}
-    {{ Textarea("concerns", id="concerns", rows=4, value=data.concerns or '', classes="form-textarea mt-1 block w-full rounded-md border-gray-300 shadow-sm") }}
-  {% endcall %}
+      <div class="space-y-6">
+        <div>
+          <label for="concerns" class="block text-sm font-medium text-gray-700">Describe Concerns:</label>
+          <textarea id="concerns" name="concerns" rows="4" class="form-textarea mt-1 block w-full rounded-md border-gray-300 shadow-sm">{{ data.concerns or '' }}</textarea>
+          {% if wizard_errors.concerns %}
+            <p class="text-red-600 text-sm mt-1">{{ wizard_errors.concerns }}</p>
+          {% endif %}
+        </div>
 
-  {% set cat_opts = [('', '-- Select Category --')] + [
-      ('Performance','Performance'),
-      ('Conduct','Conduct'),
-      ('Timekeeping','Timekeeping'),
-      ('Absence','Absence'),
-      ('Attitude','Attitude'),
-      ('Communication','Communication')
-  ] %}
-  {% call Field("Concern Category:", "concern_category", error=wizard_errors.concern_category) %}
-    {{ Select("concern_category", cat_opts, value=data.concern_category or '', id="concern_category", classes="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm") }}
-  {% endcall %}
+        <div>
+          <label for="concern_category" class="block text-sm font-medium text-gray-700">Concern Category:</label>
+          <select name="concern_category" id="concern_category" class="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+            <option value="">-- Select Category --</option>
+            {# will be hydrated by /taxonomy/categories; initial values below are fallback #}
+            {% for cat in ['Performance', 'Conduct', 'Timekeeping', 'Attendance', 'Communication', 'Quality of Work', 'Productivity'] %}
+              <option value="{{ cat }}" {% if data.concern_category == cat %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
+          </select>
+          {% if wizard_errors.concern_category %}
+            <p class="text-red-600 text-sm mt-1">{{ wizard_errors.concern_category }}</p>
+          {% endif %}
+        </div>
 
-  {% call Field("Concern Tags (comma-separated):", "concern_tags") %}
-    {{ Input("concern_tags", value=data.concern_tags or '', id="concern_tags", placeholder="e.g. missed deadlines, attitude", classes="form-input mt-1 block w-full rounded-md border-gray-300 shadow-sm") }}
-    <div id="suggested-tags" class="mt-3 flex flex-wrap gap-2"></div>
-    {{ HelpText("Tip: click tags to add/remove; they sync with the box above.") }}
-  {% endcall %}
+        <!-- Concern Tags (Free Text Input + Suggested Pills) -->
+        <div>
+          <label for="concern_tags" class="block text-sm font-medium text-gray-700">Concern Tags (comma-separated):</label>
+          <input type="text" name="concern_tags" id="concern_tags"
+                 class="form-input mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                 placeholder="e.g. missed deadlines, attitude"
+                 value="{{ data.concern_tags or '' }}">
+          <div id="suggested-tags" class="mt-3 flex flex-wrap gap-2"></div>
+          <p class="text-xs text-gray-500 mt-1">Tip: click tags to add/remove; they sync with the box above.</p>
+        </div>
 
-  {% set severities = [('', '-- Select Severity --'), ('Low','Low'), ('Moderate','Moderate'), ('High','High')] %}
-  {% call Field("Severity:", "severity", error=wizard_errors.severity) %}
-    {{ Select("severity", severities, value=data.severity or '', id="severity", classes="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm") }}
-  {% endcall %}
+        <div>
+          <label for="severity" class="block text-sm font-medium text-gray-700">Severity:</label>
+          <select name="severity" id="severity" class="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+            <option value="">-- Select Severity --</option>
+            {% for level in ['Low', 'Moderate', 'High'] %}
+              <option value="{{ level }}" {% if data.severity == level %}selected{% endif %}>{{ level }}</option>
+            {% endfor %}
+          </select>
+          {% if wizard_errors.severity %}
+            <p class="text-red-600 text-sm mt-1">{{ wizard_errors.severity }}</p>
+          {% endif %}
+        </div>
 
-  {% set freqs = [('', '-- Select Frequency --'), ('One-off','One-off'), ('Occasional','Occasional'), ('Frequent','Frequent'), ('Persistent','Persistent')] %}
-  {% call Field("Frequency:", "frequency", error=wizard_errors.frequency) %}
-    {{ Select("frequency", freqs, value=data.frequency or '', id="frequency", classes="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm") }}
-  {% endcall %}
-</div>
+        <div>
+          <label for="frequency" class="block text-sm font-medium text-gray-700">Frequency:</label>
+          <select name="frequency" id="frequency" class="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+            <option value="">-- Select Frequency --</option>
+            {% for freq in ['One-off', 'Occasional', 'Frequent', 'Persistent'] %}
+              <option value="{{ freq }}" {% if data.frequency == freq %}selected{% endif %}>{{ freq }}</option>
+            {% endfor %}
+          </select>
+          {% if wizard_errors.frequency %}
+            <p class="text-red-600 text-sm mt-1">{{ wizard_errors.frequency }}</p>
+          {% endif %}
+        </div>
+      </div>
 
 {% elif step == 3 %}
   <div class="grid grid-cols-1 gap-4">
@@ -135,108 +173,123 @@
     {% endcall %}
   </div>
 
-{% elif step == 4 %}
-  <div class="space-y-4">
-    {% call Field("Meeting Date:", "meeting_date", error=wizard_errors.meeting_date) %}
-      <input type="date" id="meeting_date" name="capability_meeting_date" class="form-input mt-1 block w-full border rounded px-3 py-2" value="{{ data.get('capability_meeting_date','') }}">
-    {% endcall %}
-    {% call Field("Time:", "meeting_time", error=wizard_errors.meeting_time) %}
-      <input type="time" id="meeting_time" name="capability_meeting_time" class="form-input mt-1 block w-full border rounded px-3 py-2" value="{{ data.get('capability_meeting_time','') }}">
-    {% endcall %}
-    {% call Field("Venue:", "meeting_venue", error=wizard_errors.capability_meeting_venue) %}
-      <input type="text" id="meeting_venue" name="capability_meeting_venue" class="form-input mt-1 block w-full border rounded px-3 py-2" value="{{ data.get('capability_meeting_venue','') }}" placeholder="e.g. Conference Room 2A or Teams">
-    {% endcall %}
-  </div>
+    {% elif step == 4 %}
+      <div>
+        <label for="meeting_date">Meeting Date:</label>
+        <input
+          type="date"
+          id="meeting_date"
+          name="capability_meeting_date"
+          class="form-input w-full mt-2"
+          value="{{ data.get('capability_meeting_date', '') }}"
+          required
+        >
+      </div>
 
-  <input type="hidden" name="meeting_date" id="meeting_date_mirror" value="{{ data.get('capability_meeting_date','') }}">
-  <input type="hidden" name="meeting_time" id="meeting_time_mirror" value="{{ data.get('capability_meeting_time','') }}">
+      <div class="mt-4">
+        <label for="meeting_time">Time:</label>
+        <input
+          type="time"
+          id="meeting_time"
+          name="capability_meeting_time"
+          class="form-input w-full mt-2"
+          value="{{ data.get('capability_meeting_time', '') }}"
+          required
+        >
+      </div>
 
-{% elif step == 5 %}
-  <div class="space-y-4">
-    <ul id="ai-actions-list" class="list-disc pl-6"></ul>
+      <div class="mt-4">
+        <label for="meeting_venue">Venue:</label>
+        <input
+          type="text"
+          id="meeting_venue"
+          name="capability_meeting_venue"
+          class="form-input w-full mt-2"
+          value="{{ data.get('capability_meeting_venue', '') }}"
+          required
+        >
+      </div>
 
-    <div class="flex items-center justify-between">
-      <h3 class="text-sm font-medium text-gray-700">Action Plan Items</h3>
-      <span id="action-count" class="text-xs text-gray-500">0 items</span>
-    </div>
-    <div id="action-plan-list" class="mb-2"></div>
+      <!-- Hidden mirrors for AJAX validator (expects meeting_date / meeting_time) -->
+      <input type="hidden" name="meeting_date" id="meeting_date_mirror" value="{{ data.get('capability_meeting_date','') }}">
+      <input type="hidden" name="meeting_time" id="meeting_time_mirror" value="{{ data.get('capability_meeting_time','') }}">
 
-    <div class="flex flex-wrap gap-3 items-center">
-      <button type="button" onclick="addActionItem()" class="text-sm text-ellipse-teal hover:underline">+ Add Action Item</button>
+    {% elif step == 5 %}
+      <div class="space-y-4">
+        <ul id="ai-actions-list" class="list-disc pl-6"></ul>
 
-      <button
-        type="button"
-        id="ai-suggest-btn"
-        class="relative inline-flex items-center gap-2 text-sm bg-ellipse-teal text-white px-3 py-1 rounded hover:bg-ellipse-hover transition disabled:opacity-70 disabled:cursor-not-allowed"
-        aria-live="polite"
-        aria-busy="false">
-        <svg class="ai-spinner hidden absolute left-2 h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-        </svg>
-        <span class="ai-label">⚡ Suggest with AI</span>
-      </button>
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-medium text-gray-700">Action Plan Items</h3>
+          <span id="action-count" class="text-xs text-gray-500">0 items</span>
+        </div>
+        <div id="action-plan-list" class="mb-2">
+          {# Rehydrate any existing items from the session #}
+          {% for it in (data.action_plan_items or []) %}
+            <div class="flex items-center gap-2 mt-2">
+              <input type="text" name="action_plan_items[]" class="form-input flex-1 rounded border px-3 py-2" value="{{ it }}">
+              <button type="button" class="px-2 py-1 border rounded hover:bg-gray-50" title="Move up">↑</button>
+              <button type="button" class="px-2 py-1 border rounded hover:bg-gray-50" title="Move down">↓</button>
+              <button type="button" class="px-2 py-1 border rounded text-red-700 hover:bg-red-50" title="Remove">✕</button>
+            </div>
+          {% endfor %}
+        </div>
 
-      <button type="button" id="clear-ai" class="text-sm border px-3 py-1 rounded hover:bg-gray-50 transition">Clear AI results</button>
-    </div>
+        <div class="flex flex-wrap gap-3">
+          <button type="button" onclick="addActionItem()" class="text-sm text-ellipse-teal hover:underline">+ Add Action Item</button>
+          <button type="button" id="ai-suggest-btn" class="text-sm bg-ellipse-teal text-white px-3 py-1 rounded hover:bg-ellipse-hover transition">⚡ Suggest with AI</button>
+          <button type="button" id="clear-ai" class="text-sm border px-3 py-1 rounded hover:bg-gray-50 transition">Clear AI results</button>
+        </div>
 
-    {% if wizard_errors.action_plan_items %}
-      <p class="text-red-600 text-sm mt-1">{{ wizard_errors.action_plan_items }}</p>
+        {% if wizard_errors.action_plan_items %}
+          <p class="text-red-600 text-sm mt-1">{{ wizard_errors.action_plan_items }}</p>
+        {% endif %}
+
+        <div id="next-up-suggestions" class="hidden mt-6">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-medium text-gray-700">Next Up Suggestions</h3>
+            <button type="button" id="insert-selected-nextup" class="text-xs bg-gray-800 text-white px-2 py-1 rounded hover:bg-gray-700">Insert selected</button>
+          </div>
+          <div id="suggestion-cards" class="grid grid-cols-1 gap-2 mt-2"></div>
+          <p class="text-xs text-gray-500 mt-1">Tick items you want to add to the action plan, then click “Insert selected”.</p>
+        </div>
+      </div>
+
+    {% elif step == 6 %}
+      <div class="space-y-4 text-sm text-gray-700">
+        <p><strong>Employee:</strong> {{ data.employee_name or '' }}</p>
+        <p><strong>Concerns:</strong> {{ data.concerns }}</p>
+        <p><strong>Category:</strong> {{ data.concern_category }}</p>
+        <p><strong>Severity:</strong> {{ data.severity }}</p>
+        <p><strong>Frequency:</strong> {{ data.frequency }}</p>
+        <p><strong>Tags:</strong> {{ data.concern_tags }}</p>
+        <p><strong>Start Date:</strong> {{ data.start_date }}</p>
+        <p><strong>Review Date:</strong> {{ data.review_date }}</p>
+        <p><strong>Meeting Date:</strong> {{ data.capability_meeting_date }}</p>
+        <p><strong>Meeting Time:</strong> {{ data.capability_meeting_time }}</p>
+        <p><strong>Venue:</strong> {{ data.capability_meeting_venue }}</p>
+        <p><strong>Draft Name:</strong> {{ data.draft_name }}</p>
+
+        <div class="pt-2">
+          <strong>Action Plan:</strong>
+          {% set items = data.action_plan_items or [] %}
+          {% if items %}
+            <ul class="list-disc pl-5 mt-1">
+              {% for it in items %}
+                <li>{{ it }}</li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-gray-500">No actions captured.</p>
+          {% endif %}
+        </div>
+      </div>
     {% endif %}
 
-    <div id="next-up-suggestions" class="hidden mt-6">
-      <div class="flex items-center justify-between">
-        <h3 class="text-sm font-medium text-gray-700">Next Up Suggestions</h3>
-        <button type="button" id="insert-selected-nextup" class="text-xs bg-gray-800 text-white px-2 py-1 rounded hover:bg-gray-700">Insert selected</button>
-      </div>
-      <div id="suggestion-cards" class="grid grid-cols-1 gap-2 mt-2"></div>
-      <p class="text-xs text-gray-500 mt-1">Tick items you want to add to the action plan, then click “Insert selected”.</p>
-    </div>
-  </div>
-
-{% elif step == 6 %}
-  {# Hidden mirrors to ensure required values post on submit #}
-  <input type="hidden" name="employee_id" value="{{ data.employee_id or '' }}">
-  <input type="hidden" name="employee_name" value="{{ data.employee_name or '' }}">
-  <input type="hidden" name="concerns" value="{{ data.concerns or '' }}">
-  <input type="hidden" name="concern_category" value="{{ data.concern_category or '' }}">
-  <input type="hidden" name="severity" value="{{ data.severity or '' }}">
-  <input type="hidden" name="frequency" value="{{ data.frequency or '' }}">
-  <input type="hidden" name="concern_tags" value="{{ data.concern_tags or '' }}">
-  <input type="hidden" name="start_date" value="{{ data.start_date or '' }}">
-  <input type="hidden" name="review_date" value="{{ data.review_date or '' }}">
-  <input type="hidden" name="meeting_date" value="{{ data.capability_meeting_date or data.meeting_date or '' }}">
-  <input type="hidden" name="meeting_time" value="{{ data.capability_meeting_time or data.meeting_time or '' }}">
-  <input type="hidden" name="meeting_venue" value="{{ data.capability_meeting_venue or data.meeting_venue or '' }}">
-  <input type="hidden" name="capability_meeting_date" value="{{ data.capability_meeting_date or '' }}">
-  <input type="hidden" name="capability_meeting_time" value="{{ data.capability_meeting_time or '' }}">
-  <input type="hidden" name="capability_meeting_venue" value="{{ data.capability_meeting_venue or '' }}">
-  <input type="hidden" name="draft_name" value="{{ data.draft_name or '' }}">
-
-  <div class="space-y-4 text-sm text-gray-700">
-    <p><strong>Employee:</strong> {{ data.employee_name or '' }}</p>
-    <p><strong>Concerns:</strong> {{ data.concerns }}</p>
-    <p><strong>Category:</strong> {{ data.concern_category }}</p>
-    <p><strong>Severity:</strong> {{ data.severity }}</p>
-    <p><strong>Frequency:</strong> {{ data.frequency }}</p>
-    <p><strong>Tags:</strong> {{ data.concern_tags }}</p>
-    <p><strong>Start Date:</strong> {{ data.start_date }}</p>
-    <p><strong>Review Date:</strong> {{ data.review_date }}</p>
-    <p><strong>Meeting Date:</strong> {{ data.capability_meeting_date or data.meeting_date }}</p>
-    <p><strong>Meeting Time:</strong> {{ data.capability_meeting_time or data.meeting_time }}</p>
-    <p><strong>Venue:</strong> {{ data.capability_meeting_venue or data.meeting_venue }}</p>
-    <p><strong>Draft Name:</strong> {{ data.draft_name }}</p>
-  </div>
-{% endif %}
-
-    <!-- Sticky footer / Navigation -->
-    <div class="sticky bottom-0 z-10 bg-white/95 border-t mt-8 py-3">
-      <div class="flex flex-wrap justify-between items-center gap-4">
-        {% if step > 1 %}
-          <a href="{{ url_for('create_pip_wizard', goto=step-1) }}" class="text-sm text-ellipse-teal hover:underline font-medium" rel="prev">← Back</a>
-        {% else %}
-          <div></div>
-        {% endif %}
+    <!-- Navigation Buttons -->
+    <div class="mt-8 flex flex-wrap justify-between items-center gap-4">
+      {% if step > 1 %}
+        <a href="{{ url_for('create_pip_wizard', goto=step-1) }}" class="text-sm text-ellipse-teal hover:underline font-medium" rel="prev">← Back</a>
+      {% else %}<div></div>{% endif %}
 
         <div class="flex items-center gap-3">
           <!-- NEXT / SUBMIT (button logic updated) -->
@@ -291,28 +344,45 @@
 
 <!-- Scripts -->
 <script>
-// Safe server values for JS
-const CURRENT_STEP = {{ (step or 1) | int | tojson }};
-const BACK_URL = {{ (url_for('create_pip_wizard', goto=step-1) if step and step > 1 else None) | tojson }};
-
-// Helpers
-function debounce(fn, wait){let t;return function(...a){clearTimeout(t);t=setTimeout(()=>fn.apply(this,a),wait);};}
+/* ===== Helpers ===== */
+function debounce(fn, wait) { let t; return function(...args){ clearTimeout(t); t=setTimeout(()=>fn.apply(this,args), wait); }; }
 function _parseTags(str){return (str||'').split(',').map(s=>s.trim()).filter(Boolean);}
 function _stringifyTags(arr){const seen=new Set(),out=[];for(const t of arr){const k=t.toLowerCase();if(!seen.has(k)){out.push(t);seen.add(k);}}return out.join(', ');}
 function _buildTagChip(tag,checked){const lbl=document.createElement('label');lbl.className='inline-flex items-center space-x-2 px-3 py-1 rounded-full border text-sm cursor-pointer hover:bg-gray-50';const cb=document.createElement('input');cb.type='checkbox';cb.value=tag;cb.checked=!!checked;cb.className='rounded';const span=document.createElement('span');span.textContent=tag;lbl.appendChild(cb);lbl.appendChild(span);return lbl;}
 function updateActionCount(){const n=document.querySelectorAll('#action-plan-list input[name="action_plan_items[]"]').length;const el=document.getElementById('action-count');if(el) el.textContent=`${n} item${n===1?'':'s'}`;}
-function addActionItem(v=''){const c=document.getElementById("action-plan-list");if(!c)return;const row=document.createElement('div');row.className='flex items-center gap-2 mt-2';const i=document.createElement('input');i.type='text';i.name='action_plan_items[]';i.className='form-input flex-1 rounded border px-3 py-2';i.placeholder='Enter action item';i.value=v||'';const up=document.createElement('button');up.type='button';up.title='Move up';up.className='px-2 py-1 border rounded hover:bg-gray-50';up.textContent='↑';up.onclick=()=>{const p=row.previousElementSibling;if(p)c.insertBefore(row,p);debouncedSave();};const dn=document.createElement('button');dn.type='button';dn.title='Move down';dn.className='px-2 py-1 border rounded hover:bg-gray-50';dn.textContent='↓';dn.onclick=()=>{const n=row.nextElementSibling;if(n)c.insertBefore(n,row);debouncedSave();};const del=document.createElement('button');del.type='button';del.title='Remove';del.className='px-2 py-1 border rounded text-red-700 hover:bg-red-50';del.textContent='✕';del.onclick=()=>{row.remove();updateActionCount();debouncedSave();};row.append(i,up,dn,del);c.appendChild(row);updateActionCount();}
-function addActionItemsBulk(items=[]){items.forEach(t=>addActionItem(t));}
-function buildNextUpCard(text,checked=false){const card=document.createElement('label');card.className='flex items-start gap-2 p-2 border rounded hover:bg-gray-50 cursor-pointer';const cb=document.createElement('input');cb.type='checkbox';cb.className='mt-1';cb.checked=!!checked;const span=document.createElement('span');span.className='text-sm text-gray-700';span.textContent=text;card.append(cb,span);return {card,cb,span};}
-window.__dirty=false;
+function addActionItem(value=''){const c=document.getElementById("action-plan-list");if(!c)return;const row=document.createElement('div');row.className='flex items-center gap-2 mt-2';const input=document.createElement('input');input.type='text';input.name='action_plan_items[]';input.className='form-input flex-1 rounded border px-3 py-2';input.placeholder='Enter action item';input.value=value||'';const up=document.createElement('button');up.type='button';up.title='Move up';up.className='px-2 py-1 border rounded hover:bg-gray-50';up.textContent='↑';up.onclick=()=>{const p=row.previousElementSibling;if(p)c.insertBefore(row,p);debouncedSave();};const down=document.createElement('button');down.type='button';down.title='Move down';down.className='px-2 py-1 border rounded hover:bg-gray-50';down.textContent='↓';down.onclick=()=>{const n=row.nextElementSibling;if(n)c.insertBefore(n,row);debouncedSave();};const del=document.createElement('button');del.type='button';del.title='Remove';del.className='px-2 py-1 border rounded text-red-700 hover:bg-red-50';del.textContent='✕';del.onclick=()=>{row.remove();updateActionCount();debouncedSave();};row.appendChild(input);row.appendChild(up);row.appendChild(down);row.appendChild(del);c.appendChild(row);updateActionCount();}
+function addActionItemsBulk(items=[]){items.forEach(txt=>addActionItem(txt));}
+function buildNextUpCard(text,checked=false){const card=document.createElement('label');card.className='flex items-start gap-2 p-2 border rounded hover:bg-gray-50 cursor-pointer';const cb=document.createElement('input');cb.type='checkbox';cb.className='mt-1';cb.checked=!!checked;const span=document.createElement('span');span.className='text-sm text-gray-700';span.textContent=text;card.appendChild(cb);card.appendChild(span);return {card,cb,span};}
 
+/* ===== DOM Wiring ===== */
 document.addEventListener('DOMContentLoaded', () => {
-  window.debouncedSave = debounce(()=>saveDraft(),800);
+  // Debounced autosave
+  window.debouncedSave = debounce(() => saveDraft(), 800);
   ['draft_name','employee_id','concerns','concern_category','concern_tags','severity','frequency','start_date','review_date','meeting_date','meeting_time','meeting_venue']
     .forEach(id=>{const el=document.getElementById(id); el?.addEventListener('input',()=>{window.__dirty=true;debouncedSave();}); el?.addEventListener('change',()=>{window.__dirty=true;debouncedSave();});});
   const actionList=document.getElementById('action-plan-list');
-  actionList?.addEventListener('input',()=>{window.__dirty=true;debouncedSave();});
-  actionList?.addEventListener('click',e=>{if(e.target.tagName==='BUTTON'){window.__dirty=true;debouncedSave();}});
+  actionList?.addEventListener('input',debouncedSave);
+  actionList?.addEventListener('click',(e)=>{if(e.target.tagName==='BUTTON') debouncedSave();});
+
+  // Clickable stepper (validate+save on forward; save-only on back)
+  const currentStep = {{ step | int }};
+  document.querySelectorAll('.wizard-step').forEach(btn=>{
+    btn.addEventListener('click', (ev)=>{
+      const enabled = btn.dataset.enabled === '1';
+      const target = parseInt(btn.dataset.step||'0',10);
+      if (!enabled || target === currentStep) { ev.preventDefault(); return; }
+      const go = ()=>{ window.location = '{{ url_for("create_pip_wizard") }}?goto=' + target; };
+      if (target > currentStep) {
+        ev.preventDefault();
+        validateStep(currentStep, function(valid){
+          if (valid) saveDraft(go);
+        });
+      } else {
+        ev.preventDefault();
+        saveDraft(go);
+      }
+    });
+  });
 
   // Mirrors (Step 4)
   const d=document.getElementById('meeting_date'), t=document.getElementById('meeting_time');
@@ -394,91 +464,48 @@ document.addEventListener('DOMContentLoaded', () => {
       const csrf=document.querySelector('[name="csrf_token"]')?.value;
       const res=await fetch('{{ url_for("suggest_actions_ai") }}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify(payload)});
       const data=await res.json();
-      const actions=Array.isArray(data.actions)?data.actions:[];
-      if(actions.length){actions.forEach(a=>{const li=document.createElement('li');li.textContent=a;li.className='py-1';aiList?.appendChild(li);});addActionItemsBulk(actions);window.__dirty=true;debouncedSave();}
-      else if(aiList){const li=document.createElement('li');li.textContent='No suggestions returned.';li.className='text-gray-500';aiList.appendChild(li);}
-      if(cards && nextWrap){cards.innerHTML='';const nexts=Array.isArray(data.next_up)?data.next_up:[];if(nexts.length){nextWrap.classList.remove('hidden');nexts.forEach(t=>{const {card}=buildNextUpCard(t,false);cards.appendChild(card);});}else{nextWrap.classList.add('hidden');}}
-    }catch(_){ if(aiList){const li=document.createElement('li');li.textContent='Could not fetch suggestions.';li.className='text-red-600';aiList.appendChild(li);} }
-    finally{ setAIState(false); updateActionCount(); }
+      const actions=Array.isArray(data.actions)?data.actions:[]; aiList?.replaceChildren();
+      if(actions.length){ actions.forEach(a=>{const li=document.createElement('li'); li.textContent=a; li.className='py-1'; aiList?.appendChild(li);}); addActionItemsBulk(actions); debouncedSave(); }
+      else if(aiList){ const li=document.createElement('li'); li.textContent='No suggestions returned.'; li.className='text-gray-500'; aiList.appendChild(li); }
+      if(cards && nextWrap){ cards.innerHTML=''; const nexts=Array.isArray(data.next_up)?data.next_up:[]; if(nexts.length){ nextWrap.classList.remove('hidden'); nexts.forEach(t=>{const {card}=buildNextUpCard(t,false); cards.appendChild(card);}); } else { nextWrap.classList.add('hidden'); } }
+    }catch(err){
+      if(aiList){ const li=document.createElement('li'); li.textContent='Could not fetch suggestions.'; li.className='text-red-600'; aiList.appendChild(li); }
+    }finally{ aiBtn.disabled=false; aiBtn.textContent='⚡ Suggest with AI'; updateActionCount(); }
   });
   clearAI?.addEventListener('click',()=>{ if(aiList) aiList.innerHTML=''; });
 
   document.getElementById('insert-selected-nextup')?.addEventListener('click',()=>{
-    if(!cards)return;const picked=[];cards.querySelectorAll('label').forEach(lbl=>{const cb=lbl.querySelector('input[type="checkbox"]');const text=lbl.querySelector('span')?.textContent||'';if(cb?.checked && text)picked.push(text);});if(picked.length){addActionItemsBulk(picked);cards.querySelectorAll('input[type="checkbox"]').forEach(cb=>cb.checked=false);updateActionCount();window.__dirty=true;debouncedSave();}
-  });
-
-  // Quick-Add modal (focus trap)
-  (function(){
-    const modal=document.getElementById('quickAddModal');
-    const openBtn=document.getElementById('openQuickAdd');
-    const cancelBtn=document.getElementById('cancelQuickAdd');
-    const panel=modal?.querySelector('[tabindex="-1"]');
-    let lastActive=null;
-    function trap(e){
-      if(!modal || modal.classList.contains('hidden')) return;
-      const f=modal.querySelectorAll('a,button,input,select,textarea,[tabindex]:not([tabindex="-1"])');
-      const first=f[0], last=f[f.length-1];
-      if(e.key==='Tab'){
-        if(e.shiftKey && document.activeElement===first){e.preventDefault();last.focus();}
-        else if(!e.shiftKey && document.activeElement===last){e.preventDefault();first.focus();}
-      } else if(e.key==='Escape'){ close(); }
-    }
-    function open(){ lastActive=document.activeElement; modal.classList.remove('hidden'); modal.classList.add('flex'); panel?.focus(); document.addEventListener('keydown',trap); }
-    function close(){ modal.classList.add('hidden'); modal.classList.remove('flex'); document.removeEventListener('keydown',trap); lastActive?.focus(); }
-    openBtn?.addEventListener('click',open);
-    cancelBtn?.addEventListener('click',close);
-    modal?.addEventListener('click',e=>{ if(e.target===modal) close(); });
-  })();
-
-  // Quick-Add submit
-  const qaForm=document.getElementById("quickAddForm");
-  const employeeSelect=document.getElementById("employee_id");
-  qaForm?.addEventListener("submit", async (e)=>{
-    e.preventDefault();
-    const formData=Object.fromEntries(new FormData(qaForm).entries());
-    try{
-      const res=await fetch("{{ url_for('quick_add_employee') }}",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(formData)});
-      const data=await res.json();
-      if(data.success){
-        const opt=document.createElement("option"); opt.value=data.id; opt.textContent=data.display_name; opt.selected=true; employeeSelect.appendChild(opt);
-        const hiddenName=document.getElementById('employee_name'); if(hiddenName) hiddenName.value=data.display_name;
-        qaForm.reset(); document.getElementById('cancelQuickAdd')?.click();
-        const toast=document.createElement("div"); toast.textContent="✅ Employee added successfully"; toast.className="fixed bottom-4 right-4 bg-[#005b5a] text-white py-2 px-4 rounded-lg shadow-lg"; document.body.appendChild(toast); setTimeout(()=>toast.remove(),3000);
-        window.__dirty=true; debouncedSave();
-      } else { alert(data.error || "Error adding employee"); }
-    }catch(_){ alert("Failed to add employee"); }
-  });
-
-  // Keyboard shortcuts
-  document.addEventListener('keydown',(e)=>{
-    if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s'){ e.preventDefault(); saveDraft(()=>{const t=document.createElement("div");t.textContent="💾 Draft saved";t.className="fixed bottom-4 right-4 bg-[#005b5a] text-white py-2 px-3 rounded shadow";document.body.appendChild(t);setTimeout(()=>t.remove(),1600);}); return; }
-    if(((e.ctrlKey||e.metaKey) && e.key==='Enter') || (e.altKey && e.key==='ArrowRight')){ e.preventDefault(); document.getElementById('nextBtn')?.click(); return; }
-    if(e.altKey && e.key==='ArrowLeft' && BACK_URL){ e.preventDefault(); saveDraft(()=>{window.location=BACK_URL;}); return; }
+    if(!cards)return; const picked=[];
+    cards.querySelectorAll('label').forEach(lbl=>{
+      const cb=lbl.querySelector('input[type="checkbox"]');
+      const text=lbl.querySelector('span')?.textContent||'';
+      if(cb?.checked && text) picked.push(text);
+    });
+    if(picked.length){ addActionItemsBulk(picked); cards.querySelectorAll('input[type="checkbox"]').forEach(cb=>cb.checked=false); updateActionCount(); debouncedSave(); }
   });
 });
 
-// Save Draft
-window.saveDraft=function(cb){
-  const form=document.getElementById("wizardForm"); if(!form) return;
+/* ===== Save Draft / Validation / Next ===== */
+window.saveDraft=function(callback){
+  const form=document.getElementById("wizardForm"); if(!form)return;
   const formData=new FormData(form);
   fetch("{{ url_for('save_pip_draft') }}",{method:"POST",body:formData})
-    .then(res=>res.json()).then(()=>{const s=document.getElementById("autosave-status"); if(s) s.innerText=`Last saved: ${new Date().toLocaleTimeString()}`; if(cb) cb();})
+    .then(res=>res.json()).then(()=>{
+      const status=document.getElementById("autosave-status");
+      if(status) status.innerText=`Last saved: ${new Date().toLocaleTimeString()}`;
+      if(callback) callback();
+    })
     .catch(()=>{alert("Failed to save draft.");});
 };
-(function(){const orig=window.saveDraft; window.saveDraft=function(){window.__dirty=false; return orig.apply(this,arguments);} })();
-
-// Validation
-function validateStep(step,cb){
-  const form=document.getElementById("wizardForm"); if(!form){cb(false);return;}
+function validateStep(step,callback){
+  const form=document.getElementById("wizardForm"); if(!form){callback(false);return;}
   const formData=new FormData(form); formData.append("step",step);
   fetch("{{ url_for('validate_wizard_step') }}",{method:"POST",body:formData})
     .then(r=>r.json()).then(data=>{
       document.querySelectorAll(".wizard-error").forEach(el=>el.remove());
-      let first=null;
       if(!data.success && data.errors){
         for(const field in data.errors){
           const input=document.querySelector(`[name="${field}"]`);
-          if(input && !first) first=input;
           if(input){
             const p=document.createElement("p");
             p.className="wizard-error text-red-600 text-sm mt-1";
@@ -487,41 +514,51 @@ function validateStep(step,cb){
           }
         }
       }
-      if(!data.success && first){ first.focus(); try{first.scrollIntoView({behavior:'smooth',block:'center'});}catch(_){}} 
-      cb(data.success);
-    }).catch(()=>cb(false));
+      callback(data.success);
+    }).catch(()=>callback(false));
 }
-
-// ===== Button logic (only change) =====
+const currentStep={{ step | int }};
 document.getElementById("nextBtn")?.addEventListener("click",function(e){
   e.preventDefault();
-  const btn=this, spin=btn.querySelector('.next-spinner');
-  btn.disabled=true; spin?.classList.remove('hidden');
+  validateStep(currentStep,function(valid){
+    if(valid){ saveDraft(function(){ document.getElementById("wizardForm").submit(); }); }
+  });
+});
 
-  if(CURRENT_STEP===6){
-    hydrateFinalHiddenFields();
-    const eid=(document.querySelector('input[name="employee_id"]')?.value||'').trim();
-    if(!eid){
-      let msg=document.getElementById('final-missing-employee');
-      if(!msg){
-        msg=document.createElement('div');
-        msg.id='final-missing-employee';
-        msg.className='text-red-600 text-sm my-2';
-        msg.textContent='Please go back to Step 1 and choose an employee before submitting.';
-        document.getElementById('wizardForm')?.insertAdjacentElement('afterbegin',msg);
+/* Quick-Add modal */
+document.addEventListener("DOMContentLoaded",()=>{
+  const modal=document.getElementById("quickAddModal");
+  const openBtn=document.getElementById("openQuickAdd");
+  const cancelBtn=document.getElementById("cancelQuickAdd");
+  const form=document.getElementById("quickAddForm");
+  const employeeSelect=document.getElementById("employee_id");
+
+  openBtn?.addEventListener("click",()=>{modal.classList.remove("hidden"); modal.classList.add("flex");});
+  cancelBtn?.addEventListener("click",()=>{modal.classList.add("hidden"); modal.classList.remove("flex");});
+
+  form?.addEventListener("submit",async(e)=>{
+    e.preventDefault();
+    const formData=Object.fromEntries(new FormData(form).entries());
+    try{
+      const res=await fetch("{{ url_for('quick_add_employee') }}",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(formData)});
+      const data=await res.json();
+      if(data.success){
+        const opt=document.createElement("option");
+        opt.value=data.id; opt.textContent=data.display_name; opt.selected=true;
+        employeeSelect.appendChild(opt);
+        const hiddenName=document.getElementById('employee_name');
+        if(hiddenName) hiddenName.value=data.display_name;
+        form.reset(); modal.classList.add("hidden"); modal.classList.remove("flex");
+        const toast=document.createElement("div");
+        toast.textContent="✅ Employee added successfully";
+        toast.className="fixed bottom-4 right-4 bg-[#005b5a] text-white py-2 px-4 rounded-lg shadow-lg";
+        document.body.appendChild(toast); setTimeout(()=>toast.remove(),3000);
+        debouncedSave();
+      } else {
+        alert(data.error || "Error adding employee");
       }
-      try{window.scrollTo({top:0,behavior:'smooth'});}catch(_){}
-      btn.disabled=false; spin?.classList.add('hidden');
-      return;
-    }
-  }
-
-  validateStep(CURRENT_STEP,function(valid){
-    if(valid){
-      window.__dirty=false;
-      saveDraft(()=>{ document.getElementById("wizardForm").submit(); });
-    } else {
-      btn.disabled=false; spin?.classList.add('hidden');
+    }catch(err){
+      alert("Failed to add employee");
     }
   });
 });

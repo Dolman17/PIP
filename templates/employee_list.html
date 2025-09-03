@@ -1,65 +1,54 @@
 {% extends "base.html" %}
-{% block title %}All Employees{% endblock %}
-{% block page_title %}👥 Employee Directory{% endblock %}
+{% block title %}Employees{% endblock %}
+{% block page_title %}👥 Employees{% endblock %}
 
 {% block content %}
-<div class="max-w-6xl mx-auto p-4 sm:p-6">
-  <div class="bg-[#e6f3f3] rounded shadow border border-gray-200 overflow-hidden">
-    <div class="px-4 sm:px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-      <h1 class="text-lg sm:text-xl font-semibold text-ellipse-teal">All Employees</h1>
-      <a href="{{ url_for('add_employee') }}"
-         class="text-xs sm:text-sm bg-ellipse-teal hover:bg-ellipse-hover text-white px-3 sm:px-4 py-2 rounded">
-        ➕ Add Employee
-      </a>
-    </div>
+<div class="bg-white border border-gray-200 rounded-2xl shadow p-6">
+  <div class="flex items-start justify-between gap-3 mb-4">
+    <h1 class="text-xl font-semibold text-[#005b5a]">All Employees</h1>
+    <a href="{{ url_for('add_employee') }}"
+       class="inline-flex items-center bg-[#005b5a] text-white px-3 py-2 rounded-lg hover:bg-[#007876] text-sm">
+      ➕ Add Employee
+    </a>
+  </div>
 
+  {% if employees %}
     <div class="overflow-x-auto">
-      <table class="min-w-full divide-y divide-gray-100 text-xs sm:text-sm text-left">
-        <thead class="bg-gray-50 text-gray-600 font-medium">
-          <tr>
-            <th class="px-2 sm:px-4 py-2 whitespace-nowrap">Name</th>
-            <th class="px-2 sm:px-4 py-2 whitespace-nowrap">Job Title</th>
-            <th class="px-2 sm:px-4 py-2 whitespace-nowrap">Service</th>
-            <th class="px-2 sm:px-4 py-2 whitespace-nowrap">Actions</th>
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="text-left text-gray-600 border-b">
+            <th class="py-2 pr-4">Name</th>
+            <th class="py-2 pr-4">Job Title</th>
+            <th class="py-2 pr-4">Service</th>
+            <th class="py-2 pr-4">Email</th>
+            <th class="py-2 pr-4">Actions</th>
           </tr>
         </thead>
-        <tbody class="bg-white divide-y divide-gray-100">
+        <tbody class="divide-y">
           {% for emp in employees %}
-          <tr class="hover:bg-gray-50 transition">
-            <td class="px-2 sm:px-4 py-2 font-medium text-ellipse-gray whitespace-nowrap">
-              <a href="{{ url_for('employee_detail', employee_id=emp.id) }}"
-                 class="text-ellipse-teal hover:underline">
-                {{ emp.first_name }} {{ emp.last_name }}
-              </a>
-            </td>
-            <td class="px-2 sm:px-4 py-2 text-gray-700 whitespace-nowrap">{{ emp.job_title }}</td>
-            <td class="px-2 sm:px-4 py-2 text-gray-700 whitespace-nowrap">{{ emp.service }}</td>
-            <td class="px-2 sm:px-4 py-2 whitespace-nowrap">
-              <a href="{{ url_for('employee_detail', employee_id=emp.id) }}"
-                 class="inline-block text-xs bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-1 rounded mr-1 sm:mr-2">
-                View
-              </a>
-              {% if active_module == 'PIP' %}
-                <a href="{{ url_for('create_pip_wizard', goto=1, edit='true', employee_id=emp.id) }}"
-                   class="inline-block text-xs bg-ellipse-teal hover:bg-ellipse-hover text-white px-3 py-1 rounded">
-                  Start PIP
-                </a>
-              {% elif active_module == 'Probation' %}
-                <a href="{{ url_for('create_probation', employee_id=emp.id) }}"
-                   class="inline-block text-xs bg-ellipse-teal hover:bg-ellipse-hover text-white px-3 py-1 rounded">
-                  Start Probation
-                </a>
-              {% endif %}
-            </td>
-          </tr>
-          {% else %}
-          <tr>
-            <td colspan="4" class="text-center text-gray-400 py-6">No employees found.</td>
-          </tr>
+            <tr>
+              <td class="py-2 pr-4">{{ emp.last_name }}, {{ emp.first_name }}</td>
+              <td class="py-2 pr-4">{{ emp.job_title or '—' }}</td>
+              <td class="py-2 pr-4">{{ emp.service or '—' }}</td>
+              <td class="py-2 pr-4">{{ emp.email or '—' }}</td>
+              <td class="py-2 pr-4">
+                <a href="{{ url_for('employee_detail', employee_id=emp.id) }}"
+                   class="text-[#005b5a] hover:underline">View</a>
+                <span class="mx-1 text-gray-400">|</span>
+                <a href="{{ url_for('edit_employee', employee_id=emp.id) }}"
+                   class="text-[#005b5a] hover:underline">Edit</a>
+                <span class="mx-1 text-gray-400">|</span>
+                <!-- Start PIP via Wizard, preselect this employee -->
+                <a href="{{ url_for('create_pip_wizard') }}?employee_id={{ emp.id }}&goto=2"
+                   class="text-[#005b5a] hover:underline">Start PIP</a>
+              </td>
+            </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-  </div>
+  {% else %}
+    <p class="text-sm text-gray-600">No employees found.</p>
+  {% endif %}
 </div>
 {% endblock %}

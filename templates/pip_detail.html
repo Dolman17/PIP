@@ -28,10 +28,32 @@
             <span class="inline-block px-3 py-1 text-xs font-semibold text-white bg-gray-400 rounded-full">{{ pip.status }}</span>
           {% endif %}
         </p>
+
         <p><strong>Start Date:</strong> {{ pip.start_date.strftime('%d %b %Y') }}</p>
         <p><strong>Review Date:</strong> {{ pip.review_date.strftime('%d %b %Y') }}</p>
+
         <p><strong>Concerns:</strong><br>{{ pip.concerns }}</p>
-        <p><strong>Meeting Notes:</strong><br>{{ pip.meeting_notes or '—' }}</p>
+
+        <!-- NEW: Concern taxonomy & tags -->
+        <div class="pt-1">
+          <p class="text-sm">
+            <strong>Category:</strong> {{ pip.concern_category or '—' }}
+            &nbsp;·&nbsp; <strong>Severity:</strong> {{ pip.severity or '—' }}
+            &nbsp;·&nbsp; <strong>Frequency:</strong> {{ pip.frequency or '—' }}
+          </p>
+          {% if pip.tags %}
+            <div class="mt-2 flex flex-wrap gap-2">
+              {% for t in pip.tags.split(',') %}
+                {% set tg = t.strip() %}
+                {% if tg %}
+                <span class="px-2 py-0.5 text-xs rounded-full border border-gray-300 bg-white text-gray-700">{{ tg }}</span>
+                {% endif %}
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+
+        <p class="pt-2"><strong>Meeting Notes:</strong><br>{{ pip.meeting_notes or '—' }}</p>
         <p><strong>Meeting Date:</strong> {{ pip.capability_meeting_date.strftime('%d %b %Y') if pip.capability_meeting_date else '—' }}</p>
         <p><strong>Meeting Time:</strong> {{ pip.capability_meeting_time or '—' }}</p>
         <p><strong>Meeting Venue:</strong> {{ pip.capability_meeting_venue or '—' }}</p>
@@ -44,7 +66,9 @@
             {% for action in pip.action_items %}
               <li>
                 {{ action.description }}
-                <span class="text-xs text-gray-500">[{{ action.status }}]</span>
+                {% if action.status %}
+                  <span class="text-xs text-gray-500">[{{ action.status }}]</span>
+                {% endif %}
               </li>
             {% endfor %}
           </ul>
@@ -62,6 +86,38 @@
            class="text-sm text-[#005b5a] hover:underline text-center sm:text-left">
           ← Back to Employee
         </a>
+      </div>
+
+      <!-- AI Advice block (kept in main column so it's prominent) -->
+      <div class="mt-2 p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
+        <div class="flex items-center justify-between">
+          <h3 class="text-md font-semibold text-[#005b5a]">💬 AI Advice</h3>
+          <div class="flex items-center gap-2">
+            {% if pip.ai_advice %}
+            <button type="button"
+                    class="text-xs px-2 py-1 rounded border border-gray-300 hover:bg-gray-50"
+                    onclick="copyAdvice()">
+              Copy
+            </button>
+            {% endif %}
+            <button type="button"
+                    class="text-xs px-3 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700"
+                    onclick="openModal()">
+              {% if pip.ai_advice %}🔁 Regenerate{% else %}💡 Generate{% endif %}
+            </button>
+          </div>
+        </div>
+
+        {% if pip.ai_advice %}
+          <pre id="aiAdviceText" class="whitespace-pre-wrap text-sm text-gray-800 mt-3">{{ pip.ai_advice }}</pre>
+          <p class="text-xs text-gray-500 italic mt-2">
+            Generated on {{ pip.ai_advice_generated_at.strftime('%d %b %Y at %H:%M') if pip.ai_advice_generated_at }}
+          </p>
+        {% else %}
+          <p class="text-sm text-gray-600 mt-2">
+            No AI advice generated yet. Use <strong>Generate</strong> to create tailored guidance from the PIP details.
+          </p>
+        {% endif %}
       </div>
 
     </div>
@@ -84,26 +140,10 @@
       ✅ Create Outcome Letter
     </a>
 
-    <!-- AI Advice -->
-    <button type="button"
-        class="block w-full bg-indigo-600 text-white text-center py-2 rounded hover:bg-indigo-700 mt-2 text-sm font-medium"
-        onclick="openModal()">
-      {% if pip.ai_advice %}
-        🔁 Regenerate AI Advice
-      {% else %}
-        💡 Generate AI Advice
-      {% endif %}
-    </button>
-
-    {% if pip.ai_advice %}
-      <div class="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-xl shadow-sm">
-        <h3 class="text-md font-semibold text-[#005b5a] mb-2">💬 AI Advice</h3>
-        <p class="text-sm text-gray-700 whitespace-pre-line mb-2">{{ pip.ai_advice }}</p>
-        <p class="text-xs text-gray-500 italic">
-          Generated on {{ pip.ai_advice_generated_at.strftime('%d %b %Y at %H:%M') }}
-        </p>
-      </div>
-    {% endif %}
+    <p class="text-xs text-gray-600">
+      These Word docs automatically include the PIP details. The <strong>Plan</strong> also includes your
+      <em>Action Plan</em> and (if present) the <em>AI Advice</em> section.
+    </p>
   </aside>
 </div>
 
@@ -138,10 +178,22 @@
     document.getElementById('aiModal').classList.remove('hidden');
     document.getElementById('aiModal').classList.add('flex');
   }
-
   function closeModal() {
     document.getElementById('aiModal').classList.remove('flex');
     document.getElementById('aiModal').classList.add('hidden');
+  }
+  function copyAdvice() {
+    const el = document.getElementById('aiAdviceText');
+    if (!el) return;
+    const text = el.innerText || el.textContent || '';
+    navigator.clipboard.writeText(text).then(()=>{
+      // tiny toast
+      const t = document.createElement('div');
+      t.textContent = 'Copied!';
+      t.className = 'fixed bottom-4 right-4 bg-[#005b5a] text-white px-3 py-1 rounded shadow';
+      document.body.appendChild(t);
+      setTimeout(()=> t.remove(), 1200);
+    });
   }
 </script>
 {% endblock %}
