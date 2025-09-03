@@ -16,44 +16,51 @@
   {% if data.employee_id %}{% set _max_jinja = 2 %}{% endif %}
   {% if data.concerns and data.concern_category and data.severity and data.frequency %}{% set _max_jinja = 3 %}{% endif %}
   {% if data.start_date and data.review_date %}{% set _max_jinja = 4 %}{% endif %}
-  {% if data.capability_meeting_date and data.capability_meeting_time and data.capability_meeting_venue %}{% set _max_jinja = 6 %}{% endif %}
+  {% if data.capability_meeting_date and data.capability_meeting_time and data.capability_meeting_venue %}{% set _max_jinja = 5 %}{% endif %}
+  {% if data.action_plan_items and data.action_plan_items|select('string')|list %}{% set _max_jinja = 6 %}{% endif %}
   {% set allowed = max_allowed_step if max_allowed_step is defined else _max_jinja %}
 
-<!-- Visual Step Tracker with Icons (clickable up to max_allowed_step) -->
-<div class="flex justify-between items-center mb-6 text-sm font-medium text-gray-500">
-  {% set steps = [
-    (1, '👤 Select Employee'),
-    (2, '⚠️ Define Concerns'),
-    (3, '🗓️ Set Dates'),
-    (4, '🏢 Schedule Meeting'),
-    (5, '📝 Action Plan'),
-    (6, '✅ Review & Submit')
-  ] %}
+  <!-- Visual Step Tracker with Icons (clickable up to max_allowed_step) -->
+  <div class="flex justify-between items-center mb-6 text-sm font-medium text-gray-500">
+    {% set steps = [
+      (1, '👤 Select Employee'),
+      (2, '⚠️ Define Concerns'),
+      (3, '🗓️ Set Dates'),
+      (4, '🏢 Schedule Meeting'),
+      (5, '📝 Action Plan'),
+      (6, '✅ Review & Submit')
+    ] %}
 
-  {% for i, label in steps %}
-    {% set allowed = i <= (max_allowed_step or 1) %}
-    {% set is_current = (step == i) %}
+    {% for i, label in steps %}
+      {% set is_enabled = i <= (allowed or 1) %}
+      {% set is_current = (step == i) %}
 
-    {% if allowed %}
-      <a href="{{ url_for('create_pip_wizard') }}?goto={{ i }}"
-         class="flex-1 text-center px-1 transition
-                {% if is_current %}text-ellipse-teal font-bold{% else %}hover:text-ellipse-teal{% endif %}">
-        {{ label }}
-      </a>
-    {% else %}
-      <div class="flex-1 text-center px-1 opacity-50 cursor-not-allowed"
-           aria-disabled="true" title="Complete previous steps first">
-        {{ label }}
-      </div>
-    {% endif %}
+      {% if is_enabled %}
+        <a
+          href="{{ url_for('create_pip_wizard') }}?goto={{ i }}"
+          class="wizard-step flex-1 text-center px-1 transition {% if is_current %}text-ellipse-teal font-bold{% else %}hover:text-ellipse-teal{% endif %}"
+          data-step="{{ i }}"
+          data-enabled="1"
+        >
+          {{ label }}
+        </a>
+      {% else %}
+        <div
+          class="wizard-step flex-1 text-center px-1 opacity-50 cursor-not-allowed"
+          data-step="{{ i }}"
+          data-enabled="0"
+          aria-disabled="true"
+          title="Complete previous steps first"
+        >
+          {{ label }}
+        </div>
+      {% endif %}
 
-    {% if not loop.last %}
-      <div class="w-5 h-1 mx-1
-                  {% if i < (max_allowed_step or 1) %}bg-ellipse-teal{% else %}bg-gray-300{% endif %}">
-      </div>
-    {% endif %}
-  {% endfor %}
-</div>
+      {% if not loop.last %}
+        <div class="w-5 h-1 mx-1 {% if i < (allowed or 1) %}bg-ellipse-teal{% else %}bg-gray-300{% endif %}"></div>
+      {% endif %}
+    {% endfor %}
+  </div>
 
   <form method="POST" id="wizardForm">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -92,65 +99,66 @@
       </script>
 
     {% elif step == 2 %}
-<div class="space-y-6">
-  <div>
-    <label for="concerns" class="block text-sm font-medium text-gray-700">Describe Concerns:</label>
-    <textarea id="concerns" name="concerns" rows="4" class="form-textarea mt-1 block w-full rounded-md border-gray-300 shadow-sm">{{ data.concerns or '' }}</textarea>
-    {% if wizard_errors.concerns %}
-      <p class="text-red-600 text-sm mt-1">{{ wizard_errors.concerns }}</p>
-    {% endif %}
-  </div>
+      <div class="space-y-6">
+        <div>
+          <label for="concerns" class="block text-sm font-medium text-gray-700">Describe Concerns:</label>
+          <textarea id="concerns" name="concerns" rows="4" class="form-textarea mt-1 block w-full rounded-md border-gray-300 shadow-sm">{{ data.concerns or '' }}</textarea>
+          {% if wizard_errors.concerns %}
+            <p class="text-red-600 text-sm mt-1">{{ wizard_errors.concerns }}</p>
+          {% endif %}
+        </div>
 
-  <div>
-    <label for="concern_category" class="block text-sm font-medium text-gray-700">Concern Category:</label>
-    <select name="concern_category" id="concern_category" class="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-      <option value="">-- Select Category --</option>
-      {% for cat in ['Performance', 'Conduct', 'Timekeeping', 'Absence', 'Attitude', 'Communication'] %}
-        <option value="{{ cat }}" {% if data.concern_category == cat %}selected{% endif %}>{{ cat }}</option>
-      {% endfor %}
-    </select>
-    {% if wizard_errors.concern_category %}
-      <p class="text-red-600 text-sm mt-1">{{ wizard_errors.concern_category }}</p>
-    {% endif %}
-  </div>
+        <div>
+          <label for="concern_category" class="block text-sm font-medium text-gray-700">Concern Category:</label>
+          <select name="concern_category" id="concern_category" class="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+            <option value="">-- Select Category --</option>
+            {# will be hydrated by /taxonomy/categories; initial values below are fallback #}
+            {% for cat in ['Performance', 'Conduct', 'Timekeeping', 'Attendance', 'Communication', 'Quality of Work', 'Productivity'] %}
+              <option value="{{ cat }}" {% if data.concern_category == cat %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
+          </select>
+          {% if wizard_errors.concern_category %}
+            <p class="text-red-600 text-sm mt-1">{{ wizard_errors.concern_category }}</p>
+          {% endif %}
+        </div>
 
-  <!-- Concern Tags (Free Text Input + Suggested Pills) -->
-  <div>
-    <label for="concern_tags" class="block text-sm font-medium text-gray-700">Concern Tags (comma-separated):</label>
-    <input type="text" name="concern_tags" id="concern_tags"
-           class="form-input mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-           placeholder="e.g. missed deadlines, attitude"
-           value="{{ data.concern_tags or '' }}">
-    <div id="suggested-tags" class="mt-3 flex flex-wrap gap-2"></div>
-    <p class="text-xs text-gray-500 mt-1">Tip: click tags to add/remove; they sync with the box above.</p>
-  </div>
+        <!-- Concern Tags (Free Text Input + Suggested Pills) -->
+        <div>
+          <label for="concern_tags" class="block text-sm font-medium text-gray-700">Concern Tags (comma-separated):</label>
+          <input type="text" name="concern_tags" id="concern_tags"
+                 class="form-input mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                 placeholder="e.g. missed deadlines, attitude"
+                 value="{{ data.concern_tags or '' }}">
+          <div id="suggested-tags" class="mt-3 flex flex-wrap gap-2"></div>
+          <p class="text-xs text-gray-500 mt-1">Tip: click tags to add/remove; they sync with the box above.</p>
+        </div>
 
-  <div>
-    <label for="severity" class="block text-sm font-medium text-gray-700">Severity:</label>
-    <select name="severity" id="severity" class="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-      <option value="">-- Select Severity --</option>
-      {% for level in ['Low', 'Moderate', 'High'] %}
-        <option value="{{ level }}" {% if data.severity == level %}selected{% endif %}>{{ level }}</option>
-      {% endfor %}
-    </select>
-    {% if wizard_errors.severity %}
-      <p class="text-red-600 text-sm mt-1">{{ wizard_errors.severity }}</p>
-    {% endif %}
-  </div>
+        <div>
+          <label for="severity" class="block text-sm font-medium text-gray-700">Severity:</label>
+          <select name="severity" id="severity" class="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+            <option value="">-- Select Severity --</option>
+            {% for level in ['Low', 'Moderate', 'High'] %}
+              <option value="{{ level }}" {% if data.severity == level %}selected{% endif %}>{{ level }}</option>
+            {% endfor %}
+          </select>
+          {% if wizard_errors.severity %}
+            <p class="text-red-600 text-sm mt-1">{{ wizard_errors.severity }}</p>
+          {% endif %}
+        </div>
 
-  <div>
-    <label for="frequency" class="block text-sm font-medium text-gray-700">Frequency:</label>
-    <select name="frequency" id="frequency" class="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-      <option value="">-- Select Frequency --</option>
-      {% for freq in ['One-off', 'Occasional', 'Frequent', 'Persistent'] %}
-        <option value="{{ freq }}" {% if data.frequency == freq %}selected{% endif %}>{{ freq }}</option>
-      {% endfor %}
-    </select>
-    {% if wizard_errors.frequency %}
-      <p class="text-red-600 text-sm mt-1">{{ wizard_errors.frequency }}</p>
-    {% endif %}
-  </div>
-</div>
+        <div>
+          <label for="frequency" class="block text-sm font-medium text-gray-700">Frequency:</label>
+          <select name="frequency" id="frequency" class="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+            <option value="">-- Select Frequency --</option>
+            {% for freq in ['One-off', 'Occasional', 'Frequent', 'Persistent'] %}
+              <option value="{{ freq }}" {% if data.frequency == freq %}selected{% endif %}>{{ freq }}</option>
+            {% endfor %}
+          </select>
+          {% if wizard_errors.frequency %}
+            <p class="text-red-600 text-sm mt-1">{{ wizard_errors.frequency }}</p>
+          {% endif %}
+        </div>
+      </div>
 
     {% elif step == 3 %}
       <div class="grid grid-cols-1 gap-4">
@@ -171,75 +179,85 @@
       </div>
 
     {% elif step == 4 %}
-  <div>
-    <label for="meeting_date">Meeting Date:</label>
-    <input 
-      type="date" 
-      id="meeting_date" 
-      name="capability_meeting_date" 
-      class="form-input w-full mt-2" 
-      value="{{ data.get('capability_meeting_date', '') }}"
-      required
-    >
-  </div>
+      <div>
+        <label for="meeting_date">Meeting Date:</label>
+        <input
+          type="date"
+          id="meeting_date"
+          name="capability_meeting_date"
+          class="form-input w-full mt-2"
+          value="{{ data.get('capability_meeting_date', '') }}"
+          required
+        >
+      </div>
 
-  <div class="mt-4">
-    <label for="meeting_time">Time:</label>
-    <input 
-      type="time" 
-      id="meeting_time" 
-      name="capability_meeting_time" 
-      class="form-input w-full mt-2" 
-      value="{{ data.get('capability_meeting_time', '') }}"
-      required
-    >
-  </div>
+      <div class="mt-4">
+        <label for="meeting_time">Time:</label>
+        <input
+          type="time"
+          id="meeting_time"
+          name="capability_meeting_time"
+          class="form-input w-full mt-2"
+          value="{{ data.get('capability_meeting_time', '') }}"
+          required
+        >
+      </div>
 
-  <div class="mt-4">
-    <label for="meeting_venue">Venue:</label>
-    <input 
-      type="text" 
-      id="meeting_venue" 
-      name="capability_meeting_venue" 
-      class="form-input w-full mt-2" 
-      value="{{ data.get('capability_meeting_venue', '') }}"
-      required
-    >
-  </div>
+      <div class="mt-4">
+        <label for="meeting_venue">Venue:</label>
+        <input
+          type="text"
+          id="meeting_venue"
+          name="capability_meeting_venue"
+          class="form-input w-full mt-2"
+          value="{{ data.get('capability_meeting_venue', '') }}"
+          required
+        >
+      </div>
 
-  <!-- Hidden mirrors for AJAX validator (expects meeting_date / meeting_time) -->
-  <input type="hidden" name="meeting_date" id="meeting_date_mirror" value="{{ data.get('capability_meeting_date','') }}">
-  <input type="hidden" name="meeting_time" id="meeting_time_mirror" value="{{ data.get('capability_meeting_time','') }}">
+      <!-- Hidden mirrors for AJAX validator (expects meeting_date / meeting_time) -->
+      <input type="hidden" name="meeting_date" id="meeting_date_mirror" value="{{ data.get('capability_meeting_date','') }}">
+      <input type="hidden" name="meeting_time" id="meeting_time_mirror" value="{{ data.get('capability_meeting_time','') }}">
 
     {% elif step == 5 %}
-  <div class="space-y-4">
-    <ul id="ai-actions-list" class="list-disc pl-6"></ul>
+      <div class="space-y-4">
+        <ul id="ai-actions-list" class="list-disc pl-6"></ul>
 
-    <div class="flex items-center justify-between">
-      <h3 class="text-sm font-medium text-gray-700">Action Plan Items</h3>
-      <span id="action-count" class="text-xs text-gray-500">0 items</span>
-    </div>
-    <div id="action-plan-list" class="mb-2"></div>
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-medium text-gray-700">Action Plan Items</h3>
+          <span id="action-count" class="text-xs text-gray-500">0 items</span>
+        </div>
+        <div id="action-plan-list" class="mb-2">
+          {# Rehydrate any existing items from the session #}
+          {% for it in (data.action_plan_items or []) %}
+            <div class="flex items-center gap-2 mt-2">
+              <input type="text" name="action_plan_items[]" class="form-input flex-1 rounded border px-3 py-2" value="{{ it }}">
+              <button type="button" class="px-2 py-1 border rounded hover:bg-gray-50" title="Move up">↑</button>
+              <button type="button" class="px-2 py-1 border rounded hover:bg-gray-50" title="Move down">↓</button>
+              <button type="button" class="px-2 py-1 border rounded text-red-700 hover:bg-red-50" title="Remove">✕</button>
+            </div>
+          {% endfor %}
+        </div>
 
-    <div class="flex flex-wrap gap-3">
-      <button type="button" onclick="addActionItem()" class="text-sm text-ellipse-teal hover:underline">+ Add Action Item</button>
-      <button type="button" id="ai-suggest-btn" class="text-sm bg-ellipse-teal text-white px-3 py-1 rounded hover:bg-ellipse-hover transition">⚡ Suggest with AI</button>
-      <button type="button" id="clear-ai" class="text-sm border px-3 py-1 rounded hover:bg-gray-50 transition">Clear AI results</button>
-    </div>
+        <div class="flex flex-wrap gap-3">
+          <button type="button" onclick="addActionItem()" class="text-sm text-ellipse-teal hover:underline">+ Add Action Item</button>
+          <button type="button" id="ai-suggest-btn" class="text-sm bg-ellipse-teal text-white px-3 py-1 rounded hover:bg-ellipse-hover transition">⚡ Suggest with AI</button>
+          <button type="button" id="clear-ai" class="text-sm border px-3 py-1 rounded hover:bg-gray-50 transition">Clear AI results</button>
+        </div>
 
-    {% if wizard_errors.action_plan_items %}
-      <p class="text-red-600 text-sm mt-1">{{ wizard_errors.action_plan_items }}</p>
-    {% endif %}
+        {% if wizard_errors.action_plan_items %}
+          <p class="text-red-600 text-sm mt-1">{{ wizard_errors.action_plan_items }}</p>
+        {% endif %}
 
-    <div id="next-up-suggestions" class="hidden mt-6">
-      <div class="flex items-center justify-between">
-        <h3 class="text-sm font-medium text-gray-700">Next Up Suggestions</h3>
-        <button type="button" id="insert-selected-nextup" class="text-xs bg-gray-800 text-white px-2 py-1 rounded hover:bg-gray-700">Insert selected</button>
+        <div id="next-up-suggestions" class="hidden mt-6">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-medium text-gray-700">Next Up Suggestions</h3>
+            <button type="button" id="insert-selected-nextup" class="text-xs bg-gray-800 text-white px-2 py-1 rounded hover:bg-gray-700">Insert selected</button>
+          </div>
+          <div id="suggestion-cards" class="grid grid-cols-1 gap-2 mt-2"></div>
+          <p class="text-xs text-gray-500 mt-1">Tick items you want to add to the action plan, then click “Insert selected”.</p>
+        </div>
       </div>
-      <div id="suggestion-cards" class="grid grid-cols-1 gap-2 mt-2"></div>
-      <p class="text-xs text-gray-500 mt-1">Tick items you want to add to the action plan, then click “Insert selected”.</p>
-    </div>
-  </div>
 
     {% elif step == 6 %}
       <div class="space-y-4 text-sm text-gray-700">
@@ -255,13 +273,27 @@
         <p><strong>Meeting Time:</strong> {{ data.capability_meeting_time }}</p>
         <p><strong>Venue:</strong> {{ data.capability_meeting_venue }}</p>
         <p><strong>Draft Name:</strong> {{ data.draft_name }}</p>
+
+        <div class="pt-2">
+          <strong>Action Plan:</strong>
+          {% set items = data.action_plan_items or [] %}
+          {% if items %}
+            <ul class="list-disc pl-5 mt-1">
+              {% for it in items %}
+                <li>{{ it }}</li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-gray-500">No actions captured.</p>
+          {% endif %}
+        </div>
       </div>
     {% endif %}
 
     <!-- Navigation Buttons -->
     <div class="mt-8 flex flex-wrap justify-between items-center gap-4">
       {% if step > 1 %}
-       <a href="{{ url_for('create_pip_wizard', goto=step-1) }}" class="text-sm text-ellipse-teal hover:underline font-medium" rel="prev">← Back</a>
+        <a href="{{ url_for('create_pip_wizard', goto=step-1) }}" class="text-sm text-ellipse-teal hover:underline font-medium" rel="prev">← Back</a>
       {% else %}<div></div>{% endif %}
 
       <div class="flex items-center gap-4">
@@ -308,10 +340,8 @@
 
 <!-- Consolidated scripts -->
 <script>
-// ====================== Helpers ======================
-function debounce(fn, wait) {
-  let t; return function(...args){ clearTimeout(t); t = setTimeout(() => fn.apply(this,args), wait); };
-}
+/* ===== Helpers ===== */
+function debounce(fn, wait) { let t; return function(...args){ clearTimeout(t); t=setTimeout(()=>fn.apply(this,args), wait); }; }
 function _parseTags(str){return (str||'').split(',').map(s=>s.trim()).filter(Boolean);}
 function _stringifyTags(arr){const seen=new Set();const out=[];for(const t of arr){const k=t.toLowerCase();if(!seen.has(k)){out.push(t);seen.add(k);}}return out.join(', ');}
 function _buildTagChip(tag,checked){const lbl=document.createElement('label');lbl.className='inline-flex items-center space-x-2 px-3 py-1 rounded-full border text-sm cursor-pointer hover:bg-gray-50';const cb=document.createElement('input');cb.type='checkbox';cb.value=tag;cb.checked=!!checked;cb.className='rounded';const span=document.createElement('span');span.textContent=tag;lbl.appendChild(cb);lbl.appendChild(span);return lbl;}
@@ -321,9 +351,9 @@ function addActionItem(value=''){const c=document.getElementById("action-plan-li
 function addActionItemsBulk(items=[]){items.forEach(txt=>addActionItem(txt));}
 function buildNextUpCard(text,checked=false){const card=document.createElement('label');card.className='flex items-start gap-2 p-2 border rounded hover:bg-gray-50 cursor-pointer';const cb=document.createElement('input');cb.type='checkbox';cb.className='mt-1';cb.checked=!!checked;const span=document.createElement('span');span.className='text-sm text-gray-700';span.textContent=text;card.appendChild(cb);card.appendChild(span);return {card,cb,span};}
 
-// ====================== DOM Wiring ======================
+/* ===== DOM Wiring ===== */
 document.addEventListener('DOMContentLoaded', () => {
-  // Debounced autosave wiring
+  // Debounced autosave
   window.debouncedSave = debounce(() => saveDraft(), 800);
   ['draft_name','employee_id','concerns','concern_category','concern_tags','severity','frequency','start_date','review_date','meeting_date','meeting_time','meeting_venue']
     .forEach(id => {const el=document.getElementById(id); el?.addEventListener('input',debouncedSave); el?.addEventListener('change',debouncedSave);});
@@ -334,16 +364,18 @@ document.addEventListener('DOMContentLoaded', () => {
   // Clickable stepper (validate+save on forward; save-only on back)
   const currentStep = {{ step | int }};
   document.querySelectorAll('.wizard-step').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const target = parseInt(btn.dataset.step||'0',10);
+    btn.addEventListener('click', (ev)=>{
       const enabled = btn.dataset.enabled === '1';
-      if (!enabled || target === currentStep) return;
+      const target = parseInt(btn.dataset.step||'0',10);
+      if (!enabled || target === currentStep) { ev.preventDefault(); return; }
       const go = ()=>{ window.location = '{{ url_for("create_pip_wizard") }}?goto=' + target; };
       if (target > currentStep) {
+        ev.preventDefault();
         validateStep(currentStep, function(valid){
           if (valid) saveDraft(go);
         });
       } else {
+        ev.preventDefault();
         saveDraft(go);
       }
     });
@@ -441,7 +473,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const csrf=document.querySelector('[name="csrf_token"]')?.value;
       const res=await fetch('{{ url_for("suggest_actions_ai") }}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify(payload)});
       const data=await res.json();
-      const actions=Array.isArray(data.actions)?data.actions:[];
+      const actions=Array.isArray(data.actions)?data.actions:[]; aiList?.replaceChildren();
       if(actions.length){ actions.forEach(a=>{const li=document.createElement('li'); li.textContent=a; li.className='py-1'; aiList?.appendChild(li);}); addActionItemsBulk(actions); debouncedSave(); }
       else if(aiList){ const li=document.createElement('li'); li.textContent='No suggestions returned.'; li.className='text-gray-500'; aiList.appendChild(li); }
       if(cards && nextWrap){ cards.innerHTML=''; const nexts=Array.isArray(data.next_up)?data.next_up:[]; if(nexts.length){ nextWrap.classList.remove('hidden'); nexts.forEach(t=>{const {card}=buildNextUpCard(t,false); cards.appendChild(card);}); } else { nextWrap.classList.add('hidden'); } }
@@ -450,35 +482,93 @@ document.addEventListener('DOMContentLoaded', () => {
     }finally{ aiBtn.disabled=false; aiBtn.textContent='⚡ Suggest with AI'; updateActionCount(); }
   });
   clearAI?.addEventListener('click',()=>{ if(aiList) aiList.innerHTML=''; });
-  document.getElementById('insert-selected-nextup')?.addEventListener('click',()=>{ if(!cards)return; const picked=[]; cards.querySelectorAll('label').forEach(lbl=>{ const cb=lbl.querySelector('input[type="checkbox"]'); const text=lbl.querySelector('span')?.textContent||''; if(cb?.checked && text) picked.push(text);}); if(picked.length){ addActionItemsBulk(picked); cards.querySelectorAll('input[type="checkbox"]').forEach(cb=>cb.checked=false); updateActionCount(); debouncedSave(); }});
+
+  document.getElementById('insert-selected-nextup')?.addEventListener('click',()=>{
+    if(!cards)return; const picked=[];
+    cards.querySelectorAll('label').forEach(lbl=>{
+      const cb=lbl.querySelector('input[type="checkbox"]');
+      const text=lbl.querySelector('span')?.textContent||'';
+      if(cb?.checked && text) picked.push(text);
+    });
+    if(picked.length){ addActionItemsBulk(picked); cards.querySelectorAll('input[type="checkbox"]').forEach(cb=>cb.checked=false); updateActionCount(); debouncedSave(); }
+  });
 });
 
-// ====================== Save Draft / Validation / Next ======================
-window.saveDraft=function(callback){const form=document.getElementById("wizardForm"); if(!form)return; const formData=new FormData(form);
+/* ===== Save Draft / Validation / Next ===== */
+window.saveDraft=function(callback){
+  const form=document.getElementById("wizardForm"); if(!form)return;
+  const formData=new FormData(form);
   fetch("{{ url_for('save_pip_draft') }}",{method:"POST",body:formData})
-    .then(res=>res.json()).then(()=>{const status=document.getElementById("autosave-status"); if(status) status.innerText=`Last saved: ${new Date().toLocaleTimeString()}`; if(callback) callback();})
+    .then(res=>res.json()).then(()=>{
+      const status=document.getElementById("autosave-status");
+      if(status) status.innerText=`Last saved: ${new Date().toLocaleTimeString()}`;
+      if(callback) callback();
+    })
     .catch(()=>{alert("Failed to save draft.");});
 };
-function validateStep(step,callback){const form=document.getElementById("wizardForm"); if(!form){callback(false);return;}
+function validateStep(step,callback){
+  const form=document.getElementById("wizardForm"); if(!form){callback(false);return;}
   const formData=new FormData(form); formData.append("step",step);
   fetch("{{ url_for('validate_wizard_step') }}",{method:"POST",body:formData})
-    .then(r=>r.json()).then(data=>{document.querySelectorAll(".wizard-error").forEach(el=>el.remove());
-      if(!data.success && data.errors){for(const field in data.errors){const input=document.querySelector(`[name="${field}"]`); if(input){const p=document.createElement("p"); p.className="wizard-error text-red-600 text-sm mt-1"; p.textContent=data.errors[field]; input.insertAdjacentElement("afterend",p);}}}
+    .then(r=>r.json()).then(data=>{
+      document.querySelectorAll(".wizard-error").forEach(el=>el.remove());
+      if(!data.success && data.errors){
+        for(const field in data.errors){
+          const input=document.querySelector(`[name="${field}"]`);
+          if(input){
+            const p=document.createElement("p");
+            p.className="wizard-error text-red-600 text-sm mt-1";
+            p.textContent=data.errors[field];
+            input.insertAdjacentElement("afterend",p);
+          }
+        }
+      }
       callback(data.success);
     }).catch(()=>callback(false));
 }
 const currentStep={{ step | int }};
-document.getElementById("nextBtn")?.addEventListener("click",function(e){e.preventDefault(); validateStep(currentStep,function(valid){ if(valid){ saveDraft(function(){ document.getElementById("wizardForm").submit(); }); } });});
+document.getElementById("nextBtn")?.addEventListener("click",function(e){
+  e.preventDefault();
+  validateStep(currentStep,function(valid){
+    if(valid){ saveDraft(function(){ document.getElementById("wizardForm").submit(); }); }
+  });
+});
 
 /* Quick-Add modal */
-document.addEventListener("DOMContentLoaded",()=>{const modal=document.getElementById("quickAddModal"); const openBtn=document.getElementById("openQuickAdd"); const cancelBtn=document.getElementById("cancelQuickAdd"); const form=document.getElementById("quickAddForm"); const employeeSelect=document.getElementById("employee_id");
+document.addEventListener("DOMContentLoaded",()=>{
+  const modal=document.getElementById("quickAddModal");
+  const openBtn=document.getElementById("openQuickAdd");
+  const cancelBtn=document.getElementById("cancelQuickAdd");
+  const form=document.getElementById("quickAddForm");
+  const employeeSelect=document.getElementById("employee_id");
+
   openBtn?.addEventListener("click",()=>{modal.classList.remove("hidden"); modal.classList.add("flex");});
   cancelBtn?.addEventListener("click",()=>{modal.classList.add("hidden"); modal.classList.remove("flex");});
-  form?.addEventListener("submit",async(e)=>{e.preventDefault(); const formData=Object.fromEntries(new FormData(form).entries());
-    try{const res=await fetch("{{ url_for('quick_add_employee') }}",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(formData)}); const data=await res.json();
-      if(data.success){const opt=document.createElement("option"); opt.value=data.id; opt.textContent=data.display_name; opt.selected=true; employeeSelect.appendChild(opt); const hiddenName=document.getElementById('employee_name'); if(hiddenName) hiddenName.value=data.display_name; form.reset(); modal.classList.add("hidden"); modal.classList.remove("flex"); const toast=document.createElement("div"); toast.textContent="✅ Employee added successfully"; toast.className="fixed bottom-4 right-4 bg-[#005b5a] text-white py-2 px-4 rounded-lg shadow-lg"; document.body.appendChild(toast); setTimeout(()=>toast.remove(),3000); debouncedSave();
-      } else { alert(data.error || "Error adding employee"); }
-    }catch(err){ alert("Failed to add employee"); }
+
+  form?.addEventListener("submit",async(e)=>{
+    e.preventDefault();
+    const formData=Object.fromEntries(new FormData(form).entries());
+    try{
+      const res=await fetch("{{ url_for('quick_add_employee') }}",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(formData)});
+      const data=await res.json();
+      if(data.success){
+        const opt=document.createElement("option");
+        opt.value=data.id; opt.textContent=data.display_name; opt.selected=true;
+        employeeSelect.appendChild(opt);
+        const hiddenName=document.getElementById('employee_name');
+        if(hiddenName) hiddenName.value=data.display_name;
+        form.reset(); modal.classList.add("hidden"); modal.classList.remove("flex");
+        const toast=document.createElement("div");
+        toast.textContent="✅ Employee added successfully";
+        toast.className="fixed bottom-4 right-4 bg-[#005b5a] text-white py-2 px-4 rounded-lg shadow-lg";
+        document.body.appendChild(toast); setTimeout(()=>toast.remove(),3000);
+        debouncedSave();
+      } else {
+        alert(data.error || "Error adding employee");
+      }
+    }catch(err){
+      alert("Failed to add employee");
+    }
   });
 });
 </script>

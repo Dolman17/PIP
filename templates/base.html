@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}Ellipse HR System{% endblock %}</title>
@@ -54,12 +57,16 @@
       <a href="{{ url_for('home') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">⬅ Back to Module Selection</a>
 
       {% if active_module == 'PIP' %}
-        <a href="{{ url_for('create_pip_wizard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">➕ Start New PIP</a>
+        <a href="{{ url_for('create_pip_wizard') }}"
+           class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray {% if request.endpoint == 'create_pip_wizard' %}bg-ellipse-light font-semibold text-ellipse-teal{% endif %}">
+          ➕ Start New PIP (Wizard)
+        </a>
         <a href="{{ url_for('employee_list') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">👥 All Employees</a>
         <a href="{{ url_for('pip_list') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">📋 View All PIPs</a>
         <a href="{{ url_for('dashboard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">📊 Dashboard</a>
       {% elif active_module == 'Probation' %}
         <a href="{{ url_for('create_probation', employee_id=1) }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">➕ Start Probation</a>
+        <a href="{{ url_for('probation_create_wizard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray {% if request.endpoint == 'probation_create_wizard' %}bg-ellipse-light font-semibold text-ellipse-teal{% endif %}">🧭 Start Probation (Wizard)</a>
         <a href="{{ url_for('probation_employee_list') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">👥 All Employees</a>
         <a href="{{ url_for('probation_dashboard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">📊 Probation Dashboard</a>
       {% endif %}

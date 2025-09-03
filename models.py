@@ -2,7 +2,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
 from sqlalchemy.dialects.sqlite import JSON
-
+from sqlalchemy.sql import func
+import json  # needed for ImportJob.errors()
 
 db = SQLAlchemy()
 
@@ -20,6 +21,7 @@ class User(db.Model, UserMixin):
     def is_superuser(self):
         return self.admin_level == 2
 
+
 class Employee(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(100))
@@ -31,14 +33,16 @@ class Employee(db.Model):
     team_id = db.Column(db.Integer)
     email = db.Column(db.String(120), nullable=True)
 
-
     pips = db.relationship('PIPRecord', back_populates='employee', lazy=True)
+
 
 class PIPRecord(db.Model):
     __tablename__ = 'pip_record'
 
     id = db.Column(db.Integer, primary_key=True)
     employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=False)
+
+    # Core PIP fields
     concerns = db.Column(db.Text, nullable=False)
     start_date = db.Column(db.Date, nullable=False)
     review_date = db.Column(db.Date, nullable=False)
@@ -47,16 +51,39 @@ class PIPRecord(db.Model):
     created_by = db.Column(db.String(100))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Legacy/simple AI field (kept for backward compatibility)
     ai_advice = db.Column(db.Text)
     ai_advice_generated_at = db.Column(db.DateTime)
+
+    # Invitation (capability/initial meeting) details used by the Invite letter
     capability_meeting_date = db.Column(db.DateTime, nullable=True)
     capability_meeting_time = db.Column(db.String, nullable=True)
     capability_meeting_venue = db.Column(db.String, nullable=True)
+
+    # Classification / tagging
     concern_category = db.Column(db.String(100))
     severity = db.Column(db.String(50))
     frequency = db.Column(db.String(50))
     tags = db.Column(db.Text)
 
+    # -------- New AI-integrated structured fields for documents --------
+    # High-level AI narrative summary to include in letters
+    ai_summary = db.Column(db.Text, nullable=True)
+
+    # Raw structured suggestions returned by AI (list[dict] or list[str])
+    ai_action_suggestions = db.Column(JSON, nullable=True)
+
+    # “Next up” nudges from AI (list[dict] or list[str])
+    ai_next_up = db.Column(JSON, nullable=True)
+
+    # Subset of suggestions the manager accepted for the plan (list[dict] or list[str])
+    ai_actions_accepted = db.Column(JSON, nullable=True)
+
+    # Outcome fields for the outcome letter
+    outcome_status = db.Column(db.String(50), nullable=True)  # e.g., Successful, Extended, Unsuccessful
+    outcome_notes = db.Column(db.Text, nullable=True)
+    # -------------------------------------------------------------------
 
     # Relationships
     employee = db.relationship('Employee', back_populates='pips')
@@ -73,6 +100,7 @@ class PIPRecord(db.Model):
         lazy=True
     )
 
+
 class PIPActionItem(db.Model):
     __tablename__ = 'pip_action_item'
 
@@ -86,6 +114,7 @@ class PIPActionItem(db.Model):
         'PIPRecord',
         back_populates='action_items'
     )
+
 
 class TimelineEvent(db.Model):
     __tablename__ = 'timeline_event'
@@ -139,7 +168,6 @@ class ProbationPlan(db.Model):
     outcome = db.Column(db.String(100))  # e.g., Met, Not Met, Ongoing
 
 
-
 class DraftPIP(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
@@ -151,7 +179,23 @@ class DraftPIP(db.Model):
 
     user = db.relationship('User', backref='draft_pips')
 
-# models.py (or inside app.py where your models live)
+
+class DraftProbation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    employee_id = db.Column(db.Integer, nullable=True)
+    step = db.Column(db.Integer, default=1)
+    name = db.Column(db.String(120), default="Untitled Probation Draft")
+    payload = db.Column(db.JSON, default={})  # store step data incrementally
+    is_dismissed = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
+    updated_at = db.Column(db.DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    __table_args__ = (
+        db.Index('ix_probation_draft_user_active', 'user_id', 'is_dismissed'),
+    )
+
+
 class ImportJob(db.Model):
     __tablename__ = 'import_jobs'
     id = db.Column(db.Integer, primary_key=True)
@@ -161,7 +205,7 @@ class ImportJob(db.Model):
     total_rows = db.Column(db.Integer, nullable=False)
     imported_rows = db.Column(db.Integer, nullable=False, default=0)
     skipped_rows = db.Column(db.Integer, nullable=False, default=0)
-    errors_json = db.Column(db.Text, nullable=True) # store per-row errors / warnings
+    errors_json = db.Column(db.Text, nullable=True)  # store per-row errors / warnings
 
     def errors(self):
         try:

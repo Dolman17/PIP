@@ -1,0 +1,667 @@
+{% extends "base.html" %}
+{% block title %}Create Probation – Wizard{% endblock %}
+
+{% block content %}
+{# --- Safe CSRF extraction for this page (works even if base.html doesn't inject it) --- #}
+{% set _csrf = csrf_token() if csrf_token is defined else '' %}
+<meta name="csrf-token" content="{{ _csrf }}"/>
+
+<div class="max-w-5xl mx-auto px-4 py-8">
+  <!-- Header -->
+  <div class="flex items-start justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-semibold text-gray-900">Create Probation – Wizard</h1>
+      <p class="text-sm text-gray-600 mt-1">Step-by-step setup for a new probation record. Fields and styling match Ellipse HR branding.</p>
+    </div>
+
+    <!-- Draft name + autosave indicator -->
+    <div class="text-right">
+      <div class="flex items-center gap-2 justify-end">
+        <input id="draft-name" type="text" value="{{ draft.name if draft else 'Untitled Probation Draft' }}" class="border rounded-lg px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-teal-600"/>
+        <span id="autosave-status" class="text-xs text-gray-500">{% if draft and draft.updated_at %}Last saved {{ draft.updated_at.strftime('%Y-%m-%d %H:%M') }}{% else %}Not saved yet{% endif %}</span>
+      </div>
+      <div class="text-xs text-gray-500 mt-1">Drafts auto-save as you go.</div>
+    </div>
+  </div>
+
+  <!-- Stepper -->
+  <ol id="stepper" class="grid grid-cols-6 gap-2 mb-8">
+    {% set steps = [
+      'Setup',
+      'Concerns',
+      'Standards & Evidence',
+      'Actions & Support',
+      'Reviews',
+      'Review & Submit'
+    ] %}
+    {% for label in steps %}
+      {% set idx = loop.index %}
+      <li class="group">
+        <button type="button" data-step="{{ idx }}" class="step-btn w-full flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm transition shadow-sm bg-white border-gray-200 text-gray-600 hover:border-teal-600" aria-label="Go to step {{ idx }}: {{ label }}">
+          <span class="inline-flex items-center justify-center w-6 h-6 rounded-full border text-xs step-index">{{ idx }}</span>
+          <span class="truncate">{{ label }}</span>
+        </button>
+      </li>
+    {% endfor %}
+  </ol>
+
+  <!-- Card -->
+  <div class="bg-white rounded-2xl shadow p-6">
+    <!-- Step containers -->
+    
+    <!-- STEP 1: Setup -->
+<section id="step-1" class="wizard-step space-y-5">
+  <h2 class="text-lg font-medium text-gray-900">1) Employee & Probation Setup</h2>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+      <label class="block text-sm text-gray-700 mb-1">Employee</label>
+      <select id="employee_id" class="w-full border rounded-lg px-3 py-2">
+        <option value="">Select an employee…</option>
+        {% if employees %}
+          {% for e in employees %}
+            {% set is_selected =
+               (draft and draft.employee_id == e.id) or
+               (preselect_employee_id and preselect_employee_id == e.id) %}
+            <option value="{{ e.id }}" {% if is_selected %}selected{% endif %}>
+              {{ e.first_name }} {{ e.last_name }}{% if e.job_title %} ({{ e.job_title }}){% endif %}
+            </option>
+          {% endfor %}
+        {% endif %}
+      </select>
+      <p class="text-xs text-gray-500 mt-1">If the employee isn’t listed, use your existing quick-add flow, then return here.</p>
+      <p class="text-xs text-red-600 mt-1 hidden" data-err="employee_id"></p>
+    </div>
+
+    <div>
+      <label class="block text-sm text-gray-700 mb-1">Role Title</label>
+      <input id="role_title" type="text" class="w-full border rounded-lg px-3 py-2" placeholder="e.g., Support Worker" />
+    </div>
+
+    <div>
+      <label class="block text-sm text-gray-700 mb-1">Manager Name</label>
+      <input id="manager_name" type="text" class="w-full border rounded-lg px-3 py-2" placeholder="Line manager" />
+    </div>
+
+    <div>
+      <label class="block text-sm text-gray-700 mb-1">Service / Location</label>
+      <input id="service" type="text" class="w-full border rounded-lg px-3 py-2" placeholder="Service / team" />
+    </div>
+
+    <div>
+      <label class="block text-sm text-gray-700 mb-1">Probation Start</label>
+      <input id="probation_start" type="date" class="w-full border rounded-lg px-3 py-2" />
+      <p class="text-xs text-red-600 mt-1 hidden" data-err="probation_start"></p>
+    </div>
+
+    <div>
+      <label class="block text-sm text-gray-700 mb-1">Probation End</label>
+      <input id="probation_end" type="date" class="w-full border rounded-lg px-3 py-2" />
+      <p class="text-xs text-red-600 mt-1 hidden" data-err="probation_end"></p>
+    </div>
+
+    <div>
+      <label class="block text-sm text-gray-700 mb-1">Length (weeks)</label>
+      <input id="length_weeks" type="number" min="1" class="w-full border rounded-lg px-3 py-2" placeholder="e.g., 12" />
+    </div>
+  </div>
+</section>
+    <!-- STEP 2: Concerns -->
+    <section id="step-2" class="wizard-step space-y-5 hidden">
+      <h2 class="text-lg font-medium text-gray-900">2) Concerns, Categories & Tags</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-gray-700 mb-1">Concern Category</label>
+          <select id="concern_category" class="w-full border rounded-lg px-3 py-2">
+            <option value="">Select a category…</option>
+            {% if concern_categories %}
+              {% for c in concern_categories %}
+                <option value="{{ c }}">{{ c }}</option>
+              {% endfor %}
+            {% else %}
+              <option value="Performance">Performance</option>
+              <option value="Conduct">Conduct</option>
+              <option value="Attendance">Attendance</option>
+              <option value="Compliance">Compliance</option>
+              <option value="Quality">Quality</option>
+            {% endif %}
+          </select>
+          <p class="text-xs text-gray-500 mt-1">Pick one, or add tags instead.</p>
+          <p class="text-xs text-red-600 mt-1 hidden" data-err="concern_category"></p>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-700 mb-1">Tags</label>
+          <input id="tags" type="text" class="w-full border rounded-lg px-3 py-2" placeholder="Comma-separated (e.g., punctuality, documentation)" />
+        </div>
+        <div>
+          <label class="block text-sm text-gray-700 mb-1">Severity</label>
+          <select id="severity" class="w-full border rounded-lg px-3 py-2">
+            <option value="Low">Low</option>
+            <option value="Moderate">Moderate</option>
+            <option value="High">High</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-700 mb-1">Frequency</label>
+          <select id="frequency" class="w-full border rounded-lg px-3 py-2">
+            <option value="Occasional">Occasional</option>
+            <option value="Recurring">Recurring</option>
+            <option value="Persistent">Persistent</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-700 mb-1">Summary of Concerns</label>
+        <textarea id="summary_of_concerns" rows="5" class="w-full border rounded-lg px-3 py-2" placeholder="Brief summary of areas needing improvement"></textarea>
+      </div>
+    </section>
+
+    <!-- STEP 3: Standards & Evidence -->
+    <section id="step-3" class="wizard-step space-y-5 hidden">
+      <h2 class="text-lg font-medium text-gray-900">3) Standards & Evidence</h2>
+      <div>
+        <label class="block text-sm text-gray-700 mb-1">Expected Standards</label>
+        <textarea id="expected_standards" rows="6" class="w-full border rounded-lg px-3 py-2" placeholder="Define minimum acceptable performance standards for the role"></textarea>
+        <p class="text-xs text-red-600 mt-1 hidden" data-err="expected_standards"></p>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-700 mb-1">Evidence Notes</label>
+        <textarea id="evidence_notes" rows="4" class="w-full border rounded-lg px-3 py-2" placeholder="Key incidents, observations, audits, or feedback"></textarea>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-700 mb-1">Manager-only Notes (confidential)</label>
+        <textarea id="manager_only_notes" rows="4" class="w-full border rounded-lg px-3 py-2" placeholder="Visible only to managers/admins"></textarea>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-700 mb-1">Attachments</label>
+        <input id="attachments" type="file" multiple class="w-full border rounded-lg px-3 py-2" />
+        <p class="text-xs text-gray-500 mt-1">Uploads are saved when you submit; for autosave, we store filenames only.</p>
+      </div>
+    </section>
+
+    <!-- STEP 4: Actions & Support -->
+    <section id="step-4" class="wizard-step space-y-5 hidden">
+      <h2 class="text-lg font-medium text-gray-900">4) Improvement Actions & Support</h2>
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="font-medium text-gray-800">Action Items</h3>
+          <button id="add-action" type="button" class="px-3 py-1.5 rounded-xl border border-gray-300 hover:border-teal-600 hover:text-teal-700">+ Add action</button>
+        </div>
+        <div id="action-list" class="space-y-3"></div>
+        <p class="text-xs text-red-600 hidden" data-err="action_items"></p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-gray-700 mb-1">Training / Coaching Support</label>
+          <textarea id="training_coaching_support" rows="4" class="w-full border rounded-lg px-3 py-2" placeholder="Suggested training, mentoring, buddying"></textarea>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-700 mb-1">Resources Needed</label>
+          <textarea id="resources_needed" rows="4" class="w-full border rounded-lg px-3 py-2" placeholder="Tools, time, materials required"></textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 5: Review Schedule -->
+    <section id="step-5" class="wizard-step space-y-5 hidden">
+      <h2 class="text-lg font-medium text-gray-900">5) Review Schedule & Reviewer</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-gray-700 mb-1">Reviewer</label>
+          <input id="reviewer" type="text" class="w-full border rounded-lg px-3 py-2" placeholder="Reviewer name or username" />
+        </div>
+        <div>
+          <label class="block text-sm text-gray-700 mb-1">Reminder Preferences</label>
+          <select id="reminder_preferences" class="w-full border rounded-lg px-3 py-2">
+            <option value="None">None</option>
+            <option value="Email">Email</option>
+            <option value="Dashboard">Dashboard</option>
+            <option value="Both">Both</option>
+          </select>
+        </div>
+      </div>
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          <h3 class="font-medium text-gray-800">Review Dates</h3>
+          <button id="add-review-date" type="button" class="px-3 py-1.5 rounded-xl border border-gray-300 hover:border-teal-600 hover:text-teal-700">+ Add date</button>
+        </div>
+        <div id="review-dates" class="space-y-2"></div>
+        <p class="text-xs text-red-600 hidden" data-err="review_dates"></p>
+      </div>
+    </section>
+
+    <!-- STEP 6: Review & Submit -->
+    <section id="step-6" class="wizard-step space-y-5 hidden">
+      <h2 class="text-lg font-medium text-gray-900">6) Review & Submit</h2>
+      <div class="rounded-xl border border-gray-200 p-4">
+        <div id="summary" class="text-sm text-gray-800 space-y-2">
+          <!-- Filled by JS from draft payload -->
+        </div>
+      </div>
+      <div class="flex items-center justify-between">
+        <div class="text-xs text-gray-500">Submitting will create the probation record using your existing backend route. Attachments (if any) will be uploaded at this stage.</div>
+        <button id="final-submit" type="button" class="bg-teal-700 hover:bg-teal-800 text-white px-5 py-2 rounded-xl shadow">Create Probation</button>
+      </div>
+    </section>
+
+    <!-- Nav buttons -->
+    <div class="mt-8 flex items-center justify-between">
+      <button id="btn-prev" type="button" class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:border-teal-600">Back</button>
+      <div class="flex items-center gap-3">
+        <button id="btn-save" type="button" class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:border-teal-600">Save</button>
+        <button id="btn-next" type="button" class="bg-teal-700 hover:bg-teal-800 text-white px-5 py-2 rounded-xl shadow">Next</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/*************************
+ * Probation Wizard (JS)
+ * - Autosave to /probation/save_draft
+ * - Validate per step via /probation/validate_wizard_step
+ * - One active draft per user (server-enforced)
+ *************************/
+
+// ---- CSRF (from meta OR server-injected fallback) ----
+const CSRF_TOKEN_FALLBACK = "{{ _csrf }}";
+
+// ---- Config & State ----
+const DRAFT_ID_INIT = {{ draft.id if draft else 'null' }};
+const DRAFT_STEP_INIT = {{ draft.step if draft else 1 }};
+const INITIAL_PAYLOAD = {{ (draft.payload or {}) | tojson | safe if draft else '{}' }};
+const MODULE = 'Probation';
+
+let draftId = DRAFT_ID_INIT;
+let currentStep = Number(DRAFT_STEP_INIT || 1);
+let payload = normalizePayload(INITIAL_PAYLOAD); // {"1": {...}, "2": {...}, ...}
+
+// Try to pick up CSRF token (meta preferred; fallback to server string)
+function getCsrf() {
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  return (meta && meta.getAttribute('content')) || CSRF_TOKEN_FALLBACK || null;
+}
+
+function headersJSON() {
+  const h = { 'Content-Type': 'application/json' };
+  const csrf = getCsrf();
+  if (csrf) h['X-CSRFToken'] = csrf;
+  return h;
+}
+
+// ---- DOM helpers ----
+const qs = (s, el=document) => el.querySelector(s);
+const qsa = (s, el=document) => Array.from(el.querySelectorAll(s));
+
+function showStep(step) {
+  qsa('.wizard-step').forEach(sec => sec.classList.add('hidden'));
+  const target = qs(`#step-${step}`);
+  if (target) target.classList.remove('hidden');
+  currentStep = step;
+  updateStepperUI();
+  if (step === 6) renderSummary();
+}
+
+function updateStepperUI() {
+  qsa('#stepper .step-btn').forEach(btn => {
+    const s = Number(btn.getAttribute('data-step'));
+    const idx = btn.querySelector('.step-index');
+    // Reset
+    btn.classList.remove('border-teal-600', 'text-teal-700');
+    idx.classList.remove('bg-teal-700', 'text-white', 'border-teal-700');
+
+    if (s < currentStep) {
+      idx.classList.add('bg-teal-700','text-white','border-teal-700');
+    } else if (s === currentStep) {
+      btn.classList.add('border-teal-600','text-teal-700');
+      idx.classList.add('bg-teal-700','text-white','border-teal-700');
+    }
+  });
+}
+
+function normalizePayload(p) {
+  if (!p || typeof p !== 'object') return {};
+  const out = {};
+  Object.keys(p).forEach(k => {
+    out[String(k)] = p[k] || {};
+  });
+  return out;
+}
+
+// ---- Collectors per step ----
+function collectStepData(step) {
+  const data = {};
+  if (step === 1) {
+    data.employee_id = qs('#employee_id').value || '';
+    data.role_title = qs('#role_title').value || '';
+    data.manager_name = qs('#manager_name').value || '';
+    data.service = qs('#service').value || '';
+    data.probation_start = qs('#probation_start').value || '';
+    data.probation_end = qs('#probation_end').value || '';
+    data.length_weeks = qs('#length_weeks').value || '';
+  } else if (step === 2) {
+    data.concern_category = qs('#concern_category').value || '';
+    data.tags = (qs('#tags').value || '').split(',').map(s => s.trim()).filter(Boolean);
+    data.severity = qs('#severity').value || 'Low';
+    data.frequency = qs('#frequency').value || 'Occasional';
+    data.summary_of_concerns = qs('#summary_of_concerns').value || '';
+  } else if (step === 3) {
+    data.expected_standards = qs('#expected_standards').value || '';
+    data.evidence_notes = qs('#evidence_notes').value || '';
+    data.manager_only_notes = qs('#manager_only_notes').value || '';
+    // For autosave, we store file names only (uploads occur on submit)
+    const files = qs('#attachments').files;
+    data.attachments = Array.from(files || []).map(f => f.name);
+  } else if (step === 4) {
+    data.action_items = qsa('[data-action-row]').map(row => ({
+      owner: qs('[data-field="owner"]', row).value || '',
+      action: qs('[data-field="action"]', row).value || '',
+      metric: qs('[data-field="metric"]', row).value || '',
+      due_date: qs('[data-field="due_date"]', row).value || ''
+    })).filter(a => a.owner || a.action || a.metric || a.due_date);
+    data.training_coaching_support = qs('#training_coaching_support').value || '';
+    data.resources_needed = qs('#resources_needed').value || '';
+  } else if (step === 5) {
+    data.reviewer = qs('#reviewer').value || '';
+    data.reminder_preferences = qs('#reminder_preferences').value || 'None';
+    data.review_dates = qsa('[data-review-date]').map(inp => inp.value).filter(Boolean);
+  }
+  return data;
+}
+
+function setStepData(step, data) {
+  const d = data || {};
+  if (step === 1) {
+    if (d.employee_id) qs('#employee_id').value = d.employee_id;
+    if (d.role_title) qs('#role_title').value = d.role_title;
+    if (d.manager_name) qs('#manager_name').value = d.manager_name;
+    if (d.service) qs('#service').value = d.service;
+    if (d.probation_start) qs('#probation_start').value = d.probation_start;
+    if (d.probation_end) qs('#probation_end').value = d.probation_end;
+    if (d.length_weeks) qs('#length_weeks').value = d.length_weeks;
+  } else if (step === 2) {
+    if (d.concern_category) qs('#concern_category').value = d.concern_category;
+    if (Array.isArray(d.tags)) qs('#tags').value = d.tags.join(', ');
+    if (d.severity) qs('#severity').value = d.severity;
+    if (d.frequency) qs('#frequency').value = d.frequency;
+    if (d.summary_of_concerns) qs('#summary_of_concerns').value = d.summary_of_concerns;
+  } else if (step === 3) {
+    if (d.expected_standards) qs('#expected_standards').value = d.expected_standards;
+    if (d.evidence_notes) qs('#evidence_notes').value = d.evidence_notes;
+    if (d.manager_only_notes) qs('#manager_only_notes').value = d.manager_only_notes;
+    // attachments restored only as names (cannot repopulate file inputs for security)
+  } else if (step === 4) {
+    // rebuild action list
+    const list = qs('#action-list');
+    list.innerHTML = '';
+    (d.action_items || []).forEach(addActionRow);
+  } else if (step === 5) {
+    if (d.reviewer) qs('#reviewer').value = d.reviewer;
+    if (d.reminder_preferences) qs('#reminder_preferences').value = d.reminder_preferences;
+    const holder = qs('#review-dates');
+    holder.innerHTML = '';
+    (d.review_dates || []).forEach(val => addReviewDate(val));
+  }
+}
+
+// ---- Row builders ----
+function addActionRow(prefill) {
+  const list = qs('#action-list');
+  const row = document.createElement('div');
+  row.setAttribute('data-action-row', '');
+  row.className = 'grid grid-cols-1 md:grid-cols-4 gap-2 border rounded-xl p-3';
+  row.innerHTML = `
+    <input data-field="owner" type="text" class="border rounded-lg px-3 py-2" placeholder="Owner" value="${(prefill?.owner||'').replace(/"/g,'&quot;')}" />
+    <input data-field="action" type="text" class="border rounded-lg px-3 py-2 md:col-span-2" placeholder="Action" value="${(prefill?.action||'').replace(/"/g,'&quot;')}" />
+    <input data-field="metric" type="text" class="border rounded-lg px-3 py-2" placeholder="Success metric" value="${(prefill?.metric||'').replace(/"/g,'&quot;')}" />
+    <input data-field="due_date" type="date" class="border rounded-lg px-3 py-2" value="${prefill?.due_date||''}" />
+    <div class="md:col-span-4 flex justify-end">
+      <button type="button" class="text-xs text-gray-600 hover:text-red-600" onclick="this.closest('[data-action-row]').remove()">Remove</button>
+    </div>
+  `;
+  list.appendChild(row);
+}
+
+function addReviewDate(prefill) {
+  const holder = qs('#review-dates');
+  const wrap = document.createElement('div');
+  wrap.className = 'flex items-center gap-2';
+  wrap.innerHTML = `
+    <input data-review-date type="date" class="border rounded-lg px-3 py-2" value="${prefill||''}" />
+    <button type="button" class="text-xs text-gray-600 hover:text-red-600" onclick="this.parentElement.remove()">Remove</button>
+  `;
+  holder.appendChild(wrap);
+}
+
+// ---- Autosave & Validation ----
+let saveTimer = null;
+function scheduleAutosave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => doSave(currentStep), 600);
+}
+
+function setAutosaveStatus(text) {
+  const el = qs('#autosave-status');
+  if (el) el.textContent = text;
+}
+
+async function doSave(step) {
+  // Merge current step
+  payload[String(step)] = collectStepData(step);
+
+  try {
+    const body = { draft_id: draftId, step, payload: payload[String(step)], employee_id: payload['1']?.employee_id };
+    const res = await fetch('/probation/save_draft', {
+      method: 'POST',
+      headers: headersJSON(),
+      body: JSON.stringify(body)
+    });
+    const j = await res.json();
+    if (j.ok) {
+      draftId = j.draft_id;
+      const when = new Date(j.saved_at);
+      setAutosaveStatus('Saved ' + when.toLocaleString());
+    } else {
+      setAutosaveStatus('Save failed');
+    }
+  } catch (e) {
+    setAutosaveStatus('Save failed');
+  }
+}
+
+async function validate(step) {
+  const data = collectStepData(step);
+  const res = await fetch('/probation/validate_wizard_step', {
+    method: 'POST',
+    headers: headersJSON(),
+    body: JSON.stringify({ step, payload: data })
+  });
+  const j = await res.json();
+  // Clear previous errors
+  qsa('[data-err]').forEach(el => el.classList.add('hidden'));
+  if (!j.ok) {
+    Object.entries(j.errors || {}).forEach(([k, msg]) => {
+      const el = qs(`[data-err="${k}"]`);
+      if (el) { el.textContent = msg; el.classList.remove('hidden'); }
+    });
+  }
+  return j.ok;
+}
+
+// ---- Summary ----
+function renderSummary() {
+  // Flatten
+  const flat = Object.keys(payload).sort((a,b)=>Number(a)-Number(b)).reduce((acc,k)=>({ ...acc, ...(payload[k]||{}) }), {});
+  const s = qs('#summary');
+  const lines = [];
+  lines.push(`<div><span class="font-medium">Employee:</span> ${escapeHTML(getEmployeeName())} (ID: ${escapeHTML(flat.employee_id || '')})</div>`);
+  lines.push(`<div><span class="font-medium">Probation:</span> ${escapeHTML(flat.probation_start||'')} → ${escapeHTML(flat.probation_end||'')} (${escapeHTML(flat.length_weeks||'')} weeks)</div>`);
+  lines.push(`<div><span class="font-medium">Manager:</span> ${escapeHTML(flat.manager_name||'')}</div>`);
+  lines.push(`<div><span class="font-medium">Service:</span> ${escapeHTML(flat.service||'')}</div>`);
+  lines.push('<hr class="my-2"/>');
+  lines.push(`<div><span class="font-medium">Category:</span> ${escapeHTML(flat.concern_category||'')}</div>`);
+  lines.push(`<div><span class="font-medium">Tags:</span> ${(flat.tags||[]).map(escapeHTML).join(', ')}</div>`);
+  lines.push(`<div><span class="font-medium">Severity/Frequency:</span> ${escapeHTML(flat.severity||'')} / ${escapeHTML(flat.frequency||'')}</div>`);
+  lines.push(`<div class="whitespace-pre-wrap"><span class="font-medium">Concerns:</span>\n${escapeHTML(flat.summary_of_concerns||'')}</div>`);
+  lines.push('<hr class="my-2"/>');
+  lines.push(`<div class="whitespace-pre-wrap"><span class="font-medium">Expected Standards:</span>\n${escapeHTML(flat.expected_standards||'')}</div>`);
+  lines.push(`<div class="whitespace-pre-wrap"><span class="font-medium">Evidence Notes:</span>\n${escapeHTML(flat.evidence_notes||'')}</div>`);
+  lines.push(`<div class="whitespace-pre-wrap"><span class="font-medium">Manager-only Notes:</span>\n${escapeHTML(flat.manager_only_notes||'')}</div>`);
+  lines.push(`<div><span class="font-medium">Attachments (names):</span> ${(flat.attachments||[]).map(escapeHTML).join(', ')}</div>`);
+  lines.push('<hr class="my-2"/>');
+  const actions = (flat.action_items||[]).map(a => `• ${escapeHTML(a.owner||'')} – ${escapeHTML(a.action||'')} (metric: ${escapeHTML(a.metric||'')}, due: ${escapeHTML(a.due_date||'')})`).join('\n');
+  lines.push(`<div class="whitespace-pre-wrap"><span class="font-medium">Actions:</span>\n${actions}</div>`);
+  lines.push(`<div class="whitespace-pre-wrap"><span class="font-medium">Training/Coaching:</span>\n${escapeHTML(flat.training_coaching_support||'')}</div>`);
+  lines.push(`<div class="whitespace-pre-wrap"><span class="font-medium">Resources:</span>\n${escapeHTML(flat.resources_needed||'')}</div>`);
+  lines.push('<hr class="my-2"/>');
+  lines.push(`<div><span class="font-medium">Reviewer:</span> ${escapeHTML(flat.reviewer||'')}</div>`);
+  lines.push(`<div><span class="font-medium">Review Dates:</span> ${(flat.review_dates||[]).map(escapeHTML).join(', ')}</div>`);
+  lines.push(`<div><span class="font-medium">Reminder Prefs:</span> ${escapeHTML(flat.reminder_preferences||'None')}</div>`);
+  s.innerHTML = lines.join('');
+}
+
+function escapeHTML(s) {
+  return (s||'').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+}
+
+function getEmployeeName() {
+  const sel = qs('#employee_id');
+  if (!sel) return '';
+  const opt = sel.selectedOptions[0];
+  return opt ? opt.textContent : '';
+}
+
+// ---- Event wiring ----
+qsa('#stepper .step-btn').forEach(btn => btn.addEventListener('click', async () => {
+  const s = Number(btn.getAttribute('data-step'));
+  // Save current step before jumping
+  await doSave(currentStep);
+  showStep(s);
+}));
+
+qs('#btn-prev').addEventListener('click', () => {
+  if (currentStep > 1) showStep(currentStep - 1);
+});
+
+qs('#btn-next').addEventListener('click', async () => {
+  // Validate current step
+  const ok = await validate(currentStep);
+  if (!ok) return;
+  await doSave(currentStep);
+  if (currentStep < 6) showStep(currentStep + 1);
+});
+
+qs('#btn-save').addEventListener('click', () => doSave(currentStep));
+
+// Autosave on input changes
+qsa('input, select, textarea').forEach(el => {
+  el.addEventListener('input', scheduleAutosave);
+  el.addEventListener('change', scheduleAutosave);
+});
+
+qs('#draft-name').addEventListener('change', () => {
+  // treat name as part of step 1 payload for simplicity
+  payload['1'] = payload['1'] || {};
+  payload['1'].draft_name = qs('#draft-name').value || 'Untitled Probation Draft';
+  scheduleAutosave();
+});
+
+// Action rows
+qs('#add-action').addEventListener('click', () => addActionRow());
+
+// Review dates
+qs('#add-review-date').addEventListener('click', () => addReviewDate(''));
+
+// Final submit → post to existing /probation/create/<employee_id>
+qs('#final-submit').addEventListener('click', async () => {
+  // Validate step 5 as a minimum before submit
+  const ok5 = await validate(5);
+  if (!ok5) { showStep(5); return; }
+  await doSave(6); // ensure latest save
+
+  const flat = flattenPayload();
+  const employeeId = flat.employee_id || (payload['1'] && payload['1'].employee_id);
+  if (!employeeId) { alert('Please select an employee in Step 1.'); showStep(1); return; }
+
+  // Sends fields to your existing route
+  postToCreateRoute(employeeId, flat);
+});
+
+// ---- Initialize ----
+(function init() {
+  // Restore any existing data into fields
+  for (let s = 1; s <= 6; s++) setStepData(s, payload[String(s)]);
+  // Ensure minimum one row for actions & reviews when empty
+  if (!qs('#action-list').children.length) addActionRow();
+  if (!qs('#review-dates').children.length) addReviewDate('');
+  // Clamp step and show
+  const s = Math.min(Math.max(currentStep, 1), 6);
+  showStep(s);
+})();
+
+// ---- Helpers for submit ----
+function flattenPayload() {
+  const flat = {};
+  Object.keys(payload).forEach(k => Object.assign(flat, payload[k]||{}));
+  return flat;
+}
+
+function postToCreateRoute(employeeId, data) {
+  // Build a form with hidden inputs to post standard fields
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = `/probation/create/${encodeURIComponent(employeeId)}`;
+
+  // Add csrf token as hidden field (server will look for 'csrf_token')
+  const csrf = getCsrf();
+  if (csrf) {
+    const t = document.createElement('input');
+    t.type = 'hidden'; t.name = 'csrf_token'; t.value = csrf;
+    form.appendChild(t);
+  }
+
+  function add(name, value) {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = name; input.value = value;
+    form.appendChild(input);
+  }
+
+  // Core setup
+  add('role_title', data.role_title || '');
+  add('manager_name', data.manager_name || '');
+  add('service', data.service || '');
+  add('probation_start', data.probation_start || '');
+  add('probation_end', data.probation_end || '');
+  add('length_weeks', data.length_weeks || '');
+
+  // Concerns
+  add('concern_category', data.concern_category || '');
+  add('tags', (data.tags||[]).join(','));
+  add('severity', data.severity || '');
+  add('frequency', data.frequency || '');
+  add('summary_of_concerns', data.summary_of_concerns || '');
+
+  // Standards/Evidence
+  add('expected_standards', data.expected_standards || '');
+  add('evidence_notes', data.evidence_notes || '');
+  add('manager_only_notes', data.manager_only_notes || '');
+  add('attachments_names', (data.attachments||[]).join(','));
+
+  // Actions
+  add('action_items_json', JSON.stringify(data.action_items || []));
+  add('training_coaching_support', data.training_coaching_support || '');
+  add('resources_needed', data.resources_needed || '');
+
+  // Reviews
+  add('reviewer', data.reviewer || '');
+  add('review_dates', (data.review_dates||[]).join(','));
+  add('reminder_preferences', data.reminder_preferences || 'None');
+
+  document.body.appendChild(form);
+  form.submit();
+}
+</script>
+{% endblock %}
