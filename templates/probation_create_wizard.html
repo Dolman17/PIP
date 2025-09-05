@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto p-6">
+  <div class="rounded-xl border border-slate-200 bg-white p-8 shadow-sm text-center">
+    <h1 class="text-2xl font-semibold text-slate-900">🧭 Probation Wizard</h1>
+    <p class="mt-4 text-slate-600">
+      This is a placeholder for the Probation Wizard.  
+      The functionality will be implemented in a future sprint.
+    </p>
+    <a href="{{ url_for('probation_dashboard') }}"
+       class="mt-6 inline-flex items-center rounded-lg bg-[#0f6b6a] text-white px-4 py-2 hover:bg-[#0c5858]">
+      ← Back to Probation Dashboard
+    </a>
+  </div>
+</div>
+{% endblock %}

@@ -1,62 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
-
-<style>
-  :root{
-    --brand-primary:#005b5a;      /* current ellipse teal */
-    --brand-primary-600:#004746;
-    --brand-bg:#f8fafc;           /* page background */
-    --text:#111827;               /* slate-900 */
-    --muted:#6b7280;              /* gray-500 */
-    --radius:12px;
-  }
-  html:focus-within { scroll-behavior: smooth; }
-  body{ color:var(--text); background:var(--brand-bg); }
-
-  /* Accessible focus ring everywhere (keyboard friendly) */
-  :focus-visible{
-    outline: 2px solid var(--brand-primary);
-    outline-offset: 3px;
-    border-radius: 6px;
-  }
-
-  /* Reduced motion support for micro-interactions */
-  @media (prefers-reduced-motion: reduce){
-    *{ animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; scroll-behavior:auto !important; }
-  }
-
-  /* Utility buttons with subtle micro-interactions */
-  .btn{
-    border-radius: var(--radius);
-    transition: transform .06s ease, box-shadow .12s ease, background-color .12s ease;
-  }
-  .btn:hover{ transform: translateY(-1px); }
-  .btn:active{ transform: translateY(0); }
-
-  /* Mobile niceties */
-  @media (max-width: 640px){
-    .actions-row{ flex-direction: column; gap:.5rem; }
-    .actions-row > *{ width:100%; }
-  }
-
-  /* Stepper: show overflow scroll on small screens */
-  .stepper{ overflow-x:auto; -webkit-overflow-scrolling: touch; }
-</style>
-
-<!-- Skip to content for keyboard / screen reader users -->
-<a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 bg-white px-3 py-2 rounded shadow">Skip to content</a>
-
 <head>
-
-  <meta name="csrf-token" content="{{ csrf_token() }}">
-
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}Ellipse HR System{% endblock %}</title>
 
+  <!-- CSRF (used by forms & JS) -->
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+
   <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/ui.css') }}">
-
 
   <!-- Google Font + Tailwind + Ellipse config -->
   <link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">
@@ -82,69 +35,116 @@
       }
     }
   </script>
+
+  <style>
+    :root{
+      --brand-primary:#005b5a;
+      --brand-primary-600:#004746;
+      --brand-bg:#f8fafc;
+      --text:#111827;
+      --muted:#6b7280;
+      --radius:12px;
+    }
+    html:focus-within { scroll-behavior: smooth; }
+    body{ color:var(--text); background:var(--brand-bg); }
+
+    :focus-visible{
+      outline: 2px solid var(--brand-primary);
+      outline-offset: 3px;
+      border-radius: 6px;
+    }
+    @media (prefers-reduced-motion: reduce){
+      *{ animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; scroll-behavior:auto !important; }
+    }
+    .btn{ border-radius: var(--radius); transition: transform .06s ease, box-shadow .12s ease, background-color .12s ease; }
+    .btn:hover{ transform: translateY(-1px); }
+    .btn:active{ transform: translateY(0); }
+    @media (max-width: 640px){ .actions-row{ flex-direction: column; gap:.5rem; } .actions-row > *{ width:100%; } }
+    .stepper{ overflow-x:auto; -webkit-overflow-scrolling: touch; }
+  </style>
+
+  <!-- Skip link -->
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 bg-white px-3 py-2 rounded shadow">Skip to content</a>
 </head>
 
 <body class="text-ellipse-gray font-sans overflow-x-hidden {% if layout != 'fullscreen' %}bg-ellipse-light min-h-screen{% endif %}">
 
-{% if layout != 'fullscreen' %}
+{% if layout != 'fullscreen' and not hide_sidebar %}
 <div class="flex flex-col md:flex-row min-h-screen">
 
-  {% if active_module %}
-  <!-- Mobile Navbar -->
-  <div class="md:hidden bg-white shadow p-4 flex justify-between items-center">
-    <h1 class="text-lg font-semibold text-ellipse-teal">Ellipse HR</h1>
-    <button id="mobileMenuToggle" class="text-ellipse-teal focus:outline-none">☰</button>
-  </div>
+  {% if current_user.is_authenticated and active_module %}
 
-  <!-- Sidebar -->
-  <aside id="sidebarMenu" class="w-full md:w-64 bg-white shadow-md hidden md:block">
-    <div class="p-6 border-b border-ellipse-light text-center">
-      <img src="{{ url_for('static', filename='images/logo.avif') }}" alt="Ellipse HR Logo" class="h-12 w-auto mx-auto mb-3" />
+    <!-- Mobile Navbar -->
+    <div class="md:hidden bg-white shadow p-4 flex justify-between items-center">
       <h1 class="text-lg font-semibold text-ellipse-teal">Ellipse HR</h1>
+      <button id="mobileMenuToggle" class="text-ellipse-teal focus:outline-none" aria-expanded="false" aria-controls="sidebarMenu">☰</button>
     </div>
 
-    <nav class="p-4 space-y-2 text-sm font-medium">
-      <a href="{{ url_for('home') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">⬅ Back to Module Selection</a>
+    <!-- Backdrop (mobile only) -->
+    <div id="backdrop" class="fixed inset-0 bg-black bg-opacity-50 hidden md:hidden z-30"></div>
 
-      {% if active_module == 'PIP' %}
-        <a href="{{ url_for('create_pip_wizard') }}"
-           class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray {% if request.endpoint == 'create_pip_wizard' %}bg-ellipse-light font-semibold text-ellipse-teal{% endif %}">
-          ➕ Start New PIP (Wizard)
-        </a>
-        <a href="{{ url_for('employee_list') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">👥 All Employees</a>
-        <a href="{{ url_for('pip_list') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">📋 View All PIPs</a>
-        <a href="{{ url_for('dashboard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">📊 Dashboard</a>
-      {% elif active_module == 'Probation' %}
-        <a href="{{ url_for('create_probation', employee_id=1) }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">➕ Start Probation</a>
-        <a href="{{ url_for('probation_create_wizard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray {% if request.endpoint == 'probation_create_wizard' %}bg-ellipse-light font-semibold text-ellipse-teal{% endif %}">🧭 Start Probation (Wizard)</a>
-        <a href="{{ url_for('probation_employee_list') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">👥 All Employees</a>
-        <a href="{{ url_for('probation_dashboard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">📊 Probation Dashboard</a>
-      {% endif %}
+    <!-- Sidebar -->
+    <aside id="sidebarMenu"
+      class="w-64 bg-white shadow-md fixed top-0 left-0 h-screen overflow-y-auto z-40 transform -translate-x-full transition-transform duration-300 ease-in-out md:translate-x-0 md:block">
+      <div class="p-6 border-b border-ellipse-light text-center">
+        <img src="{{ url_for('static', filename='images/logo.avif') }}" alt="Ellipse HR Logo" class="h-12 w-auto mx-auto mb-3" />
+        <h1 class="text-lg font-semibold text-ellipse-teal">Ellipse HR</h1>
+      </div>
 
-      {% if current_user.is_authenticated and current_user.is_superuser() %}
-        <div class="mt-4 mb-1 text-xs uppercase tracking-wide text-gray-500 px-4">Admin Tools</div>
-        <a href="{{ url_for('admin_dashboard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-[#005b5a] {% if request.endpoint == 'admin_dashboard' %}bg-ellipse-light font-semibold{% endif %}">⚙️ Admin Dashboard</a>
-        <a href="{{ url_for('employee_import') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-[#005b5a] {% if request.endpoint == 'employee_import' %}bg-ellipse-light font-semibold{% endif %}">📥 Import Employees</a>
-      {% endif %}
+      <nav class="p-4 space-y-2 text-sm font-medium">
+        <a href="{{ url_for('home') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">⬅ Back to Module Selection</a>
 
-      <a href="{{ url_for('logout') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">🚪 Logout</a>
-    </nav>
-  </aside>
+        {% if active_module == 'PIP' %}
+          <a href="{{ url_for('create_pip_wizard') }}"
+             class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray {% if request.endpoint == 'create_pip_wizard' %}bg-ellipse-light font-semibold text-ellipse-teal{% endif %}">
+            ➕ Start New PIP (Wizard)
+          </a>
+          <a href="{{ url_for('employee_list') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">👥 All Employees</a>
+          <a href="{{ url_for('pip_list') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">📋 View All PIPs</a>
+          <a href="{{ url_for('dashboard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">📊 Dashboard</a>
+        {% elif active_module == 'Probation' %}
+          <a href="{{ url_for('probation_create_wizard') }}"
+          class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray {% if request.endpoint == 'probation_create_wizard' %}bg-ellipse-light font-semibold text-ellipse-teal{% endif %}">
+            🧭 Start Probation (Wizard)
+              </a>
+            <a href="{{ url_for('employee_list') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">
+            👥 All Employees
+              </a>
+                  <a href="{{ url_for('probation_dashboard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">
+                   📊 Probation Dashboard
+                  </a>
+          {% endif %}
+
+
+        {% if current_user.is_superuser() %}
+          <div class="mt-4 mb-1 text-xs uppercase tracking-wide text-gray-500 px-4">Admin Tools</div>
+          <a href="{{ url_for('admin_dashboard') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-[#005b5a] {% if request.endpoint == 'admin_dashboard' %}bg-ellipse-light font-semibold{% endif %}">⚙️ Admin Dashboard</a>
+          <a href="{{ url_for('employee_import') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-[#005b5a] {% if request.endpoint == 'employee_import' %}bg-ellipse-light font-semibold{% endif %}">📥 Import Employees</a>
+        {% endif %}
+
+        <!-- Logout -->
+        <form action="{{ url_for('logout') }}" method="POST" class="px-4">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="w-full text-left px-0 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">🚪 Logout</button>
+        </form>
+      </nav>
+    </aside>
+
   {% endif %}
 {% endif %}
 
 <!-- Main Content -->
-<main class="flex-1">
-  {% if layout != 'fullscreen' and active_module %}
-  <header class="bg-white shadow p-4 flex justify-between items-center border-b border-gray-200">
-    <h2 class="text-lg font-semibold text-ellipse-teal">{% block page_title %}{% endblock %}</h2>
-    <div class="flex items-center space-x-3 text-sm text-gray-500">
-      <span>Logged in as {{ current_user.username }}</span>
-      {% if current_user.is_authenticated and current_user.is_superuser() %}
-        <a href="{{ url_for('admin_dashboard') }}" class="text-ellipse-teal hover:text-ellipse-hover" title="Admin Tools">⚙️</a>
-      {% endif %}
-    </div>
-  </header>
+<main id="main" class="flex-1 {% if not hide_sidebar %}md:ml-64{% endif %}">
+  {% if layout != 'fullscreen' and current_user.is_authenticated and active_module and not hide_sidebar %}
+    <header class="bg-white shadow p-4 flex justify-between items-center border-b border-gray-200">
+      <h2 class="text-lg font-semibold text-ellipse-teal">{% block page_title %}{% endblock %}</h2>
+      <div class="flex items-center space-x-3 text-sm text-gray-500">
+        <span>Logged in as {{ current_user.username }}</span>
+        {% if current_user.is_superuser() %}
+          <a href="{{ url_for('admin_dashboard') }}" class="text-ellipse-teal hover:text-ellipse-hover" title="Admin Tools">⚙️</a>
+        {% endif %}
+      </div>
+    </header>
   {% endif %}
 
   <div class="{% if layout != 'fullscreen' %}p-4 sm:p-6 max-w-7xl mx-auto{% endif %}">
@@ -152,16 +152,17 @@
   </div>
 </main>
 
-{% if layout != 'fullscreen' %}
+{% if layout != 'fullscreen' and not hide_sidebar %}
 </div>
 {% endif %}
 
 <!-- Flash Messages -->
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
-    <div class="mb-4">
+    <div class="max-w-7xl mx-auto p-4">
       {% for category, message in messages %}
-        <div class="p-3 rounded text-sm text-white bg-{{ 'green-600' if category == 'success' else 'red-600' }}">
+        {% set cls = 'bg-green-600' if category == 'success' else ('bg-blue-600' if category == 'info' else ('bg-amber-600' if category == 'warning' else 'bg-red-600')) %}
+        <div class="p-3 rounded text-sm text-white {{ cls }} mb-2">
           {{ message }}
         </div>
       {% endfor %}
@@ -173,11 +174,41 @@
 <script>
   const toggleBtn = document.getElementById('mobileMenuToggle');
   const sidebarMenu = document.getElementById('sidebarMenu');
-  if (toggleBtn) {
-    toggleBtn.addEventListener('click', () => {
-      sidebarMenu.classList.toggle('hidden');
-    });
+  const backdrop = document.getElementById('backdrop');
+
+  function closeSidebar() {
+    sidebarMenu.classList.remove('translate-x-0');
+    sidebarMenu.classList.add('-translate-x-full');
+    backdrop.classList.add('hidden');
+    toggleBtn.setAttribute('aria-expanded', 'false');
   }
+
+  function openSidebar() {
+    sidebarMenu.classList.remove('-translate-x-full');
+    sidebarMenu.classList.add('translate-x-0');
+    backdrop.classList.remove('hidden');
+    toggleBtn.setAttribute('aria-expanded', 'true');
+  }
+
+  if (toggleBtn && sidebarMenu && backdrop) {
+    toggleBtn.addEventListener('click', () => {
+      const isOpen = sidebarMenu.classList.contains('translate-x-0');
+      if (isOpen) {
+        closeSidebar();
+      } else {
+        openSidebar();
+      }
+    });
+    backdrop.addEventListener('click', closeSidebar);
+  }
+
+  // Helper: CSRF header for fetch
+  window.csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+  window.fetchWithCsrf = (url, opts = {}) => {
+    const o = Object.assign({ headers: {} }, opts);
+    o.headers['X-CSRFToken'] = window.csrfToken;
+    return fetch(url, o);
+  };
 </script>
 
 {% block scripts %}{% endblock %}

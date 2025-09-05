@@ -1,18 +1,195 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 {% block content %}
-<h2>Probation Dashboard</h2>
 
-{% if records %}
-    <ul>
-        {% for record in records %}
-            <li>
-                <a href="{{ url_for('view_probation', id=record.id) }}">
-                    {{ record.employee.first_name }} {{ record.employee.last_name }} – Status: {{ record.status }}
-                </a>
-            </li>
-        {% endfor %}
-    </ul>
-{% else %}
-    <p>No probation records found.</p>
-{% endif %}
+<div class="max-w-7xl mx-auto px-4 py-8">
+
+  <!-- Hero / Welcome -->
+  <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#0f6b6a] to-[#0a4d4c] text-white p-6 shadow-lg">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">Probation Dashboard</h1>
+        <p class="text-white/90 mt-1">Overview of current probations and reviews.</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <a href="{{ url_for('probation_create_wizard') }}"
+           class="inline-flex items-center gap-2 rounded-lg bg-white/95 text-[#0f6b6a] hover:bg-white px-4 py-2 font-medium shadow">
+          🧭 Start Probation (Wizard)
+        </a>
+        <a href="{{ url_for('probation_dashboard') }}"
+           class="inline-flex items-center gap-2 rounded-lg border border-white/40 text-white hover:bg-white/10 px-4 py-2">
+          📊 Refresh
+        </a>
+      </div>
+    </div>
+
+    <!-- Quick stats (GLOBAL) -->
+    <div class="mt-6 grid grid-cols-3 md:grid-cols-6 gap-3">
+      <div class="rounded-xl bg-white/10 backdrop-blur p-4 col-span-3 md:col-span-2">
+        <div class="text-sm text-white/80">Active Probations (Global)</div>
+        <div class="text-2xl font-semibold">{{ global_active or 0 }}</div>
+      </div>
+      <div class="rounded-xl bg-white/10 backdrop-blur p-4">
+        <div class="text-sm text-white/80">Completed (Global)</div>
+        <div class="text-2xl font-semibold">{{ global_completed or 0 }}</div>
+      </div>
+      <div class="rounded-xl bg-white/10 backdrop-blur p-4">
+        <div class="text-sm text-white/80">Extended (Global)</div>
+        <div class="text-2xl font-semibold">{{ global_extended or 0 }}</div>
+      </div>
+      <div class="rounded-xl bg-white/10 backdrop-blur p-4">
+        <div class="text-sm text-white/80">Overdue Reviews</div>
+        <div class="text-2xl font-semibold">{{ overdue_reviews or 0 }}</div>
+      </div>
+      <div class="rounded-xl bg-white/10 backdrop-blur p-4">
+        <div class="text-sm text-white/80">Ends in next 14 days</div>
+        <div class="text-2xl font-semibold">{{ due_soon_count or 0 }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Draft resume banner -->
+  {% if draft %}
+  <div class="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-900 p-4 flex items-start gap-4">
+    <div class="text-xl">📄</div>
+    <div class="flex-1">
+      <div class="font-semibold">Probation draft available</div>
+      <div class="text-sm">
+        You have a probation wizard draft in progress{% if draft.updated_at %} (last updated {{ draft.updated_at.strftime('%d %b %Y %H:%M') }} UTC){% endif %}.
+      </div>
+      <div class="mt-3 flex items-center gap-2">
+        <a href="{{ url_for('probation_resume_draft') }}"
+           class="inline-flex items-center gap-2 rounded-md bg-[#0f6b6a] text-white px-3 py-1.5 hover:bg-[#0c5858]">
+          ▶ Resume draft
+        </a>
+        <button id="dismissProbDraftBtn"
+                class="inline-flex items-center gap-2 rounded-md border border-emerald-300 px-3 py-1.5 hover:bg-white">
+          Dismiss
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Active Probations -->
+  <div class="mt-8 rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+      <h3 class="text-base font-semibold text-slate-900">Active Probations</h3>
+      <div class="text-sm text-slate-500">
+        Showing {{ (active_probations|length) or 0 }} record{{ (active_probations|length) == 1 and '' or 's' }}
+      </div>
+    </div>
+
+    {% if active_probations and active_probations|length > 0 %}
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="bg-slate-50 text-slate-600">
+            <th class="text-left px-4 py-3">Employee</th>
+            <th class="text-left px-4 py-3">Start</th>
+            <th class="text-left px-4 py-3">Expected End</th>
+            <th class="text-left px-4 py-3">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in active_probations %}
+          <tr class="border-b border-slate-100 hover:bg-slate-50">
+            <td class="px-4 py-3 font-medium text-slate-900">
+              {{ r.employee.first_name }} {{ r.employee.last_name }}
+            </td>
+            <td class="px-4 py-3">{{ r.start_date.strftime('%d %b %Y') if r.start_date else '—' }}</td>
+            <td class="px-4 py-3">{{ r.expected_end_date.strftime('%d %b %Y') if r.expected_end_date else '—' }}</td>
+            <td class="px-4 py-3">{{ r.status or 'Active' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <div class="p-6 text-center text-slate-500 text-sm">No active probations for your team.</div>
+    {% endif %}
+  </div>
+
+  <!-- Upcoming Reviews (next 14 days) -->
+  <div class="mt-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-lg font-semibold text-slate-900">Upcoming Reviews (Next 14 days)</h2>
+    </div>
+    {% set reviews = upcoming_reviews or [] %}
+    {% if reviews %}
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead>
+            <tr class="bg-slate-50 text-slate-600">
+              <th class="text-left px-4 py-3">Date</th>
+              <th class="text-left px-4 py-3">Employee</th>
+              <th class="text-left px-4 py-3">Reviewer</th>
+              <th class="text-left px-4 py-3">Concerns Flag</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for rev in reviews %}
+            <tr class="border-b border-slate-100 hover:bg-slate-50">
+              <td class="px-4 py-3">{{ rev.review_date.strftime('%d %b %Y') }}</td>
+              <td class="px-4 py-3">{{ rev.probation.employee.first_name }} {{ rev.probation.employee.last_name }}</td>
+              <td class="px-4 py-3">{{ rev.reviewer or '—' }}</td>
+              <td class="px-4 py-3">
+                {% if rev.concerns_flag %}
+                  <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs bg-amber-100 text-amber-800">● Flagged</span>
+                {% else %}
+                  <span class="text-slate-500">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="text-sm text-slate-500">No upcoming probation reviews in the next 14 days.</div>
+    {% endif %}
+  </div>
+
+  <!-- Quick actions -->
+  <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+    <a href="{{ url_for('probation_create_wizard') }}"
+       class="rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition">
+      <div class="text-lg">✨ Start Probation</div>
+      <div class="text-sm text-slate-600">Launch the guided wizard.</div>
+    </a>
+    <a href="{{ url_for('employee_list') }}"
+       class="rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition">
+      <div class="text-lg">👥 Employees</div>
+      <div class="text-sm text-slate-600">Browse and manage employees.</div>
+    </a>
+    <a href="{{ url_for('export_data') }}"
+       class="rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition">
+      <div class="text-lg">⬇ Export data</div>
+      <div class="text-sm text-slate-600">Download a zip of current records.</div>
+    </a>
+  </div>
+
+</div> <!-- /container -->
+
+<!-- Script: dismiss draft -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('dismissProbDraftBtn');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    try {
+      const res = await fetch('{{ url_for("dismiss_probation_draft") }}', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        const banner = btn.closest('.rounded-xl, .rounded-2xl, .rounded');
+        if (banner) banner.remove();
+      } else {
+        alert(data.message || 'Could not dismiss draft.');
+      }
+    } catch {
+      alert('Could not dismiss draft.');
+    }
+  });
+});
+</script>
+
 {% endblock %}

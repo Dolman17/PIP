@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Documents — PIP {{ pip_rec.id }}{% endblock %}
+{% block page_title %}🗂️ Document History{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-semibold">
+      Documents — {{ pip_rec.employee.first_name }} {{ pip_rec.employee.last_name if pip_rec.employee else 'PIP ' ~ pip_rec.id }}
+    </h1>
+    <a href="{{ url_for('pip_detail', id=pip_rec.id) }}" class="underline text-[#005b5a]">← Back to PIP</a>
+  </div>
+
+  <div class="grid gap-4">
+    {% for d in docs %}
+      <div class="bg-white rounded-2xl shadow p-4 border">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-medium">
+              {{ d.doc_type|capitalize }} v{{ d.version }}
+              <span class="text-xs px-2 py-0.5 rounded-full border ml-2">{{ d.status }}</span>
+            </div>
+            <div class="text-sm text-gray-600">
+              Created {{ d.created_at.strftime('%d %b %Y %H:%M') if d.created_at }} by {{ d.created_by or 'system' }}
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <a href="{{ url_for('download_doc', doc_id=d.id) }}" class="px-3 py-1 rounded-2xl border">Download</a>
+            {% if d.status != 'final' %}
+              <a href="{{ url_for('edit_pip_doc', pip_id=pip_rec.id, doc_id=d.id) }}" class="px-3 py-1 rounded-2xl bg-[#005b5a] text-white">Edit</a>
+              <form action="{{ url_for('finalise_pip_doc', pip_id=pip_rec.id, doc_id=d.id) }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="px-3 py-1 rounded-2xl bg-gray-900 text-white" onclick="return confirm('Finalise this document?')">Finalise</button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <p class="text-gray-600">No documents yet. Generate one from the PIP page.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

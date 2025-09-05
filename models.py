@@ -41,6 +41,7 @@ class PIPRecord(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=False)
+    assigned_to = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # NEW
 
     # Core PIP fields
     concerns = db.Column(db.Text, nullable=False)
@@ -87,6 +88,7 @@ class PIPRecord(db.Model):
 
     # Relationships
     employee = db.relationship('Employee', back_populates='pips')
+    assignee = db.relationship('User', backref='assigned_pips')  # NEW
     action_items = db.relationship(
         'PIPActionItem',
         back_populates='pip_record',
@@ -212,3 +214,35 @@ class ImportJob(db.Model):
             return json.loads(self.errors_json or '[]')
         except Exception:
             return []
+
+# --- New Model: DocumentFile ---
+class DocumentFile(db.Model):
+    __tablename__ = "document_files"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Correct FK to pip_record.id
+    pip_id = db.Column(
+        db.Integer,
+        db.ForeignKey("pip_record.id"),
+        index=True,
+        nullable=False,
+    )
+
+    doc_type = db.Column(db.String(32), nullable=False)   # invite | plan | outcome
+    version = db.Column(db.Integer, nullable=False, default=1)
+    status = db.Column(db.String(16), nullable=False, default="draft")
+    docx_path = db.Column(db.String(255), nullable=False)
+    pdf_path = db.Column(db.String(255))
+    html_snapshot = db.Column(db.Text)
+    notes = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_by = db.Column(db.String(120))
+
+    # Relationship back to PIPRecord
+    pip = db.relationship("PIPRecord", backref=db.backref("documents", lazy="dynamic"))
+
+    __table_args__ = (
+        db.UniqueConstraint("pip_id", "doc_type", "version", name="uq_pip_doctype_version"),
+    )
