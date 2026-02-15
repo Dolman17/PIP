@@ -43,17 +43,6 @@ load_dotenv()
 # Use python-docx for templates
 from docx import Document
 
-# Forms (used across routes)
-from forms import (
-    LoginForm,
-    EmployeeForm,
-    PIPForm,
-    ProbationRecordForm,
-    ProbationReviewForm,
-    ProbationPlanForm,
-    UserForm,
-)
-
 # Optional: .xlsx support
 try:
     import openpyxl  # noqa: F401
@@ -259,19 +248,11 @@ from models import (
 db.init_app(app)
 migrate = Migrate(app, db)
 
-# Import blueprints
-from pip_app.blueprints.auth import auth_bp
-from pip_app.blueprints.main import main_bp
-
 # ----- Login manager -----
 login_manager = LoginManager()
-login_manager.login_view = 'auth.login'
+login_manager.login_view = 'login'
 login_manager.login_message_category = 'info'
 login_manager.init_app(app)
-
-# Register blueprints
-app.register_blueprint(auth_bp)
-app.register_blueprint(main_bp)
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -344,65 +325,17 @@ def _replace_in_runs(paragraph, mapping: dict):
         run.text = text
 
 def replace_placeholders_docx(doc: Document, context: dict):
-    """
-    Replace [[PLACEHOLDER]] tokens throughout the document, including
-    tables, headers and footers, in a way that still works when Word
-    splits placeholders across runs.
-
-    - Uses a single mapping dict (including legacy keys).
-    - Adds default [[GENERATED_DATE]] and [[DOC_VERSION]] if not supplied.
-    - Strips any leftover [[UNUSED_PLACEHOLDERS]] so letters don't show raw tokens.
-    """
-    # Build mapping: normalise everything to strings
-    base_ctx = context or {}
-    mapping = {k: ("" if v is None else str(v)) for k, v in base_ctx.items()}
-
-    # Support legacy context keys if you ever reintroduce them
+    mapping = {k: str(v) for k, v in (context or {}).items()}
     for legacy_key, new_key in LEGACY_TO_NEW_KEYS.items():
-        if legacy_key in base_ctx and new_key not in mapping:
-            v = base_ctx.get(legacy_key)
-            mapping[new_key] = "" if v is None else str(v)
+        if legacy_key in (context or {}):
+            mapping[new_key] = str(context[legacy_key])
 
-    # Sensible defaults if the caller didn't provide them
-    now_uk = datetime.now()
+    now_uk = datetime.now(ZoneInfo("Europe/London"))
     mapping.setdefault("[[GENERATED_DATE]]", now_uk.strftime("%d %B %Y"))
     mapping.setdefault("[[DOC_VERSION]]",  now_uk.strftime("v%Y.%m.%d"))
 
-    # Precompile a regex to strip any remaining [[PLACEHOLDER_LIKE]] tokens
-    placeholder_pattern = re.compile(r"\[\[[A-Z0-9_]+\]\]")
-
     for p in _iter_all_paragraphs(doc):
-        if not p.runs:
-            continue
-
-        # Join all runs so we can replace across run boundaries
-        original_text = "".join(run.text for run in p.runs)
-        if not original_text:
-            continue
-
-        new_text = original_text
-
-        # Apply all placeholder replacements
-        for k, v in mapping.items():
-            if k in new_text:
-                new_text = new_text.replace(k, v)
-
-        # Remove any leftover placeholder tokens so they don't bleed into the letter
-        if "[[" in new_text:
-            new_text = placeholder_pattern.sub("", new_text)
-
-        # If nothing changed, skip rewriting runs
-        if new_text == original_text:
-            continue
-
-        # Write updated text into the first run, blank the rest
-        # (we sacrifice some per-word formatting in the paragraph, but
-        # for template letters that's usually fine and MUCH more reliable
-        # for placeholder replacement across runs).
-        p.runs[0].text = new_text
-        for r in p.runs[1:]:
-            r.text = ""
-
+        _replace_in_runs(p, mapping)
 
 def strip_outcome_conditionals(doc: Document, keep: str):
     valid = {"SUCCESSFUL", "EXTENSION", "UNSUCCESSFUL"}
@@ -554,12 +487,39 @@ def _auto_review_date(start_date_str: str | None) -> str | None:
 # =========================
 
 # ----- Root / Auth -----
+@app.route('/')
+@login_required
+def home():
+    return render_template('select_module.html', hide_sidebar=True, layout='fullscreen')
+
+from forms import LoginForm, EmployeeForm, PIPForm, ProbationRecordForm, ProbationReviewForm, ProbationPlanForm, UserForm
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+    if request.method == 'POST' and form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+        if user and check_password_hash(user.password_hash, form.password.data):
+            login_user(user, remember=form.remember.data)
+            return redirect(url_for('home'))
+        flash('Invalid username or password', 'danger')
+    return render_template('login.html', form=form, hide_sidebar=True, current_year=datetime.now().year)
+
+@app.route('/logout', methods=['POST', 'GET'])
+def logout():
+    try:
+        logout_user()
+    finally:
+        session.clear()
+    flash("You have been logged out.", "info")
+    return redirect(url_for('login'))
+
 @app.route('/admin/dashboard')
 @login_required
 def admin_dashboard():
     if not current_user.is_superuser():
         flash('You do not have permission to access the admin dashboard.', 'danger')
-        return redirect(url_for('main.home'))
+        return redirect(url_for('home'))
     return render_template('admin_dashboard.html')
 
 # ----- Taxonomy (curated + categories + suggestions) -----
@@ -808,7 +768,7 @@ def delete_user(user_id):
 def backup_database():
     if not current_user.is_superuser():
         flash('Access denied: Superuser only.', 'danger')
-        return redirect(url_for('main.home'))
+        return redirect(url_for('home'))
     db_path = os.path.join(os.getcwd(), 'pip_crm.db')
     if os.path.exists(db_path):
         return send_file(db_path, as_attachment=True)
@@ -1029,7 +989,6 @@ def taxonomy_action_templates():
     severity = (request.args.get('severity') or '').strip()
     items = _pick_actions_from_templates(category, severity)
     return jsonify({"category": category, "severity": severity, "items": items})
-
 # =========================
 # app.py — PART 3 / 4
 # (PIP wizard, document drafting/editing, AI suggestions)
@@ -1291,8 +1250,8 @@ def build_placeholder_mapping(pip_rec: PIPRecord) -> dict:
     meeting_dt = f"{md} {mt}".strip()
 
     mapping = {
-        "[[GENERATED_DATE]]": datetime.now().strftime("%d %B %Y"),
-        "[[LETTER_DATE]]":    datetime.now().strftime("%d %B %Y"),
+        "[[GENERATED_DATE]]": datetime.now(ZoneInfo("Europe/London")).strftime("%d %B %Y"),
+        "[[LETTER_DATE]]":    datetime.now(ZoneInfo("Europe/London")).strftime("%d %B %Y"),
         "[[DOC_VERSION]]":    datetime.now().strftime("v%Y.%m.%d"),
 
         "[[EMPLOYEE_NAME]]":       full,
@@ -1447,9 +1406,8 @@ def download_doc(doc_id):
 # ----- AI Action Suggestions -----
 @app.route('/suggest_actions_ai', methods=['POST'])
 @login_required
-@csrf.exempt
 def suggest_actions_ai():
-    data = request.get_json(silent=True) or {}
+    data = request.get_json() or {}
     concerns  = (data.get('concerns')  or '').strip()
     severity  = (data.get('severity')  or '').strip()
     frequency = (data.get('frequency') or '').strip()
@@ -1486,9 +1444,7 @@ def suggest_actions_ai():
     prior_block = ""
     if prior_actions:
         import json as _json
-        prior_block = "Seed actions (consider and adapt as appropriate): " + _json.dumps(
-            prior_actions, ensure_ascii=False
-        )
+        prior_block = "Seed actions (consider and adapt as appropriate): " + _json.dumps(prior_actions, ensure_ascii=False)
 
     user_msg = f"""
 Concern Category: {category or "[unspecified]"}
@@ -1507,65 +1463,29 @@ Rules:
 """
 
     actions_llm, next_up_llm, raw = [], [], ""
-
-    def _extract_text_from_choice(choice):
-        """
-        Normalise OpenAI response content across SDK versions:
-        - Older: choice.message.content is a string
-        - Newer: choice.message.content may be a list of parts
-        """
-        content = getattr(choice.message, "content", "")
-        if isinstance(content, str):
-            return content
-        if isinstance(content, list):
-            parts = []
-            for part in content:
-                # content part could be a dict with nested text
-                if isinstance(part, dict):
-                    text = part.get("text")
-                    if isinstance(text, dict):
-                        parts.append(str(text.get("value", "")))
-                    elif text is not None:
-                        parts.append(str(text))
-                else:
-                    parts.append(str(part))
-            return "".join(parts)
-        return str(content or "")
-
     try:
         resp = client.chat.completions.create(
-            model="gpt-4o-mini",  # or "gpt-4" if you prefer
-            messages=[
-                {"role": "system", "content": sys_msg},
-                {"role": "user", "content": user_msg},
-            ],
+            model="gpt-4",
+            messages=[{"role": "system", "content": sys_msg}, {"role": "user", "content": user_msg}],
             temperature=0.5,
-            max_tokens=300,
+            max_tokens=300
         )
-
-        raw = _extract_text_from_choice(resp.choices[0]).strip()
+        raw = (resp.choices[0].message.content or "").strip()
 
         import json as _json, re as _re
         m = _re.search(r"\{[\s\S]*\}", raw)
-        json_str = m.group(0) if m else raw
-        payload = _json.loads(json_str)
-
+        payload = _json.loads(m.group(0) if m else raw)
         actions_llm = payload.get("actions", []) or []
         next_up_llm = payload.get("next_up", []) or []
     except Exception:
-        # Fallback: try to salvage bullet-style lines out of whatever we got back
         lines = [ln.strip("-•* 0123456789.\t") for ln in (raw.splitlines() if raw else [])]
         actions_llm = [ln for ln in lines if ln][:5]
-        next_up_llm = []
 
-    # Merge curated + LLM suggestions
     merged_actions = _dedupe_clean(actions_llm, cap=None)
     if prior_actions:
         merged_actions = _dedupe_clean(prior_actions + merged_actions, cap=8)
 
     next_up = _dedupe_clean(next_up_llm, cap=None)
-
-    # Heuristic enrichments
     tag_list = [t.strip().lower() for t in tags.split(",")] if tags else []
     cat = (category or "").lower()
     sev = (severity or "").lower()
@@ -1573,32 +1493,21 @@ Rules:
 
     enrich = []
     if 'lateness' in tag_list or 'timekeeping' in cat:
-        enrich += [
-            "Daily start-time check-ins for 2 weeks",
-            "Agree punctuality targets; log variances",
-        ]
+        enrich += ["Daily start-time check-ins for 2 weeks", "Agree punctuality targets; log variances"]
     if 'conduct' in tag_list or cat == 'conduct':
-        enrich += [
-            "Reference conduct policy; document conversations",
-            "Book values/behaviour refresher",
-        ]
+        enrich += ["Reference conduct policy; document conversations", "Book values/behaviour refresher"]
     if 'performance' in cat or ('missed deadlines' in (tags or '').lower()):
-        enrich += [
-            "Weekly milestones with due dates",
-            "Stand-up updates Mon/Wed/Fri",
-        ]
+        enrich += ["Weekly milestones with due dates", "Stand-up updates Mon/Wed/Fri"]
     if sev == 'high':
         enrich += ["Escalate to formal stage if no progress"]
     if freq in ('frequent', 'persistent'):
         enrich += ["Increase monitoring and assign a buddy/mentor"]
 
     next_up = _dedupe_clean(next_up + enrich, cap=8)
-
     merged_actions = merged_actions[:8] if merged_actions else []
     next_up = next_up[:8] if next_up else []
 
     return jsonify({"success": True, "actions": merged_actions, "next_up": next_up}), 200
-
 # =========================
 # app.py — PART 4 / 4
 # (Probation module, drafts, dashboards, employee import, doc generation, ping/main)
@@ -2038,7 +1947,7 @@ def dashboard_stats_json():
 def add_employee():
     if current_user.admin_level < 1:
         flash('Access denied.')
-        return redirect(url_for('main.home'))
+        return redirect(url_for('home'))
     form = EmployeeForm()
     if form.validate_on_submit():
         emp = Employee(

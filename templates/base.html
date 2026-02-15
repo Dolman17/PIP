@@ -92,7 +92,14 @@
       </div>
 
       <nav class="p-4 space-y-2 text-sm font-medium">
-        <a href="{{ url_for('home') }}" class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">⬅ Back to Module Selection</a>
+        <a
+  href="/"
+  class="block px-4 py-2 rounded hover:bg-ellipse-light text-ellipse-gray"
+>
+  ⬅ Back to Module Selection
+</a>
+
+
 
         {% if active_module == 'PIP' %}
           <a href="{{ url_for('create_pip_wizard') }}"
@@ -123,10 +130,16 @@
         {% endif %}
 
         <!-- Logout -->
-        <form action="{{ url_for('logout') }}" method="POST" class="px-4">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="w-full text-left px-0 py-2 rounded hover:bg-ellipse-light text-ellipse-gray">🚪 Logout</button>
-        </form>
+        <form action="/logout" method="POST" class="px-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button
+      type="submit"
+      class="w-full text-left px-4 py-2 rounded hover:bg-ellipse-red/10 text-ellipse-red text-sm"
+    >
+      Log out
+    </button>
+</form>
+
       </nav>
     </aside>
 

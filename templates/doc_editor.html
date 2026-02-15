@@ -6,13 +6,18 @@
 
   <form method="post" onsubmit="return syncEditor();">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div id="editor"
-         class="prose max-w-none bg-white rounded-2xl shadow p-6 border min-h-[60vh]"
-         contenteditable="true">{{ html_content|safe }}</div>
+
+    {# TinyMCE attaches to this textarea #}
+    <textarea id="editor">
+{{ html_content|safe }}
+    </textarea>
+
+    {# This hidden field is what your Flask view already reads as `request.form["html"]` #}
     <textarea name="html" id="html" class="hidden"></textarea>
 
     <div class="mt-6 flex gap-3">
       <button class="px-4 py-2 rounded-2xl bg-[#005b5a] text-white">Save Draft</button>
+
       {% if doc.status != 'final' %}
       <button formaction="{{ url_for('finalise_pip_doc', pip_id=pip_rec.id, doc_id=doc.id) }}"
               formmethod="post"
@@ -21,17 +26,35 @@
         Finalise
       </button>
       {% endif %}
+
       <a href="{{ url_for('download_doc', doc_id=doc.id) }}" class="px-4 py-2 rounded-2xl border">Download DOCX</a>
       <a href="{{ url_for('pip_documents', pip_id=pip_rec.id) }}" class="px-4 py-2 rounded-2xl border">Back to History</a>
     </div>
   </form>
 </div>
 
+{# TinyMCE from CDN #}
+<script src="https://cdn.tiny.cloud/1/t887ora63j523s8o28zrcdfx56f0eh4nupo9qkl15sso1ucb/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
 <script>
-function syncEditor(){
-  const html = document.getElementById('editor').innerHTML;
-  document.getElementById('html').value = html;
-  return true;
-}
+  tinymce.init({
+    selector: '#editor',
+    height: 600,
+    menubar: false,
+    statusbar: false,
+    plugins: 'lists',
+    toolbar: 'undo redo | bold italic underline | bullist numlist | ' +
+             'alignleft aligncenter alignright | fontsizeselect',
+    fontsize_formats: '10pt 11pt 12pt 14pt 16pt',
+    content_style: 'body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; }',
+    branding: false,
+  });
+
+  function syncEditor() {
+    const editor = tinymce.get('editor');
+    if (editor) {
+      document.getElementById('html').value = editor.getContent();
+    }
+    return true;
+  }
 </script>
 {% endblock %}
