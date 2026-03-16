@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+{% block title %}Sickness Dashboard{% endblock %}
+{% block page_title %}🤒 Sickness Dashboard{% endblock %}
+{% block content %}
+
+<div class="max-w-7xl mx-auto px-4 py-8">
+
+  <!-- Hero -->
+  <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#0f6b6a] to-[#0a4d4c] text-white p-6 shadow-lg">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">Sickness Dashboard</h1>
+        <p class="text-white/90 mt-1">
+          Overview of sickness cases, long-term absences and return-to-work meetings.
+        </p>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <a href="{{ url_for('employee_list') }}"
+           class="inline-flex items-center gap-2 rounded-lg bg-white/95 text-[#0f6b6a] hover:bg-white px-4 py-2 font-medium shadow">
+          ➕ Start Sickness Case
+        </a>
+        <a href="{{ url_for('sickness_dashboard') }}"
+           class="inline-flex items-center gap-2 rounded-lg border border-white/40 text-white hover:bg-white/10 px-4 py-2">
+          📊 Refresh
+        </a>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div class="rounded-xl bg-white/10 backdrop-blur p-4">
+        <div class="text-sm text-white/80">Open cases</div>
+        <div class="text-2xl font-semibold">{{ open_count or 0 }}</div>
+      </div>
+      <div class="rounded-xl bg-white/10 backdrop-blur p-4">
+        <div class="text-sm text-white/80">Closed (last 12 months)</div>
+        <div class="text-2xl font-semibold">{{ closed_last_12m or 0 }}</div>
+      </div>
+      <div class="rounded-xl bg-white/10 backdrop-blur p-4">
+        <div class="text-sm text-white/80">Upcoming RTW / reviews (14 days)</div>
+        <div class="text-2xl font-semibold">{{ upcoming_meetings|length or 0 }}</div>
+      </div>
+      <div class="rounded-xl bg-white/10 backdrop-blur p-4">
+        <div class="text-sm text-white/80">Long-term open (&gt; 28 days)</div>
+        <div class="text-2xl font-semibold">{{ long_term_cases or 0 }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Open cases -->
+  <div class="mt-8 rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+      <div>
+        <h3 class="text-base font-semibold text-slate-900">Open Sickness Cases</h3>
+        <p class="text-xs text-slate-500 mt-0.5">Triage what’s open right now.</p>
+      </div>
+      <div class="text-sm text-slate-500">
+        Showing {{ open_cases|length or 0 }} case{{ (open_cases|length) == 1 and '' or 's' }}
+      </div>
+    </div>
+
+    {% if open_cases %}
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead>
+            <tr class="bg-slate-50 text-slate-600">
+              <th class="text-left px-4 py-3">Employee</th>
+              <th class="text-left px-4 py-3">Start date</th>
+              <th class="text-left px-4 py-3">Reason</th>
+              <th class="text-left px-4 py-3">Trigger</th>
+              <th class="text-left px-4 py-3">Status</th>
+              <th class="text-right px-4 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in open_cases %}
+              <tr class="border-b border-slate-100 hover:bg-slate-50">
+                <td class="px-4 py-3 font-medium text-slate-900">
+                  <a href="{{ url_for('employee_detail', employee_id=c.employee.id) }}"
+                     class="hover:underline">
+                    {{ c.employee.first_name }} {{ c.employee.last_name }}
+                  </a>
+                  {% if c.employee.service %}
+                    <div class="text-xs text-slate-500 mt-0.5">{{ c.employee.service }}</div>
+                  {% endif %}
+                </td>
+                <td class="px-4 py-3">
+                  {{ c.start_date.strftime('%d %b %Y') if c.start_date else '—' }}
+                </td>
+                <td class="px-4 py-3">
+                  {{ c.reason or '—' }}
+                </td>
+                <td class="px-4 py-3">
+                  {% if c.trigger_type == 'short_term' %}
+                    Short-term trigger
+                  {% elif c.trigger_type == 'long_term' %}
+                    Long-term
+                  {% elif c.trigger_type == 'pattern' %}
+                    Pattern concern
+                  {% elif c.trigger_type == 'other' %}
+                    Other
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td class="px-4 py-3">
+                  {% if c.status == 'Open' %}
+                    <span class="inline-flex items-center rounded-full border border-emerald-500/60 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                      Open
+                    </span>
+                  {% elif c.status == 'Under Review' %}
+                    <span class="inline-flex items-center rounded-full border border-amber-500/60 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+                      Under review
+                    </span>
+                  {% elif c.status == 'Closed' %}
+                    <span class="inline-flex items-center rounded-full border border-slate-400/60 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-700">
+                      Closed
+                    </span>
+                  {% else %}
+                    <span class="inline-flex items-center rounded-full border border-slate-300 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                      {{ c.status or '—' }}
+                    </span>
+                  {% endif %}
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex items-center justify-end gap-1.5">
+                    <a href="{{ url_for('view_sickness_case', case_id=c.id) }}"
+                       class="inline-flex items-center rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                      View case
+                    </a>
+                    <a href="{{ url_for('employee_detail', employee_id=c.employee.id) }}"
+                       class="inline-flex items-center rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                      Employee
+                    </a>
+                    {% if c.status != 'Closed' %}
+                      <a href="{{ url_for('add_sickness_meeting', case_id=c.id) }}"
+                         class="inline-flex items-center rounded-full bg-[#005b5a] px-3 py-1 text-xs font-medium text-white hover:bg-[#004a49]">
+                        + Meeting
+                      </a>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="p-6 text-center text-slate-500 text-sm">
+        No open sickness cases{% if current_user.admin_level == 0 %} for your team{% endif %}.
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Upcoming meetings -->
+  <div class="mt-8 rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+      <div>
+        <h2 class="text-base font-semibold text-slate-900">
+          Upcoming RTW / Absence Meetings (Next 14 days)
+        </h2>
+        <p class="text-xs text-slate-500 mt-0.5">What’s coming up soon.</p>
+      </div>
+      {% if upcoming_meetings %}
+        <div class="text-sm text-slate-500">
+          {{ upcoming_meetings|length }} meeting{{ upcoming_meetings|length == 1 and '' or 's' }}
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="p-4">
+      {% if upcoming_meetings %}
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead>
+              <tr class="bg-slate-50 text-slate-600">
+                <th class="text-left px-4 py-3">Date</th>
+                <th class="text-left px-4 py-3">Employee</th>
+                <th class="text-left px-4 py-3">Type</th>
+                <th class="text-left px-4 py-3">Chair</th>
+                <th class="text-right px-4 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for m in upcoming_meetings %}
+                <tr class="border-b border-slate-100 hover:bg-slate-50">
+                  <td class="px-4 py-3">{{ m.meeting_date.strftime('%d %b %Y') }}</td>
+                  <td class="px-4 py-3">
+                    <a href="{{ url_for('employee_detail', employee_id=m.case.employee.id) }}"
+                       class="font-medium text-slate-900 hover:underline">
+                      {{ m.case.employee.first_name }} {{ m.case.employee.last_name }}
+                    </a>
+                  </td>
+                  <td class="px-4 py-3">{{ m.meeting_type or '—' }}</td>
+                  <td class="px-4 py-3">{{ m.chair or '—' }}</td>
+                  <td class="px-4 py-3">
+                    <div class="flex items-center justify-end gap-1.5">
+                      <a href="{{ url_for('view_sickness_case', case_id=m.case.id) }}"
+                         class="inline-flex items-center rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                        View case
+                      </a>
+                      <a href="{{ url_for('employee_detail', employee_id=m.case.employee.id) }}"
+                         class="inline-flex items-center rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                        Employee
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-sm text-slate-500">
+          No upcoming sickness meetings in the next 14 days.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Potential triggers (last 12 months) -->
+  <div class="mt-8 rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+      <div>
+        <h2 class="text-base font-semibold text-slate-900">Potential Triggers (Last 12 Months)</h2>
+        <p class="text-xs text-slate-500 mt-0.5">Informational for now — automation comes in Phase 3.</p>
+      </div>
+      {% if potential_triggers %}
+        <div class="text-sm text-slate-500">
+          {{ potential_triggers|length }} employee{{ potential_triggers|length == 1 and '' or 's' }} flagged
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="p-4">
+      {% if potential_triggers %}
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead>
+              <tr class="bg-slate-50 text-slate-600">
+                <th class="text-left px-4 py-3">Employee</th>
+                <th class="text-left px-4 py-3">Service</th>
+                <th class="text-left px-4 py-3">Episodes</th>
+                <th class="text-left px-4 py-3">Total days</th>
+                <th class="text-left px-4 py-3">Bradford</th>
+                <th class="text-left px-4 py-3">Flags</th>
+                <th class="text-right px-4 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for t in potential_triggers %}
+                <tr class="border-b border-slate-100 hover:bg-slate-50">
+                  <td class="px-4 py-3 font-medium text-slate-900">
+                    <a href="{{ url_for('employee_detail', employee_id=t.employee.id) }}"
+                       class="hover:underline">
+                      {{ t.employee.first_name }} {{ t.employee.last_name }}
+                    </a>
+                  </td>
+                  <td class="px-4 py-3">{{ t.employee.service or '—' }}</td>
+                  <td class="px-4 py-3">{{ t.episodes }}</td>
+                  <td class="px-4 py-3">{{ t.total_days }}</td>
+                  <td class="px-4 py-3">{{ t.bradford }}</td>
+                  <td class="px-4 py-3">
+                    {% if t.severity == 'high' %}
+                      <span class="inline-flex items-center rounded-full border border-red-500/70 bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700">
+                        High · {{ t.flags_label }}
+                      </span>
+                    {% elif t.severity == 'medium' %}
+                      <span class="inline-flex items-center rounded-full border border-amber-500/70 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+                        Medium · {{ t.flags_label }}
+                      </span>
+                    {% else %}
+                      <span class="inline-flex items-center rounded-full border border-sky-500/70 bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700">
+                        {{ t.flags_label }}
+                      </span>
+                    {% endif %}
+                  </td>
+                  <td class="px-4 py-3">
+                    <div class="flex items-center justify-end gap-1.5">
+                      <a href="{{ url_for('employee_detail', employee_id=t.employee.id) }}"
+                         class="inline-flex items-center rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                        Employee
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-sm text-slate-500">
+          No employees currently meeting sickness trigger thresholds in the last 12 months.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}

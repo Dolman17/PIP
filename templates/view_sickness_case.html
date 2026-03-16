@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Sickness Case #{{ case.id }}{% endblock %}
+{% block page_title %}🤒 Sickness Case{% endblock %}
+{% block content %}
+
+<div class="max-w-5xl mx-auto px-4 py-8">
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
+    <div>
+      <h1 class="text-2xl font-semibold text-slate-900">
+        Sickness Case #{{ case.id }}
+      </h1>
+      <p class="mt-1 text-sm text-slate-500">
+        <a href="{{ url_for('employee_detail', employee_id=employee.id) }}" class="hover:underline">
+          {{ employee.first_name }} {{ employee.last_name }}
+        </a>
+        {% if employee.service %} · {{ employee.service }}{% endif %}
+        {% if employee.job_title %} · {{ employee.job_title }}{% endif %}
+      </p>
+    </div>
+
+    <div class="flex flex-wrap gap-2">
+      <a href="{{ url_for('employee_detail', employee_id=employee.id) }}"
+         class="inline-flex items-center rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
+        👤 Back to Employee
+      </a>
+      <a href="{{ url_for('sickness_dashboard') }}"
+         class="inline-flex items-center rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
+        ← Sickness Dashboard
+      </a>
+      {% if case.status != 'Closed' %}
+        <a href="{{ url_for('add_sickness_meeting', case_id=case.id) }}"
+           class="inline-flex items-center rounded-full bg-[#0f6b6a] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#0c5858]">
+          ➕ Add meeting
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Status / dates card -->
+  <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 mb-6">
+    <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+      <div class="space-y-1 text-sm text-slate-700">
+        <div>
+          <span class="font-semibold">Start date:</span>
+          {{ case.start_date.strftime('%d %b %Y') if case.start_date else '—' }}
+        </div>
+        <div>
+          <span class="font-semibold">End date:</span>
+          {{ case.end_date.strftime('%d %b %Y') if case.end_date else '— (still open)' }}
+        </div>
+        <div>
+          <span class="font-semibold">Reason:</span>
+          {{ case.reason or '—' }}
+        </div>
+        <div>
+          <span class="font-semibold">Trigger:</span>
+          {% if case.trigger_type == 'short_term' %}Short-term trigger
+          {% elif case.trigger_type == 'long_term' %}Long-term absence
+          {% elif case.trigger_type == 'pattern' %}Pattern concern
+          {% elif case.trigger_type == 'other' %}Other
+          {% else %}—{% endif %}
+        </div>
+      </div>
+
+      <div class="flex flex-col items-end gap-2">
+        <!-- Status pill -->
+        {% set label = case.status or 'Open' %}
+        {% if label == 'Open' %}
+          {% set cls = "inline-flex items-center rounded-full border border-emerald-500/60 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700" %}
+        {% elif label == 'Under Review' %}
+          {% set cls = "inline-flex items-center rounded-full border border-amber-500/60 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700" %}
+        {% elif label == 'Closed' %}
+          {% set cls = "inline-flex items-center rounded-full border border-slate-400/60 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700" %}
+        {% else %}
+          {% set cls = "inline-flex items-center rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700" %}
+        {% endif %}
+        <span class="{{ cls }}">Status: {{ label }}</span>
+
+        {% if case.status != 'Closed' and case.start_date and today %}
+          {% set days_open = (today - case.start_date).days %}
+          {% if days_open >= 28 %}
+            <span class="inline-flex items-center rounded-full border border-amber-500/60 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+              Long-term open case ({{ days_open }} days)
+            </span>
+          {% endif %}
+        {% endif %}
+
+        <!-- Status change buttons -->
+        <div class="flex flex-wrap gap-2 justify-end mt-1">
+          <form action="{{ url_for('update_sickness_status', case_id=case.id, new_status='Open') }}"
+                method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="px-3 py-1 rounded-full border border-slate-300 text-xs text-slate-700 hover:bg-slate-50">
+              Mark Open
+            </button>
+          </form>
+          <form action="{{ url_for('update_sickness_status', case_id=case.id, new_status='Under Review') }}"
+                method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="px-3 py-1 rounded-full border border-slate-300 text-xs text-slate-700 hover:bg-slate-50">
+              Under Review
+            </button>
+          </form>
+          <form action="{{ url_for('update_sickness_status', case_id=case.id, new_status='Closed') }}"
+                method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="px-3 py-1 rounded-full border border-slate-300 text-xs text-slate-700 hover:bg-slate-50">
+              Close Case
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    {% if case.notes %}
+      <div class="mt-4 text-sm text-slate-700">
+        <div class="font-semibold mb-1">Context / notes</div>
+        <p class="whitespace-pre-line">{{ case.notes }}</p>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Meetings -->
+  <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+      <div>
+        <h2 class="text-base font-semibold text-slate-900">Meetings</h2>
+        <p class="text-xs text-slate-500 mt-0.5">RTW, absence reviews, welfare check-ins.</p>
+      </div>
+      <a href="{{ url_for('add_sickness_meeting', case_id=case.id) }}"
+         class="inline-flex items-center rounded-full bg-[#0f6b6a] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#0c5858]">
+        ➕ Add meeting
+      </a>
+    </div>
+
+    {% if meetings %}
+      <div class="divide-y divide-slate-100">
+        {% for m in meetings %}
+          <div class="p-4 text-sm text-slate-700">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+              <div class="font-semibold">
+                {{ m.meeting_type or 'Meeting' }} · {{ m.meeting_date.strftime('%d %b %Y') }}
+              </div>
+              {% if m.chair %}
+                <div class="text-xs text-slate-500">Chair: {{ m.chair }}</div>
+              {% endif %}
+            </div>
+
+            {% if m.notes %}
+              <div class="text-slate-700 whitespace-pre-line mb-1">{{ m.notes }}</div>
+            {% endif %}
+            {% if m.outcome %}
+              <div class="text-slate-600 text-xs whitespace-pre-line">
+                <span class="font-semibold">Outcome:</span> {{ m.outcome }}
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="p-4 text-sm text-slate-500">
+        No meetings logged yet. Use “Add meeting” to capture RTW or absence review discussions.
+      </div>
+    {% endif %}
+  </div>
+
+</div>
+
+{% endblock %}

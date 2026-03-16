@@ -1,60 +1,208 @@
 {% extends "base.html" %}
+{% block title %}Edit Document — PIP {{ pip_rec.id }}{% endblock %}
+{% block page_title %}✏️ Edit Document{% endblock %}
+
 {% block content %}
-<div class="max-w-4xl mx-auto">
-  <h1 class="text-2xl font-semibold mb-2">Edit Document ({{ doc.doc_type|capitalize }} v{{ doc.version }})</h1>
-  <p class="text-sm text-gray-600 mb-6">Status: <span class="font-medium">{{ doc.status }}</span></p>
-
-  <form method="post" onsubmit="return syncEditor();">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-    {# TinyMCE attaches to this textarea #}
-    <textarea id="editor">
-{{ html_content|safe }}
-    </textarea>
-
-    {# This hidden field is what your Flask view already reads as `request.form["html"]` #}
-    <textarea name="html" id="html" class="hidden"></textarea>
-
-    <div class="mt-6 flex gap-3">
-      <button class="px-4 py-2 rounded-2xl bg-[#005b5a] text-white">Save Draft</button>
-
-      {% if doc.status != 'final' %}
-      <button formaction="{{ url_for('finalise_pip_doc', pip_id=pip_rec.id, doc_id=doc.id) }}"
-              formmethod="post"
-              class="px-4 py-2 rounded-2xl bg-gray-900 text-white"
-              onclick="return confirm('Finalise this document? This version will be locked (history preserved).')">
-        Finalise
-      </button>
-      {% endif %}
-
-      <a href="{{ url_for('download_doc', doc_id=doc.id) }}" class="px-4 py-2 rounded-2xl border">Download DOCX</a>
-      <a href="{{ url_for('pip_documents', pip_id=pip_rec.id) }}" class="px-4 py-2 rounded-2xl border">Back to History</a>
+<div class="max-w-5xl mx-auto">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-4 gap-4">
+    <div>
+      <h1 class="text-xl sm:text-2xl font-semibold text-slate-900">
+        {{ doc.doc_type|replace('_', ' ')|title }} v{{ doc.version }}
+      </h1>
+      <p class="text-xs sm:text-sm text-slate-500 mt-1">
+        PIP #{{ pip_rec.id }}
+        {% if pip_rec.employee %}
+          · {{ pip_rec.employee.first_name }} {{ pip_rec.employee.last_name }}
+        {% endif %}
+      </p>
     </div>
-  </form>
+
+    <a href="{{ url_for('pip_documents', pip_id=pip_rec.id) }}"
+       class="inline-flex items-center text-sm font-medium text-[#005b5a] hover:text-[#004442]">
+      <span class="mr-1.5">←</span>
+      Back to History
+    </a>
+  </div>
+
+  <!-- Meta strip -->
+  <div class="flex flex-wrap items-center gap-3 text-xs text-slate-600 mb-4">
+    {# Status badge #}
+    {% set badge_classes = "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700" %}
+    {% if doc.status == 'final' %}
+      {% set badge_classes = "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800" %}
+    {% elif doc.status in ['draft', 'editing'] %}
+      {% set badge_classes = "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800" %}
+    {% endif %}
+
+    <div class="{{ badge_classes }}">
+      Status: {{ doc.status|replace('_', ' ')|title }}
+    </div>
+
+    <div class="h-4 w-px bg-slate-300 hidden sm:block"></div>
+
+    <div>
+      Created:
+      {% if doc.created_at %}
+        <span class="font-medium">
+          {{ doc.created_at.strftime("%d %b %Y %H:%M") }}
+        </span>
+      {% else %}
+        <span class="font-medium">Just created</span>
+      {% endif %}
+    </div>
+
+    {% if doc.updated_at %}
+      <div class="hidden sm:block">·</div>
+      <div>
+        Last updated:
+        <span class="font-medium">
+          {{ doc.updated_at.strftime("%d %b %Y %H:%M") }}
+        </span>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Editor card -->
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="px-4 sm:px-6 py-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <div class="text-xs sm:text-sm text-slate-600">
+        Edit the body of the letter below. Formatting will be preserved when you download the DOCX.
+      </div>
+      <div class="text-[11px] text-slate-500 italic">
+        Changes are saved when you click <span class="font-semibold">Save Draft</span>. (Ctrl+S also saves.)
+      </div>
+    </div>
+
+    <div class="p-2 sm:p-4">
+      <form method="post" id="doc-editor-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <!-- TinyMCE attaches here -->
+        <textarea
+          id="editor"
+          name="html"
+          class="hidden"
+        >{{ html_content|safe }}</textarea>
+
+        <!-- Button row -->
+        <div class="mt-6 flex flex-wrap gap-3 justify-end">
+          <button
+            id="save-draft-btn"
+            type="submit"
+            class="inline-flex items-center px-4 py-2 rounded-2xl bg-[#005b5a] text-white text-sm font-medium hover:bg-[#004544] transition-colors"
+          >
+            Save Draft
+          </button>
+
+          {% if doc.status != 'final' %}
+            <button
+              formaction="{{ url_for('finalise_pip_doc', pip_id=pip_rec.id, doc_id=doc.id) }}"
+              formmethod="post"
+              class="inline-flex items-center px-4 py-2 rounded-2xl bg-slate-900 text-white text-sm font-medium hover:bg-black transition-colors"
+              onclick="return confirm('Finalise this document? This version will be locked (history preserved).')"
+            >
+              Finalise
+            </button>
+          {% endif %}
+
+          <a
+            href="{{ url_for('download_doc', doc_id=doc.id) }}"
+            class="inline-flex items-center px-4 py-2 rounded-2xl border border-slate-300 text-sm font-medium text-slate-800 hover:bg-slate-50 transition-colors"
+          >
+            Download DOCX
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 
-{# TinyMCE from CDN #}
-<script src="https://cdn.tiny.cloud/1/t887ora63j523s8o28zrcdfx56f0eh4nupo9qkl15sso1ucb/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
+{# Load TinyMCE (self-hosted) #}
+<script src="{{ url_for('static', filename='js/tinymce/tinymce.min.js') }}"></script>
 <script>
-  tinymce.init({
-    selector: '#editor',
-    height: 600,
-    menubar: false,
-    statusbar: false,
-    plugins: 'lists',
-    toolbar: 'undo redo | bold italic underline | bullist numlist | ' +
-             'alignleft aligncenter alignright | fontsizeselect',
-    fontsize_formats: '10pt 11pt 12pt 14pt 16pt',
-    content_style: 'body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; }',
-    branding: false,
-  });
+  document.addEventListener('DOMContentLoaded', function () {
+    tinymce.init({
+      license_key: 'gpl',  // opt into GPL; required for TinyMCE 7/8 self-hosted
 
-  function syncEditor() {
-    const editor = tinymce.get('editor');
-    if (editor) {
-      document.getElementById('html').value = editor.getContent();
+      selector: '#editor',
+      menubar: false,
+      branding: false,
+      height: 650,
+
+      plugins: 'lists table link',
+      toolbar: [
+        'undo redo | styles | bold italic underline | alignleft aligncenter alignright | bullist numlist | table | link | removeformat'
+      ].join(' '),
+
+      // Keep the letter looking like a proper letter
+      content_style: `
+        body {
+          font-family: "Open Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          font-size: 12pt;
+          line-height: 1.4;
+          margin: 1.5cm;
+        }
+        p {
+          margin: 0 0 6px 0;
+        }
+        h1, h2, h3, h4 {
+          font-weight: 600;
+          margin-top: 12px;
+          margin-bottom: 6px;
+        }
+        ul, ol {
+          margin-left: 24px;
+        }
+        table {
+          border-collapse: collapse;
+          width: 100%;
+        }
+        th, td {
+          border: 1px solid #cccccc;
+          padding: 4px 6px;
+        }
+      `,
+
+      setup: function (editor) {
+        // Keep the underlying textarea in sync
+        editor.on('change keyup undo redo', function () {
+          editor.save();  // writes HTML back into the <textarea>
+        });
+      }
+    });
+
+    // Simple guard against submitting an empty document
+    const form = document.getElementById('doc-editor-form');
+    const saveBtn = document.getElementById('save-draft-btn');
+
+    if (form && saveBtn) {
+      form.addEventListener('submit', function (evt) {
+        const editor = tinymce.get('editor');
+        if (editor) {
+          editor.save(); // ensure textarea updated
+          const html = editor.getContent({ format: 'html' }).trim();
+          // TinyMCE sometimes uses <p>&nbsp;</p> as "empty"
+          const cleaned = html.replace(/&nbsp;|\s+/g, '');
+          if (!cleaned) {
+            evt.preventDefault();
+            alert('The document is empty. Please add some content before saving.');
+          }
+        }
+      });
+
+      // Ctrl+S / Cmd+S triggers Save Draft
+      window.addEventListener('keydown', function (evt) {
+        const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+        const modKey = isMac ? evt.metaKey : evt.ctrlKey;
+        if (modKey && (evt.key === 's' || evt.key === 'S')) {
+          evt.preventDefault();
+          if (saveBtn) {
+            saveBtn.click();
+          }
+        }
+      });
     }
-    return true;
-  }
+  });
 </script>
 {% endblock %}

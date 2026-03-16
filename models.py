@@ -12,6 +12,8 @@ from pip_app.models import (
     DraftProbation,
     ImportJob,
     DocumentFile,
+    SicknessCase,
+    SicknessMeeting,
 )
 
 __all__ = [
@@ -28,4 +30,6 @@ __all__ = [
     "DraftProbation",
     "ImportJob",
     "DocumentFile",
+    "SicknessCase",
+    "SicknessMeeting",
 ]

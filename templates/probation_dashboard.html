@@ -8,7 +8,9 @@
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
       <div>
         <h1 class="text-2xl font-semibold tracking-tight">Probation Dashboard</h1>
-        <p class="text-white/90 mt-1">Overview of current probations and reviews.</p>
+        <p class="text-white/90 mt-1">
+          Overview of current probations and reviews{% if current_user.admin_level == 0 %} for your team{% endif %}.
+        </p>
       </div>
       <div class="flex flex-wrap items-center gap-3">
         <a href="{{ url_for('probation_create_wizard') }}"
@@ -88,6 +90,7 @@
             <th class="text-left px-4 py-3">Start</th>
             <th class="text-left px-4 py-3">Expected End</th>
             <th class="text-left px-4 py-3">Status</th>
+            <th class="text-left px-4 py-3 text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -96,16 +99,51 @@
             <td class="px-4 py-3 font-medium text-slate-900">
               {{ r.employee.first_name }} {{ r.employee.last_name }}
             </td>
-            <td class="px-4 py-3">{{ r.start_date.strftime('%d %b %Y') if r.start_date else '—' }}</td>
-            <td class="px-4 py-3">{{ r.expected_end_date.strftime('%d %b %Y') if r.expected_end_date else '—' }}</td>
-            <td class="px-4 py-3">{{ r.status or 'Active' }}</td>
+            <td class="px-4 py-3">
+              {{ r.start_date.strftime('%d %b %Y') if r.start_date else '—' }}
+            </td>
+            <td class="px-4 py-3">
+              {{ r.expected_end_date.strftime('%d %b %Y') if r.expected_end_date else '—' }}
+            </td>
+            <td class="px-4 py-3">
+              {% set status_label = r.status or 'Active' %}
+              {% set status_classes = "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-slate-100 text-slate-700" %}
+              {% if status_label == 'Active' %}
+                {% set status_classes = "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-sky-100 text-sky-800" %}
+              {% elif status_label == 'Completed' %}
+                {% set status_classes = "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-800" %}
+              {% elif status_label == 'Extended' %}
+                {% set status_classes = "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-800" %}
+              {% elif status_label == 'Failed' %}
+                {% set status_classes = "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-rose-100 text-rose-800" %}
+              {% endif %}
+              <span class="{{ status_classes }}">{{ status_label }}</span>
+            </td>
+            <td class="px-4 py-3 text-right">
+              <div class="inline-flex gap-2">
+                <a href="{{ url_for('view_probation', id=r.id) }}"
+                   class="inline-flex items-center rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                  View
+                </a>
+                <a href="{{ url_for('add_probation_review', id=r.id) }}"
+                   class="inline-flex items-center rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                  Add review
+                </a>
+                <a href="{{ url_for('add_probation_plan', id=r.id) }}"
+                   class="inline-flex items-center rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                  Add plan
+                </a>
+              </div>
+            </td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
     {% else %}
-      <div class="p-6 text-center text-slate-500 text-sm">No active probations for your team.</div>
+      <div class="p-6 text-center text-slate-500 text-sm">
+        No active probations{% if current_user.admin_level == 0 %} for your team{% endif %}.
+      </div>
     {% endif %}
   </div>
 
@@ -129,12 +167,20 @@
           <tbody>
             {% for rev in reviews %}
             <tr class="border-b border-slate-100 hover:bg-slate-50">
-              <td class="px-4 py-3">{{ rev.review_date.strftime('%d %b %Y') }}</td>
-              <td class="px-4 py-3">{{ rev.probation.employee.first_name }} {{ rev.probation.employee.last_name }}</td>
-              <td class="px-4 py-3">{{ rev.reviewer or '—' }}</td>
+              <td class="px-4 py-3">
+                {{ rev.review_date.strftime('%d %b %Y') }}
+              </td>
+              <td class="px-4 py-3">
+                {{ rev.probation.employee.first_name }} {{ rev.probation.employee.last_name }}
+              </td>
+              <td class="px-4 py-3">
+                {{ rev.reviewer or '—' }}
+              </td>
               <td class="px-4 py-3">
                 {% if rev.concerns_flag %}
-                  <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs bg-amber-100 text-amber-800">● Flagged</span>
+                  <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs bg-amber-100 text-amber-800">
+                    ● Flagged
+                  </span>
                 {% else %}
                   <span class="text-slate-500">—</span>
                 {% endif %}
@@ -156,10 +202,10 @@
       <div class="text-lg">✨ Start Probation</div>
       <div class="text-sm text-slate-600">Launch the guided wizard.</div>
     </a>
-    <a href="{{ url_for('employee_list') }}"
+    <a href="{{ url_for('probation_employee_list') }}"
        class="rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition">
       <div class="text-lg">👥 Employees</div>
-      <div class="text-sm text-slate-600">Browse and manage employees.</div>
+      <div class="text-sm text-slate-600">Browse and pick employees for new probations.</div>
     </a>
     <a href="{{ url_for('export_data') }}"
        class="rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition">
@@ -175,9 +221,13 @@
 document.addEventListener('DOMContentLoaded', () => {
   const btn = document.getElementById('dismissProbDraftBtn');
   if (!btn) return;
+
   btn.addEventListener('click', async () => {
     try {
-      const res = await fetch('{{ url_for("dismiss_probation_draft") }}', { method: 'POST' });
+      const fetchFn = window.fetchWithCsrf || window.fetch;
+      const res = await fetchFn('{{ url_for("dismiss_probation_draft") }}', {
+        method: 'POST'
+      });
       const data = await res.json();
       if (data.success) {
         const banner = btn.closest('.rounded-xl, .rounded-2xl, .rounded');
@@ -185,7 +235,8 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         alert(data.message || 'Could not dismiss draft.');
       }
-    } catch {
+    } catch (e) {
+      console.error(e);
       alert('Could not dismiss draft.');
     }
   });

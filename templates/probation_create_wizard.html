@@ -1,17 +1,555 @@
 {% extends "base.html" %}
+{% block title %}Probation Wizard{% endblock %}
+{% block page_title %}🧭 Probation Wizard{% endblock %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto p-6">
-  <div class="rounded-xl border border-slate-200 bg-white p-8 shadow-sm text-center">
-    <h1 class="text-2xl font-semibold text-slate-900">🧭 Probation Wizard</h1>
-    <p class="mt-4 text-slate-600">
-      This is a placeholder for the Probation Wizard.  
-      The functionality will be implemented in a future sprint.
-    </p>
+<div class="max-w-4xl mx-auto">
+  <!-- Header -->
+  <div class="mb-6 flex items-center justify-between gap-4">
+    <div>
+      <h1 class="text-xl sm:text-2xl font-semibold text-slate-900">
+        Create Probation Record (Wizard)
+      </h1>
+      <p class="mt-1 text-xs sm:text-sm text-slate-500">
+        Capture key probation details in a few guided steps, then create the record.
+      </p>
+    </div>
     <a href="{{ url_for('probation_dashboard') }}"
-       class="mt-6 inline-flex items-center rounded-lg bg-[#0f6b6a] text-white px-4 py-2 hover:bg-[#0c5858]">
-      ← Back to Probation Dashboard
+       class="inline-flex items-center text-sm font-medium text-[#005b5a] hover:text-[#004442]">
+      <span class="mr-1.5">←</span>
+      Back to Probation Dashboard
     </a>
   </div>
+
+  <!-- Draft info bar -->
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm text-slate-600">
+    <div class="flex items-center gap-2">
+      <span class="inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+      <span>
+        Drafts are saved in the background as you move between steps.
+      </span>
+    </div>
+    {% if draft and draft.updated_at %}
+      <div class="text-[11px] sm:text-xs text-slate-500">
+        Last saved:
+        <span class="font-medium">{{ draft.updated_at.strftime("%d %b %Y %H:%M") }}</span>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Wizard card -->
+  <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <!-- Stepper -->
+    <div class="border-b border-slate-200 bg-slate-50 px-4 py-3 sm:px-6">
+      <div class="flex items-center justify-between gap-2 text-xs sm:text-sm">
+        <div class="flex flex-1 items-center gap-2">
+          <div class="flex items-center gap-2">
+            <div class="step-pill step-pill-1 inline-flex h-7 min-w-[28px] items-center justify-center rounded-full border text-[11px] font-semibold">
+              1
+            </div>
+            <span class="hidden sm:inline text-slate-700 text-xs sm:text-sm">Basics</span>
+          </div>
+          <div class="flex-1 h-px bg-slate-200 mx-1 sm:mx-2"></div>
+          <div class="flex items-center gap-2">
+            <div class="step-pill step-pill-2 inline-flex h-7 min-w-[28px] items-center justify-center rounded-full border text-[11px] font-semibold">
+              2
+            </div>
+            <span class="hidden sm:inline text-slate-700 text-xs sm:text-sm">Objectives & Support</span>
+          </div>
+          <div class="flex-1 h-px bg-slate-200 mx-1 sm:mx-2"></div>
+          <div class="flex items-center gap-2">
+            <div class="step-pill step-pill-3 inline-flex h-7 min-w-[28px] items-center justify-center rounded-full border text-[11px] font-semibold">
+              3
+            </div>
+            <span class="hidden sm:inline text-slate-700 text-xs sm:text-sm">Review & Create</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Steps -->
+    <div class="px-4 py-5 sm:px-6 sm:py-6">
+      <!-- STEP 1: Basics -->
+      <div class="wizard-step" data-step="1">
+        <h2 class="text-sm sm:text-base font-semibold text-slate-900 mb-3">
+          Step 1 · Employee & probation basics
+        </h2>
+        <p class="text-xs sm:text-sm text-slate-500 mb-5">
+          Select the employee and capture the core probation dates and context.
+        </p>
+
+        <div class="space-y-4">
+          <!-- Employee selection (simple for now: ID + name) -->
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div class="sm:col-span-1">
+              <label for="employee_id" class="block text-xs font-medium text-slate-700 mb-1">
+                Employee ID
+              </label>
+              <input
+                id="employee_id"
+                type="number"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#005b5a] focus:ring-2 focus:ring-[#005b5a]/20"
+                placeholder="e.g. 123"
+              >
+              <p class="mt-1 text-[11px] text-slate-500">
+                Use the Probation Employee list to confirm the ID.
+                <a href="{{ url_for('probation_employee_list') }}" target="_blank"
+                   class="text-[#005b5a] hover:text-[#004442] underline">
+                  Open employee list
+                </a>
+              </p>
+            </div>
+            <div class="sm:col-span-1">
+              <label for="employee_name" class="block text-xs font-medium text-slate-700 mb-1">
+                Employee name (for your reference)
+              </label>
+              <input
+                id="employee_name"
+                type="text"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#005b5a] focus:ring-2 focus:ring-[#005b5a]/20"
+                placeholder="e.g. Alex Smith"
+              >
+            </div>
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label for="start_date" class="block text-xs font-medium text-slate-700 mb-1">
+                Probation start date
+              </label>
+              <input
+                id="start_date"
+                type="date"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#005b5a] focus:ring-2 focus:ring-[#005b5a]/20"
+              >
+            </div>
+            <div>
+              <label for="expected_end_date" class="block text-xs font-medium text-slate-700 mb-1">
+                Expected end date
+              </label>
+              <input
+                id="expected_end_date"
+                type="date"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#005b5a] focus:ring-2 focus:ring-[#005b5a]/20"
+              >
+              <p class="mt-1 text-[11px] text-slate-500">
+                Usually 3 or 6 months from the start date.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label for="notes" class="block text-xs font-medium text-slate-700 mb-1">
+              Context / notes
+            </label>
+            <textarea
+              id="notes"
+              rows="3"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#005b5a] focus:ring-2 focus:ring-[#005b5a]/20"
+              placeholder="Briefly describe the role, any specific expectations, or risk factors."
+            ></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2: Objectives & support -->
+      <div class="wizard-step hidden" data-step="2">
+        <h2 class="text-sm sm:text-base font-semibold text-slate-900 mb-3">
+          Step 2 · Objectives & support
+        </h2>
+        <p class="text-xs sm:text-sm text-slate-500 mb-5">
+          Capture headline objectives and how the employee will be supported during probation.
+          This information can inform future plans and reviews.
+        </p>
+
+        <div class="space-y-4">
+          <div>
+            <label for="objectives" class="block text-xs font-medium text-slate-700 mb-1">
+              Key objectives / focus areas
+            </label>
+            <textarea
+              id="objectives"
+              rows="4"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#005b5a] focus:ring-2 focus:ring-[#005b5a]/20"
+              placeholder="e.g. Achieve 95% completion of care plans; demonstrate safe lone working; complete all mandatory training."
+            ></textarea>
+          </div>
+
+          <div>
+            <label for="support" class="block text-xs font-medium text-slate-700 mb-1">
+              Support / training to be provided
+            </label>
+            <textarea
+              id="support"
+              rows="3"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#005b5a] focus:ring-2 focus:ring-[#005b5a]/20"
+              placeholder="e.g. Shadowing shifts, supernumerary time, mentoring, e-learning modules, supervision schedule."
+            ></textarea>
+          </div>
+
+          <div>
+            <label for="monitoring" class="block text-xs font-medium text-slate-700 mb-1">
+              Monitoring / check-in arrangements
+            </label>
+            <textarea
+              id="monitoring"
+              rows="3"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#005b5a] focus:ring-2 focus:ring-[#005b5a]/20"
+              placeholder="e.g. Weekly 1:1 for first month, then fortnightly; unannounced spot checks; mid-probation review."
+            ></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 3: Review & Create -->
+      <div class="wizard-step hidden" data-step="3">
+        <h2 class="text-sm sm:text-base font-semibold text-slate-900 mb-3">
+          Step 3 · Review & create record
+        </h2>
+        <p class="text-xs sm:text-sm text-slate-500 mb-5">
+          Check the summary below. When you’re ready, create the probation record.
+        </p>
+
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs sm:text-sm text-slate-700 space-y-3">
+          <div>
+            <h3 class="font-semibold text-slate-900 mb-1">Employee</h3>
+            <p id="summary_employee" class="text-slate-700">
+              –
+            </p>
+          </div>
+          <div class="grid sm:grid-cols-2 gap-3">
+            <div>
+              <h3 class="font-semibold text-slate-900 mb-1">Probation dates</h3>
+              <p id="summary_dates" class="text-slate-700">
+                –
+              </p>
+            </div>
+            <div>
+              <h3 class="font-semibold text-slate-900 mb-1">Monitoring</h3>
+              <p id="summary_monitoring" class="text-slate-700">
+                –
+              </p>
+            </div>
+          </div>
+          <div>
+            <h3 class="font-semibold text-slate-900 mb-1">Objectives</h3>
+            <p id="summary_objectives" class="whitespace-pre-line text-slate-700">
+              –
+            </p>
+          </div>
+          <div>
+            <h3 class="font-semibold text-slate-900 mb-1">Support</h3>
+            <p id="summary_support" class="whitespace-pre-line text-slate-700">
+              –
+            </p>
+          </div>
+          <div>
+            <h3 class="font-semibold text-slate-900 mb-1">Context / notes</h3>
+            <p id="summary_notes" class="whitespace-pre-line text-slate-700">
+              –
+            </p>
+          </div>
+        </div>
+
+        <p class="mt-4 text-[11px] text-slate-500">
+          When you click <span class="font-semibold">Create Probation Record</span>, a standard probation record
+          will be created using the start date, expected end date and notes. Objectives and support details
+          will be available in this wizard draft for future reference or manual transfer into a plan.
+        </p>
+      </div>
+    </div>
+
+    <!-- Navigation bar -->
+    <div class="border-t border-slate-200 bg-slate-50 px-4 py-3 sm:px-6 flex flex-wrap items-center justify-between gap-3">
+      <div class="text-[11px] text-slate-500" id="save-status">
+        Draft not yet saved.
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          id="btn-prev"
+          class="inline-flex items-center rounded-2xl border border-slate-300 px-3 py-1.5 text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          ← Back
+        </button>
+        <button
+          type="button"
+          id="btn-save-exit"
+          class="inline-flex items-center rounded-2xl border border-slate-300 px-3 py-1.5 text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-100"
+        >
+          Save draft &amp; stay
+        </button>
+        <button
+          type="button"
+          id="btn-next"
+          class="inline-flex items-center rounded-2xl bg-[#005b5a] px-3 py-1.5 text-xs sm:text-sm font-medium text-white hover:bg-[#004544]"
+        >
+          Next →
+        </button>
+        <button
+          type="button"
+          id="btn-create"
+          class="hidden inline-flex items-center rounded-2xl bg-slate-900 px-3 py-1.5 text-xs sm:text-sm font-medium text-white hover:bg-black"
+        >
+          Create Probation Record
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    // Initial state from server
+    const initialStep = {{ step or 1 }};
+    const initialData = {{ data | tojson | safe }} || {};
+    const saveUrl = "{{ url_for('probation_save_draft') }}";
+
+    const state = {
+      step: initialStep,
+      employee_id: initialData.employee_id || "",
+      employee_name: initialData.employee_name || "",
+      start_date: initialData.start_date || "",
+      expected_end_date: initialData.expected_end_date || "",
+      notes: initialData.notes || "",
+      objectives: initialData.objectives || "",
+      support: initialData.support || "",
+      monitoring: initialData.monitoring || ""
+    };
+
+    // Elements
+    const steps = Array.from(document.querySelectorAll('.wizard-step'));
+    const pills = {
+      1: document.querySelector('.step-pill-1'),
+      2: document.querySelector('.step-pill-2'),
+      3: document.querySelector('.step-pill-3')
+    };
+
+    const inputEmployeeId = document.getElementById('employee_id');
+    const inputEmployeeName = document.getElementById('employee_name');
+    const inputStartDate = document.getElementById('start_date');
+    const inputExpectedEndDate = document.getElementById('expected_end_date');
+    const inputNotes = document.getElementById('notes');
+    const inputObjectives = document.getElementById('objectives');
+    const inputSupport = document.getElementById('support');
+    const inputMonitoring = document.getElementById('monitoring');
+
+    const btnPrev = document.getElementById('btn-prev');
+    const btnNext = document.getElementById('btn-next');
+    const btnSaveExit = document.getElementById('btn-save-exit');
+    const btnCreate = document.getElementById('btn-create');
+    const saveStatus = document.getElementById('save-status');
+
+    const summaryEmployee = document.getElementById('summary_employee');
+    const summaryDates = document.getElementById('summary_dates');
+    const summaryMonitoring = document.getElementById('summary_monitoring');
+    const summaryObjectives = document.getElementById('summary_objectives');
+    const summarySupport = document.getElementById('summary_support');
+    const summaryNotes = document.getElementById('summary_notes');
+
+    // Hydrate fields from initial state
+    function hydrateFields() {
+      if (inputEmployeeId) inputEmployeeId.value = state.employee_id || "";
+      if (inputEmployeeName) inputEmployeeName.value = state.employee_name || "";
+      if (inputStartDate) inputStartDate.value = state.start_date || "";
+      if (inputExpectedEndDate) inputExpectedEndDate.value = state.expected_end_date || "";
+      if (inputNotes) inputNotes.value = state.notes || "";
+      if (inputObjectives) inputObjectives.value = state.objectives || "";
+      if (inputSupport) inputSupport.value = state.support || "";
+      if (inputMonitoring) inputMonitoring.value = state.monitoring || "";
+    }
+
+    hydrateFields();
+
+    function updateSummary() {
+      const empText = (state.employee_name || "Unknown employee") +
+                      (state.employee_id ? ` (ID ${state.employee_id})` : "");
+      summaryEmployee.textContent = empText || "–";
+
+      if (state.start_date || state.expected_end_date) {
+        summaryDates.textContent = [
+          state.start_date ? `Start: ${state.start_date}` : null,
+          state.expected_end_date ? `Expected end: ${state.expected_end_date}` : null
+        ].filter(Boolean).join(" · ");
+      } else {
+        summaryDates.textContent = "–";
+      }
+
+      summaryMonitoring.textContent = state.monitoring || "–";
+      summaryObjectives.textContent = state.objectives || "–";
+      summarySupport.textContent = state.support || "–";
+      summaryNotes.textContent = state.notes || "–";
+    }
+
+    function setStep(step) {
+      state.step = step;
+
+      steps.forEach(el => {
+        const s = parseInt(el.getAttribute('data-step'), 10);
+        if (s === step) el.classList.remove('hidden');
+        else el.classList.add('hidden');
+      });
+
+      Object.entries(pills).forEach(([s, pill]) => {
+        const num = parseInt(s, 10);
+        pill.classList.remove(
+          'bg-[#005b5a]', 'text-white', 'border-[#005b5a]',
+          'bg-slate-900', 'border-slate-900', 'text-white',
+          'bg-slate-100', 'border-slate-300', 'text-slate-500'
+        );
+
+        if (num === step) {
+          pill.classList.add('bg-[#005b5a]', 'text-white', 'border-[#005b5a]');
+        } else if (num < step) {
+          pill.classList.add('bg-slate-900', 'border-slate-900', 'text-white');
+        } else {
+          pill.classList.add('bg-slate-100', 'border-slate-300', 'text-slate-500');
+        }
+      });
+
+      btnPrev.disabled = (step === 1);
+      if (step === 3) {
+        btnNext.classList.add('hidden');
+        btnCreate.classList.remove('hidden');
+        updateSummary();
+      } else {
+        btnNext.classList.remove('hidden');
+        btnCreate.classList.add('hidden');
+      }
+    }
+
+    function collectFromFields() {
+      if (inputEmployeeId) state.employee_id = inputEmployeeId.value.trim();
+      if (inputEmployeeName) state.employee_name = inputEmployeeName.value.trim();
+      if (inputStartDate) state.start_date = inputStartDate.value;
+      if (inputExpectedEndDate) state.expected_end_date = inputExpectedEndDate.value;
+      if (inputNotes) state.notes = inputNotes.value.trim();
+      if (inputObjectives) state.objectives = inputObjectives.value.trim();
+      if (inputSupport) state.support = inputSupport.value.trim();
+      if (inputMonitoring) state.monitoring = inputMonitoring.value.trim();
+    }
+
+    function setSaveStatus(text, isError = false) {
+      if (!saveStatus) return;
+      saveStatus.textContent = text;
+      saveStatus.classList.remove('text-emerald-600', 'text-red-600', 'text-slate-500');
+      if (isError) {
+        saveStatus.classList.add('text-red-600');
+      } else if (text.toLowerCase().includes('saved')) {
+        saveStatus.classList.add('text-emerald-600');
+      } else {
+        saveStatus.classList.add('text-slate-500');
+      }
+    }
+
+    async function saveDraft(showStatus = true) {
+      collectFromFields();
+
+      const payload = {
+        step: state.step,
+        employee_id: state.employee_id,
+        employee_name: state.employee_name,
+        start_date: state.start_date,
+        expected_end_date: state.expected_end_date,
+        notes: state.notes,
+        objectives: state.objectives,
+        support: state.support,
+        monitoring: state.monitoring
+      };
+
+      try {
+        if (showStatus) setSaveStatus('Saving draft…');
+        const fetchFn = window.fetchWithCsrf || window.fetch;
+        const resp = await fetchFn(saveUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        if (!resp.ok) throw new Error('Bad response');
+        const data = await resp.json();
+        if (data && data.updated_at && showStatus) {
+          setSaveStatus('Draft saved at ' + data.updated_at);
+        } else if (showStatus) {
+          setSaveStatus('Draft saved.');
+        }
+      } catch (err) {
+        console.error('Error saving probation draft:', err);
+        if (showStatus) setSaveStatus('Error saving draft. Please try again.', true);
+      }
+    }
+
+    // Navigation handlers
+    btnPrev.addEventListener('click', async () => {
+      if (state.step > 1) {
+        await saveDraft(false);
+        setStep(state.step - 1);
+      }
+    });
+
+    btnNext.addEventListener('click', async () => {
+      if (state.step === 1) {
+        collectFromFields();
+        if (!state.employee_id || !state.start_date || !state.expected_end_date) {
+          alert('Please select an employee and both start and expected end dates before continuing.');
+          return;
+        }
+      }
+      if (state.step < 3) {
+        await saveDraft(false);
+        setStep(state.step + 1);
+      }
+    });
+
+    btnSaveExit.addEventListener('click', async () => {
+      await saveDraft(true);
+    });
+
+    btnCreate.addEventListener('click', async () => {
+      collectFromFields();
+
+      if (!state.employee_id) {
+        alert('Employee ID is required to create the probation record.');
+        return;
+      }
+      if (!state.start_date || !state.expected_end_date) {
+        alert('Start date and expected end date are required to create the probation record.');
+        return;
+      }
+
+      // Save draft one last time
+      await saveDraft(false);
+
+      // Build a real POST form to /probation/create/<employee_id>
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = `/probation/create/${encodeURIComponent(state.employee_id)}`;
+
+      function addField(name, value) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
+      }
+
+      addField('start_date', state.start_date);
+      addField('expected_end_date', state.expected_end_date);
+      addField('notes', state.notes || '');
+
+      // CSRF token – reuse the global value that Flask-WTF expects
+      const csrfToken = '{{ csrf_token() }}';
+      if (csrfToken) {
+        addField('csrf_token', csrfToken);
+      }
+
+      document.body.appendChild(form);
+      form.submit();
+    });
+
+    // Initialise UI
+    setStep(initialStep || 1);
+  });
+</script>
 {% endblock %}

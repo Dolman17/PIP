@@ -32,25 +32,29 @@ class Employee(db.Model):
     team_id = db.Column(db.Integer)
     email = db.Column(db.String(120), nullable=True)
 
-    pips = db.relationship('PIPRecord', back_populates='employee', lazy=True)
+    pips = db.relationship("PIPRecord", back_populates="employee", lazy=True)
 
 
 class PIPRecord(db.Model):
-    __tablename__ = 'pip_record'
+    __tablename__ = "pip_record"
 
     id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=False)
-    assigned_to = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # NEW
+    employee_id = db.Column(db.Integer, db.ForeignKey("employee.id"), nullable=False)
+    assigned_to = db.Column(
+        db.Integer, db.ForeignKey("user.id"), nullable=True
+    )  # NEW
 
     # Core PIP fields
     concerns = db.Column(db.Text, nullable=False)
     start_date = db.Column(db.Date, nullable=False)
     review_date = db.Column(db.Date, nullable=False)
     meeting_notes = db.Column(db.Text)
-    status = db.Column(db.String(20), default='Open')
+    status = db.Column(db.String(20), default="Open")
     created_by = db.Column(db.String(100))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_updated = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
     # Legacy/simple AI field (kept for backward compatibility)
     ai_advice = db.Column(db.Text)
@@ -86,73 +90,91 @@ class PIPRecord(db.Model):
     # -------------------------------------------------------------------
 
     # Relationships
-    employee = db.relationship('Employee', back_populates='pips')
-    assignee = db.relationship('User', backref='assigned_pips')  # NEW
+    employee = db.relationship("Employee", back_populates="pips")
+    assignee = db.relationship("User", backref="assigned_pips")  # NEW
     action_items = db.relationship(
-        'PIPActionItem',
-        back_populates='pip_record',
-        cascade='all, delete-orphan',
-        lazy=True
+        "PIPActionItem",
+        back_populates="pip_record",
+        cascade="all, delete-orphan",
+        lazy=True,
     )
     timeline_events = db.relationship(
-        'TimelineEvent',
-        back_populates='pip_record',
-        cascade='all, delete-orphan',
-        lazy=True
+        "TimelineEvent",
+        back_populates="pip_record",
+        cascade="all, delete-orphan",
+        lazy=True,
     )
 
 
 class PIPActionItem(db.Model):
-    __tablename__ = 'pip_action_item'
+    __tablename__ = "pip_action_item"
 
     id = db.Column(db.Integer, primary_key=True)
-    pip_record_id = db.Column(db.Integer, db.ForeignKey('pip_record.id'), nullable=False)
+    pip_record_id = db.Column(
+        db.Integer, db.ForeignKey("pip_record.id"), nullable=False
+    )
     description = db.Column(db.Text, nullable=False)
-    status = db.Column(db.String(20), default='Outstanding')
+    status = db.Column(db.String(20), default="Outstanding")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    pip_record = db.relationship(
-        'PIPRecord',
-        back_populates='action_items'
-    )
+    pip_record = db.relationship("PIPRecord", back_populates="action_items")
 
 
 class TimelineEvent(db.Model):
-    __tablename__ = 'timeline_event'
+    __tablename__ = "timeline_event"
 
     id = db.Column(db.Integer, primary_key=True)
-    pip_record_id = db.Column(db.Integer, db.ForeignKey('pip_record.id'), nullable=True)
+    pip_record_id = db.Column(
+        db.Integer, db.ForeignKey("pip_record.id"), nullable=True
+    )
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     event_type = db.Column(db.String(100))
     notes = db.Column(db.Text)
     updated_by = db.Column(db.String(100))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    pip_record = db.relationship(
-        'PIPRecord',
-        back_populates='timeline_events'
-    )
+    pip_record = db.relationship("PIPRecord", back_populates="timeline_events")
 
 
 class ProbationRecord(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=False)
+    employee_id = db.Column(
+        db.Integer, db.ForeignKey("employee.id"), nullable=False
+    )
     start_date = db.Column(db.Date, nullable=False)
     expected_end_date = db.Column(db.Date, nullable=False)
-    status = db.Column(db.String(50), default="Active")  # Active, Extended, Completed, Failed
+    status = db.Column(
+        db.String(50), default="Active"
+    )  # Active, Extended, Completed, Failed
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_updated = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
-    reviews = db.relationship('ProbationReview', backref='probation', lazy=True, cascade="all, delete-orphan")
-    plans = db.relationship('ProbationPlan', backref='probation', lazy=True, cascade="all, delete-orphan")
+    reviews = db.relationship(
+        "ProbationReview",
+        backref="probation",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
+    plans = db.relationship(
+        "ProbationPlan",
+        backref="probation",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
 
-    employee = db.relationship('Employee', backref=db.backref('probation_records', lazy=True))
+    employee = db.relationship(
+        "Employee", backref=db.backref("probation_records", lazy=True)
+    )
 
 
 class ProbationReview(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    probation_id = db.Column(db.Integer, db.ForeignKey('probation_record.id'), nullable=False)
+    probation_id = db.Column(
+        db.Integer, db.ForeignKey("probation_record.id"), nullable=False
+    )
     review_date = db.Column(db.Date, nullable=False)
     reviewer = db.Column(db.String(100))
     summary = db.Column(db.Text)
@@ -162,57 +184,78 @@ class ProbationReview(db.Model):
 
 class ProbationPlan(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    probation_id = db.Column(db.Integer, db.ForeignKey('probation_record.id'), nullable=False)
+    probation_id = db.Column(
+        db.Integer, db.ForeignKey("probation_record.id"), nullable=False
+    )
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    objectives = db.Column(db.Text)  # Optionally replace with structured fields later
+    objectives = db.Column(
+        db.Text
+    )  # Optionally replace with structured fields later
     deadline = db.Column(db.Date)
-    outcome = db.Column(db.String(100))  # e.g., Met, Not Met, Ongoing
+    outcome = db.Column(
+        db.String(100)
+    )  # e.g., Met, Not Met, Ongoing
 
 
 class DraftPIP(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"))
     step = db.Column(db.Integer)
     data = db.Column(db.JSON)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
     is_dismissed = db.Column(db.Boolean, default=False)
 
-    user = db.relationship('User', backref='draft_pips')
+    user = db.relationship("User", backref="draft_pips")
 
 
 class DraftProbation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("user.id"), nullable=False, index=True
+    )
     employee_id = db.Column(db.Integer, nullable=True)
     step = db.Column(db.Integer, default=1)
     name = db.Column(db.String(120), default="Untitled Probation Draft")
     payload = db.Column(db.JSON, default={})  # store step data incrementally
     is_dismissed = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
-    updated_at = db.Column(db.DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+    created_at = db.Column(
+        db.DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at = db.Column(
+        db.DateTime(timezone=True),
+        onupdate=func.now(),
+        server_default=func.now(),
+    )
 
     __table_args__ = (
-        db.Index('ix_probation_draft_user_active', 'user_id', 'is_dismissed'),
+        db.Index("ix_probation_draft_user_active", "user_id", "is_dismissed"),
     )
 
 
 class ImportJob(db.Model):
-    __tablename__ = 'import_jobs'
+    __tablename__ = "import_jobs"
     id = db.Column(db.Integer, primary_key=True)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(
+        db.DateTime, nullable=False, default=datetime.utcnow
+    )
     created_by = db.Column(db.String(120), nullable=False)
     source_filename = db.Column(db.String(255), nullable=False)
     total_rows = db.Column(db.Integer, nullable=False)
     imported_rows = db.Column(db.Integer, nullable=False, default=0)
     skipped_rows = db.Column(db.Integer, nullable=False, default=0)
-    errors_json = db.Column(db.Text, nullable=True)  # store per-row errors / warnings
+    errors_json = db.Column(
+        db.Text, nullable=True
+    )  # store per-row errors / warnings
 
     def errors(self):
         try:
-            return json.loads(self.errors_json or '[]')
+            return json.loads(self.errors_json or "[]")
         except Exception:
             return []
+
 
 # --- New Model: DocumentFile ---
 class DocumentFile(db.Model):
@@ -228,20 +271,116 @@ class DocumentFile(db.Model):
         nullable=False,
     )
 
-    doc_type = db.Column(db.String(32), nullable=False)   # invite | plan | outcome
+    doc_type = db.Column(db.String(32), nullable=False)  # invite | plan | outcome
     version = db.Column(db.Integer, nullable=False, default=1)
     status = db.Column(db.String(16), nullable=False, default="draft")
     docx_path = db.Column(db.String(255), nullable=False)
     pdf_path = db.Column(db.String(255))
     html_snapshot = db.Column(db.Text)
     notes = db.Column(db.String(255))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = db.Column(
+        db.DateTime, default=datetime.utcnow, nullable=False
+    )
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
     created_by = db.Column(db.String(120))
 
     # Relationship back to PIPRecord
-    pip = db.relationship("PIPRecord", backref=db.backref("documents", lazy="dynamic"))
+    pip = db.relationship(
+        "PIPRecord", backref=db.backref("documents", lazy="dynamic")
+    )
 
     __table_args__ = (
-        db.UniqueConstraint("pip_id", "doc_type", "version", name="uq_pip_doctype_version"),
+        db.UniqueConstraint(
+            "pip_id", "doc_type", "version", name="uq_pip_doctype_version"
+        ),
     )
+
+
+# --- New Models: Sickness Management ---
+
+
+class SicknessCase(db.Model):
+    __tablename__ = "sickness_cases"
+
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(
+        db.Integer, db.ForeignKey("employee.id"), nullable=False, index=True
+    )
+
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=True)
+
+    reason = db.Column(db.String(255), nullable=True)
+    trigger_type = db.Column(
+        db.String(50), nullable=True
+    )  # short_term / long_term / pattern / other / ''
+    notes = db.Column(db.Text, nullable=True)
+
+    status = db.Column(
+        db.String(32), nullable=False, default="Open"
+    )  # Open, Closed, Monitoring, etc.
+
+    created_at = db.Column(
+        db.DateTime, default=datetime.utcnow, nullable=False
+    )
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+
+    # Relationships
+    employee = db.relationship(
+        "Employee", backref=db.backref("sickness_cases", lazy=True)
+    )
+    meetings = db.relationship(
+        "SicknessMeeting",
+        back_populates="case",
+        cascade="all, delete-orphan",
+        lazy=True,
+    )
+
+    def __repr__(self):
+        return (
+            f"<SicknessCase {self.id} emp={self.employee_id} status={self.status}>"
+        )
+
+
+class SicknessMeeting(db.Model):
+    __tablename__ = "sickness_meetings"
+
+    id = db.Column(db.Integer, primary_key=True)
+    sickness_case_id = db.Column(
+        db.Integer,
+        db.ForeignKey("sickness_cases.id"),
+        nullable=False,
+        index=True,
+    )
+
+    meeting_date = db.Column(db.Date, nullable=False)
+    meeting_type = db.Column(
+        db.String(50), nullable=False
+    )  # RTW / Absence Review / Welfare / Other
+    chair = db.Column(db.String(100), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    outcome = db.Column(db.Text, nullable=True)
+
+    created_at = db.Column(
+        db.DateTime, default=datetime.utcnow, nullable=False
+    )
+
+    case = db.relationship(
+        "SicknessCase", back_populates="meetings"
+    )
+
+    def __repr__(self):
+        return (
+            f"<SicknessMeeting {self.id} case={self.sickness_case_id} "
+            f"type={self.meeting_type}>"
+        )

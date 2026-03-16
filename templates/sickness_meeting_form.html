@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% set layout = "default" %}
+{% block title %}Add Sickness Meeting - Ellipse HR{% endblock %}
+{% block page_title %}Add Sickness Meeting{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto">
+  <div class="bg-white rounded-xl shadow p-6">
+    <h2 class="text-xl font-semibold text-ellipse-teal mb-1">
+      Meeting for {{ employee.first_name }} {{ employee.last_name }}
+    </h2>
+    <p class="text-sm text-gray-500 mb-4">
+      Log a Return to Work, Welfare or other sickness-related meeting.
+    </p>
+
+    <form method="POST">
+      {{ form.hidden_tag() }}
+
+      <!-- Meeting date -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium mb-1">
+          {{ form.meeting_date.label.text }}
+        </label>
+        {{ form.meeting_date(class="border rounded px-3 py-2 w-full", type="date") }}
+        {% for err in form.meeting_date.errors %}
+          <p class="text-xs text-red-600 mt-1">{{ err }}</p>
+        {% endfor %}
+      </div>
+
+      <!-- Meeting type -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium mb-1">
+          {{ form.meeting_type.label.text }}
+        </label>
+        {{ form.meeting_type(class="border rounded px-3 py-2 w-full") }}
+        {% for err in form.meeting_type.errors %}
+          <p class="text-xs text-red-600 mt-1">{{ err }}</p>
+        {% endfor %}
+      </div>
+
+      <!-- Outcome -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium mb-1">
+          {{ form.outcome.label.text }}
+        </label>
+        {{ form.outcome(class="border rounded px-3 py-2 w-full") }}
+        {% for err in form.outcome.errors %}
+          <p class="text-xs text-red-600 mt-1">{{ err }}</p>
+        {% endfor %}
+      </div>
+
+      <!-- Notes -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium mb-1">
+          {{ form.notes.label.text }}
+        </label>
+        {{ form.notes(class="border rounded px-3 py-2 w-full", rows="4") }}
+        {% for err in form.notes.errors %}
+          <p class="text-xs text-red-600 mt-1">{{ err }}</p>
+        {% endfor %}
+      </div>
+
+      <div class="flex justify-between items-center mt-6">
+        <a href="{{ url_for('view_sickness_case', case_id=case.id) }}"
+           class="text-sm text-gray-500 hover:text-ellipse-teal">
+          Cancel
+        </a>
+        <button type="submit"
+                class="btn bg-ellipse-teal text-white px-4 py-2 text-sm font-medium hover:bg-ellipse-hover">
+          {{ form.submit.label.text }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

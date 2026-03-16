@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}All Sickness Cases{% endblock %}
+{% block content %}
+
+<div class="max-w-7xl mx-auto px-4 py-8">
+
+  <!-- Header + filters -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+    <div>
+      <h1 class="text-2xl font-semibold text-slate-900">All Sickness Cases</h1>
+      <p class="text-sm text-slate-500 mt-1">
+        Filter and review sickness episodes across your team{% if current_user.admin_level != 0 %} / organisation{% endif %}.
+      </p>
+    </div>
+
+    <form method="get"
+          class="flex flex-wrap items-end gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+      <!-- Status -->
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
+        <select name="status"
+                class="rounded-lg border border-slate-300 text-sm px-2 py-1.5">
+          <option value="open"   {% if status == 'open' %}selected{% endif %}>Open</option>
+          <option value="closed" {% if status == 'closed' %}selected{% endif %}>Closed</option>
+          <option value="all"    {% if status == 'all' %}selected{% endif %}>All</option>
+        </select>
+      </div>
+
+      <!-- Service -->
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Service</label>
+        <select name="service"
+                class="rounded-lg border border-slate-300 text-sm px-2 py-1.5">
+          <option value="">All</option>
+          {% for s in services %}
+            <option value="{{ s }}" {% if service == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Trigger type -->
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Trigger</label>
+        <select name="trigger"
+                class="rounded-lg border border-slate-300 text-sm px-2 py-1.5">
+          <option value="">All</option>
+          {% for value, label in trigger_types %}
+            <option value="{{ value }}" {% if trigger == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="flex gap-2">
+        <button type="submit"
+                class="inline-flex items-center rounded-full bg-[#0f6b6a] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#0c5858]">
+          Apply filters
+        </button>
+        <a href="{{ url_for('sickness_list') }}"
+           class="inline-flex items-center rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
+          Reset
+        </a>
+      </div>
+    </form>
+  </div>
+
+  <!-- Cases table -->
+  <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+      <h2 class="text-base font-semibold text-slate-900">Cases</h2>
+      <p class="text-sm text-slate-500">
+        Showing {{ cases|length or 0 }} case{{ (cases|length) == 1 and '' or 's' }}
+      </p>
+    </div>
+
+    {% if cases %}
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead>
+            <tr class="bg-slate-50 text-slate-600">
+              <th class="text-left px-4 py-3">Employee</th>
+              <th class="text-left px-4 py-3">Service</th>
+              <th class="text-left px-4 py-3">Start</th>
+              <th class="text-left px-4 py-3">End / Status</th>
+              <th class="text-left px-4 py-3">Reason</th>
+              <th class="text-left px-4 py-3">Trigger</th>
+              <th class="text-right px-4 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in cases %}
+              <tr class="border-b border-slate-100 hover:bg-slate-50">
+                <td class="px-4 py-3 font-medium text-slate-900">
+                  {{ c.employee.first_name }} {{ c.employee.last_name }}
+                </td>
+                <td class="px-4 py-3 text-slate-700">
+                  {{ c.employee.service or '—' }}
+                </td>
+                <td class="px-4 py-3">
+                  {{ c.start_date.strftime('%d %b %Y') if c.start_date else '—' }}
+                </td>
+                <td class="px-4 py-3">
+                  {% if c.status == 'Closed' and c.end_date %}
+                    {{ c.end_date.strftime('%d %b %Y') }} · <span class="text-emerald-700 font-medium">Closed</span>
+                  {% elif c.status == 'Closed' %}
+                    <span class="text-emerald-700 font-medium">Closed</span>
+                  {% else %}
+                    <span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                      {{ c.status or 'Open' }}
+                    </span>
+                  {% endif %}
+                </td>
+                <td class="px-4 py-3">
+                  {{ c.reason or '—' }}
+                </td>
+                <td class="px-4 py-3">
+                  {% if c.trigger_type == 'short_term' %}
+                    Short-term trigger
+                  {% elif c.trigger_type == 'long_term' %}
+                    Long-term
+                  {% elif c.trigger_type == 'pattern' %}
+                    Pattern concern
+                  {% elif c.trigger_type == 'other' %}
+                    Other
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td class="px-4 py-3 text-right">
+                  <a href="{{ url_for('view_sickness_case', case_id=c.id) }}"
+                     class="inline-flex items-center rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                    View
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="p-6 text-center text-sm text-slate-500">
+        No sickness cases match the current filters.
+      </div>
+    {% endif %}
+  </div>
+
+</div>
+
+{% endblock %}
