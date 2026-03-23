@@ -1,5 +1,47 @@
+# Environment / secrets
 .env
-__pycache__/
-*.pyc
-*.db
+.env.*
+*.env
 
+# Python cache / build
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+.venv-1/
+venv/
+env/
+
+# Local databases / runtime files
+*.db
+*.sqlite
+*.sqlite3
+
+# Flask / app runtime artifacts
+instance/
+uploads/
+generated_docs/
+
+# Migration / local temp noise
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Project backups / old copies
+old files/

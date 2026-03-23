@@ -1,0 +1,651 @@
+{% extends "base.html" %}
+{% block title %}Employee Relations Case{% endblock %}
+{% block page_title %}<h1 class="text-base font-semibold text-slate-900">Employee Relations Case</h1>{% endblock %}
+
+{% block content %}
+<div class="py-6 space-y-6">
+
+  <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <div>
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+          {{ er_case.case_type }}
+        </span>
+        <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+          {{ er_case.status }}
+        </span>
+        <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+          {{ er_case.stage }}
+        </span>
+      </div>
+      <h2 class="mt-3 text-2xl font-bold text-slate-900">{{ er_case.title }}</h2>
+      <p class="mt-1 text-sm text-slate-600">
+        {{ er_case.employee.first_name }} {{ er_case.employee.last_name }}
+        {% if er_case.employee.job_title %} · {{ er_case.employee.job_title }}{% endif %}
+      </p>
+    </div>
+    <div class="flex gap-2">
+      <a href="{{ url_for('employee_relations.edit_case', case_id=er_case.id) }}"
+         class="inline-flex items-center rounded-lg bg-[#0a4d4c] px-4 py-2 text-sm font-medium text-white hover:bg-[#083b3a]">
+        Edit Case
+      </a>
+      <a href="{{ url_for('employee_relations.case_list', case_id=er_case.id) }}"
+         class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        Back to List
+      </a>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+    <div class="xl:col-span-2 space-y-6">
+
+      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <h3 class="text-lg font-semibold text-slate-900">Case Details</h3>
+        <dl class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div>
+            <dt class="text-sm font-medium text-slate-500">Date Raised</dt>
+            <dd class="mt-1 text-sm text-slate-900">{{ er_case.date_raised.strftime('%d/%m/%Y') if er_case.date_raised else '—' }}</dd>
+          </div>
+          <div>
+            <dt class="text-sm font-medium text-slate-500">Raised By</dt>
+            <dd class="mt-1 text-sm text-slate-900">{{ er_case.raised_by or '—' }}</dd>
+          </div>
+          <div>
+            <dt class="text-sm font-medium text-slate-500">Priority</dt>
+            <dd class="mt-1 text-sm text-slate-900">{{ er_case.priority_level or '—' }}</dd>
+          </div>
+          <div>
+            <dt class="text-sm font-medium text-slate-500">Policy Type</dt>
+            <dd class="mt-1 text-sm text-slate-900">{{ er_case.policy_type or '—' }}</dd>
+          </div>
+          <div>
+            <dt class="text-sm font-medium text-slate-500">Service Area</dt>
+            <dd class="mt-1 text-sm text-slate-900">{{ er_case.service_area or '—' }}</dd>
+          </div>
+          <div>
+            <dt class="text-sm font-medium text-slate-500">Department</dt>
+            <dd class="mt-1 text-sm text-slate-900">{{ er_case.department or '—' }}</dd>
+          </div>
+          <div>
+            <dt class="text-sm font-medium text-slate-500">Next Action Date</dt>
+            <dd class="mt-1 text-sm text-slate-900">{{ er_case.next_action_date.strftime('%d/%m/%Y') if er_case.next_action_date else '—' }}</dd>
+          </div>
+          <div>
+            <dt class="text-sm font-medium text-slate-500">Date Closed</dt>
+            <dd class="mt-1 text-sm text-slate-900">{{ er_case.date_closed.strftime('%d/%m/%Y') if er_case.date_closed else '—' }}</dd>
+          </div>
+        </dl>
+
+        {% if er_case.summary %}
+        <div class="mt-5">
+          <h4 class="text-sm font-semibold text-slate-900">Summary</h4>
+          <p class="mt-2 whitespace-pre-wrap text-sm text-slate-700">{{ er_case.summary }}</p>
+        </div>
+        {% endif %}
+
+        <div class="mt-5">
+          <h4 class="text-sm font-semibold text-slate-900">Allegation / Grievance Details</h4>
+          <p class="mt-2 whitespace-pre-wrap text-sm text-slate-700">{{ er_case.allegation_or_grievance }}</p>
+        </div>
+
+        {% if er_case.confidential_notes %}
+        <div class="mt-5 rounded-xl bg-amber-50 p-4 ring-1 ring-amber-200">
+          <h4 class="text-sm font-semibold text-amber-900">Confidential Notes</h4>
+          <p class="mt-2 whitespace-pre-wrap text-sm text-amber-800">{{ er_case.confidential_notes }}</p>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <div class="flex items-center justify-between">
+          <h3 class="text-lg font-semibold text-slate-900">Policy Text</h3>
+        </div>
+
+        <form method="post"
+              action="{{ url_for('employee_relations.add_policy_text', case_id=er_case.id) }}"
+              class="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-slate-200 p-4">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Policy Title</label>
+            <input type="text"
+                   name="policy_title"
+                   placeholder="Example: Disciplinary Policy 2025"
+                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          </div>
+
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Link to Existing Attachment (Optional)</label>
+            <select name="source_attachment_id"
+                    class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+              <option value="">No linked attachment</option>
+              {% for attachment in er_case.attachments %}
+              <option value="{{ attachment.id }}">
+                {{ attachment.original_filename }}{% if attachment.document_category %} · {{ attachment.document_category }}{% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Policy Text</label>
+            <textarea name="policy_text"
+                      rows="10"
+                      placeholder="Paste the relevant policy wording here..."
+                      class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20"></textarea>
+            <p class="mt-2 text-xs text-slate-500">
+              Paste the sections most relevant to this case. Saving a new one will make it the active policy text for ER AI advice.
+            </p>
+          </div>
+
+          <div>
+            <button type="submit"
+                    class="inline-flex items-center rounded-lg bg-[#0a4d4c] px-4 py-2 text-sm font-medium text-white hover:bg-[#083b3a]">
+              Save Policy Text
+            </button>
+          </div>
+        </form>
+
+        {% set active_policy = er_case.policy_texts | selectattr('is_active') | list | first %}
+
+        {% if active_policy %}
+        <div class="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h4 class="text-sm font-semibold text-emerald-900">Active Policy Text</h4>
+              <p class="mt-1 text-sm text-emerald-800">{{ active_policy.title }}</p>
+              <div class="mt-2 flex flex-wrap gap-3 text-xs text-emerald-700">
+                {% if active_policy.source_filename %}
+                <span>Linked file: {{ active_policy.source_filename }}</span>
+                {% endif %}
+                {% if active_policy.updated_at %}
+                <span>Updated: {{ active_policy.updated_at.strftime('%d/%m/%Y %H:%M') }}</span>
+                {% endif %}
+                <span>By: {{ active_policy.updated_by or active_policy.created_by or 'System' }}</span>
+              </div>
+            </div>
+            <span class="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+              Active
+            </span>
+          </div>
+
+          {% if active_policy.cleaned_text %}
+          <div class="mt-4 max-h-80 overflow-y-auto rounded-lg border border-emerald-200 bg-white p-3">
+            <pre class="whitespace-pre-wrap text-sm text-slate-700">{{ active_policy.cleaned_text }}</pre>
+          </div>
+          {% elif active_policy.raw_text %}
+          <div class="mt-4 max-h-80 overflow-y-auto rounded-lg border border-emerald-200 bg-white p-3">
+            <pre class="whitespace-pre-wrap text-sm text-slate-700">{{ active_policy.raw_text }}</pre>
+          </div>
+          {% else %}
+          <div class="mt-4 rounded-lg bg-white p-3 text-sm text-slate-600 ring-1 ring-emerald-200">
+            This policy entry is linked to a file, but no pasted text has been saved yet.
+          </div>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          No active policy text saved yet.
+        </div>
+        {% endif %}
+
+        {% if er_case.policy_texts %}
+        <div class="mt-5 overflow-x-auto">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead>
+              <tr class="text-left text-slate-500">
+                <th class="py-2 pr-4 font-medium">Title</th>
+                <th class="py-2 pr-4 font-medium">Linked File</th>
+                <th class="py-2 pr-4 font-medium">Status</th>
+                <th class="py-2 pr-4 font-medium">Updated</th>
+                <th class="py-2 pr-4 font-medium">By</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for policy in er_case.policy_texts %}
+              <tr>
+                <td class="py-3 pr-4 text-slate-900">{{ policy.title }}</td>
+                <td class="py-3 pr-4 text-slate-700">{{ policy.source_filename or '—' }}</td>
+                <td class="py-3 pr-4">
+                  {% if policy.is_active %}
+                  <span class="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                    Active
+                  </span>
+                  {% else %}
+                  <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                    Archived
+                  </span>
+                  {% endif %}
+                </td>
+                <td class="py-3 pr-4 text-slate-700">
+                  {{ policy.updated_at.strftime('%d/%m/%Y %H:%M') if policy.updated_at else '—' }}
+                </td>
+                <td class="py-3 pr-4 text-slate-700">
+                  {{ policy.updated_by or policy.created_by or 'System' }}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <div class="flex items-center justify-between">
+          <h3 class="text-lg font-semibold text-slate-900">Documents</h3>
+        </div>
+
+        <form method="post"
+              action="{{ url_for('employee_relations.create_document', case_id=er_case.id) }}"
+              class="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-slate-200 p-4 md:grid-cols-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Document Type</label>
+            <select name="document_type" required
+                    class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+              <option value="">Select document type</option>
+              {% for doc_type in er_document_types %}
+              <option value="{{ doc_type }}">{{ doc_type }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Title</label>
+            <input type="text" name="title"
+                   placeholder="Leave blank to auto-generate"
+                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          </div>
+
+          <div class="md:col-span-2">
+            <button type="submit"
+                    class="inline-flex items-center rounded-lg bg-[#0a4d4c] px-4 py-2 text-sm font-medium text-white hover:bg-[#083b3a]">
+              Create Document Draft
+            </button>
+          </div>
+        </form>
+
+        {% if er_case.documents %}
+        <div class="mt-5 overflow-x-auto">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead>
+              <tr class="text-left text-slate-500">
+                <th class="py-2 pr-4 font-medium">Type</th>
+                <th class="py-2 pr-4 font-medium">Title</th>
+                <th class="py-2 pr-4 font-medium">Version</th>
+                <th class="py-2 pr-4 font-medium">Status</th>
+                <th class="py-2 pr-4 font-medium">Updated</th>
+                <th class="py-2 pr-4 font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for document in er_case.documents %}
+              <tr>
+                <td class="py-3 pr-4 text-slate-700">{{ document.document_type }}</td>
+                <td class="py-3 pr-4 text-slate-900">{{ document.title }}</td>
+                <td class="py-3 pr-4 text-slate-700">v{{ document.version }}</td>
+                <td class="py-3 pr-4">
+                  <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                    {{ document.status }}
+                  </span>
+                </td>
+                <td class="py-3 pr-4 text-slate-700">
+                  {{ document.updated_at.strftime('%d/%m/%Y %H:%M') if document.updated_at else '—' }}
+                </td>
+                <td class="py-3 pr-4">
+                  <div class="flex flex-wrap gap-3">
+                    <a href="{{ url_for('employee_relations.edit_document', document_id=document.id) }}"
+                       class="font-medium text-[#0a4d4c] hover:underline">
+                      Edit
+                    </a>
+
+                    {% if document.status != 'Final' %}
+                    <form method="post"
+                          action="{{ url_for('employee_relations.finalise_document', document_id=document.id) }}"
+                          class="inline">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button type="submit"
+                              class="font-medium text-slate-700 hover:underline">
+                        Finalise
+                      </button>
+                    </form>
+                    {% endif %}
+
+                    {% if document.file_path %}
+                    <a href="{{ url_for('employee_relations.download_document', document_id=document.id) }}"
+                       class="font-medium text-slate-700 hover:underline">
+                      Download
+                    </a>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          No documents created yet.
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <div class="flex items-center justify-between">
+          <h3 class="text-lg font-semibold text-slate-900">Meetings</h3>
+        </div>
+
+        <form method="post"
+              action="{{ url_for('employee_relations.add_meeting', case_id=er_case.id) }}"
+              class="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-slate-200 p-4 md:grid-cols-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Meeting Type</label>
+            <select name="meeting_type" required
+                    class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+              <option value="">Select meeting type</option>
+              {% for meeting_type in meeting_types %}
+              <option value="{{ meeting_type }}">{{ meeting_type }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Meeting Date & Time</label>
+            <input type="datetime-local" name="meeting_datetime" required
+                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          </div>
+
+          <div class="md:col-span-2">
+            <label class="mb-1 block text-sm font-medium text-slate-700">Location</label>
+            <input type="text" name="location"
+                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          </div>
+
+          <div class="md:col-span-2">
+            <label class="mb-1 block text-sm font-medium text-slate-700">Attendees</label>
+            <textarea name="attendees" rows="2"
+                      class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20"></textarea>
+          </div>
+
+          <div class="md:col-span-2">
+            <label class="mb-1 block text-sm font-medium text-slate-700">Notes</label>
+            <textarea name="notes" rows="3"
+                      class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20"></textarea>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Adjournment Notes</label>
+            <textarea name="adjournment_notes" rows="3"
+                      class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20"></textarea>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Outcome Summary</label>
+            <textarea name="outcome_summary" rows="3"
+                      class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20"></textarea>
+          </div>
+
+          <div class="md:col-span-2">
+            <button type="submit"
+                    class="inline-flex items-center rounded-lg bg-[#0a4d4c] px-4 py-2 text-sm font-medium text-white hover:bg-[#083b3a]">
+              Add Meeting
+            </button>
+          </div>
+        </form>
+
+        {% if er_case.meetings %}
+        <div class="mt-5 space-y-3">
+          {% for meeting in er_case.meetings %}
+          <div class="rounded-xl border border-slate-200 p-4">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div class="font-semibold text-slate-900">{{ meeting.meeting_type }}</div>
+                <div class="mt-1 text-sm text-slate-600">
+                  {{ meeting.meeting_datetime.strftime('%d/%m/%Y %H:%M') if meeting.meeting_datetime else '—' }}
+                  {% if meeting.location %} · {{ meeting.location }}{% endif %}
+                </div>
+                {% if meeting.attendees %}
+                <div class="mt-2 text-sm text-slate-700"><strong>Attendees:</strong> {{ meeting.attendees }}</div>
+                {% endif %}
+                {% if meeting.notes %}
+                <div class="mt-2 text-sm text-slate-700 whitespace-pre-wrap"><strong>Notes:</strong> {{ meeting.notes }}</div>
+                {% endif %}
+                {% if meeting.adjournment_notes %}
+                <div class="mt-2 text-sm text-slate-700 whitespace-pre-wrap"><strong>Adjournment:</strong> {{ meeting.adjournment_notes }}</div>
+                {% endif %}
+                {% if meeting.outcome_summary %}
+                <div class="mt-2 text-sm text-slate-700 whitespace-pre-wrap"><strong>Outcome:</strong> {{ meeting.outcome_summary }}</div>
+                {% endif %}
+              </div>
+              <div class="text-xs text-slate-500 whitespace-nowrap">
+                {{ meeting.created_by or 'System' }}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          No meetings recorded yet.
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <div class="flex items-center justify-between">
+          <h3 class="text-lg font-semibold text-slate-900">Attachments</h3>
+        </div>
+
+        <form method="post"
+              action="{{ url_for('employee_relations.upload_attachment', case_id=er_case.id) }}"
+              enctype="multipart/form-data"
+              class="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-slate-200 p-4 md:grid-cols-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <div class="md:col-span-2">
+            <label class="mb-1 block text-sm font-medium text-slate-700">File</label>
+            <input type="file" name="attachment_file" required
+                   class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          </div>
+
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Category</label>
+            <select name="document_category" required
+                    class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+              <option value="">Select category</option>
+              {% for category in attachment_categories %}
+              <option value="{{ category }}">{{ category }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Notes</label>
+            <input type="text" name="attachment_notes"
+                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          </div>
+
+          <div class="md:col-span-2">
+            <button type="submit"
+                    class="inline-flex items-center rounded-lg bg-[#0a4d4c] px-4 py-2 text-sm font-medium text-white hover:bg-[#083b3a]">
+              Upload Attachment
+            </button>
+          </div>
+        </form>
+
+        {% if er_case.attachments %}
+        <div class="mt-5 overflow-x-auto">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead>
+              <tr class="text-left text-slate-500">
+                <th class="py-2 pr-4 font-medium">File</th>
+                <th class="py-2 pr-4 font-medium">Category</th>
+                <th class="py-2 pr-4 font-medium">Uploaded By</th>
+                <th class="py-2 pr-4 font-medium">Uploaded At</th>
+                <th class="py-2 pr-4 font-medium">Notes</th>
+                <th class="py-2 pr-4 font-medium">Action</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for attachment in er_case.attachments %}
+              <tr>
+                <td class="py-3 pr-4 text-slate-900">{{ attachment.original_filename }}</td>
+                <td class="py-3 pr-4 text-slate-700">{{ attachment.document_category }}</td>
+                <td class="py-3 pr-4 text-slate-700">{{ attachment.uploaded_by or 'System' }}</td>
+                <td class="py-3 pr-4 text-slate-700">
+                  {{ attachment.uploaded_at.strftime('%d/%m/%Y %H:%M') if attachment.uploaded_at else '—' }}
+                </td>
+                <td class="py-3 pr-4 text-slate-700">{{ attachment.notes or '—' }}</td>
+                <td class="py-3 pr-4">
+                  <a href="{{ url_for('employee_relations.download_attachment', attachment_id=attachment.id) }}"
+                     class="font-medium text-[#0a4d4c] hover:underline">
+                    Download
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          No attachments uploaded yet.
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <h3 class="text-lg font-semibold text-slate-900">Timeline</h3>
+
+        {% if er_case.timeline_events %}
+        <div class="mt-4 space-y-3">
+          {% for event in er_case.timeline_events %}
+          <div class="rounded-xl border border-slate-200 p-4">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <div class="font-semibold text-slate-900">{{ event.event_type }}</div>
+                {% if event.notes %}
+                <div class="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{{ event.notes }}</div>
+                {% endif %}
+                {% if event.updated_by %}
+                <div class="mt-2 text-xs text-slate-500">By {{ event.updated_by }}</div>
+                {% endif %}
+              </div>
+              <div class="text-xs text-slate-500 whitespace-nowrap">
+                {{ event.timestamp.strftime('%d/%m/%Y %H:%M') if event.timestamp else '' }}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          No timeline events recorded yet.
+        </div>
+        {% endif %}
+      </div>
+
+    </div>
+
+    <div class="space-y-6">
+
+      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <h3 class="text-lg font-semibold text-slate-900">Assigned Roles</h3>
+        <dl class="mt-4 space-y-3 text-sm">
+          <div>
+            <dt class="font-medium text-slate-500">HR Lead</dt>
+            <dd class="mt-1 text-slate-900">{{ er_case.hr_lead or '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Investigating Manager</dt>
+            <dd class="mt-1 text-slate-900">{{ er_case.investigating_manager or '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Hearing Chair</dt>
+            <dd class="mt-1 text-slate-900">{{ er_case.hearing_chair or '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Note Taker</dt>
+            <dd class="mt-1 text-slate-900">{{ er_case.note_taker or '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Appeal Manager</dt>
+            <dd class="mt-1 text-slate-900">{{ er_case.appeal_manager or '—' }}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <h3 class="text-lg font-semibold text-slate-900">Case-Specific Fields</h3>
+        <dl class="mt-4 space-y-3 text-sm">
+          <div>
+            <dt class="font-medium text-slate-500">Disciplinary Category</dt>
+            <dd class="mt-1 text-slate-900">{{ er_case.disciplinary_category or '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Grievance Category</dt>
+            <dd class="mt-1 text-slate-900">{{ er_case.grievance_category or '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Recommended Sanction</dt>
+            <dd class="mt-1 text-slate-900">{{ er_case.recommended_sanction or '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Final Sanction</dt>
+            <dd class="mt-1 text-slate-900">{{ er_case.final_sanction or '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Grievance Outcome</dt>
+            <dd class="mt-1 text-slate-900">{{ er_case.grievance_outcome or '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Person Complained About</dt>
+            <dd class="mt-1 text-slate-900">{{ er_case.person_complained_about or '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Appeal Requested</dt>
+            <dd class="mt-1 text-slate-900">{{ 'Yes' if er_case.appeal_requested_flag else 'No' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Appeal Outcome</dt>
+            <dd class="mt-1 text-slate-900">{{ er_case.appeal_outcome or '—' }}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <h3 class="text-lg font-semibold text-slate-900">Key Dates</h3>
+        <dl class="mt-4 space-y-3 text-sm">
+          <div>
+            <dt class="font-medium text-slate-500">Investigation Deadline</dt>
+            <dd class="mt-1 text-slate-900">{{ er_case.investigation_deadline.strftime('%d/%m/%Y') if er_case.investigation_deadline else '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Hearing Date</dt>
+            <dd class="mt-1 text-slate-900">{{ er_case.hearing_date.strftime('%d/%m/%Y') if er_case.hearing_date else '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Outcome Due Date</dt>
+            <dd class="mt-1 text-slate-900">{{ er_case.outcome_due_date.strftime('%d/%m/%Y') if er_case.outcome_due_date else '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Appeal Deadline</dt>
+            <dd class="mt-1 text-slate-900">{{ er_case.appeal_deadline.strftime('%d/%m/%Y') if er_case.appeal_deadline else '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Appeal Hearing Date</dt>
+            <dd class="mt-1 text-slate-900">{{ er_case.appeal_hearing_date.strftime('%d/%m/%Y') if er_case.appeal_hearing_date else '—' }}</dd>
+          </div>
+        </dl>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}

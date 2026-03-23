@@ -15,10 +15,8 @@
     href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&display=swap"
     rel="stylesheet">
 
-  <!-- ✅ Tailwind CDN (required so utility classes like flex/bg/rounded work) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    // Optional: keep font consistent when using CDN
     tailwind.config = {
       theme: {
         extend: {
@@ -53,10 +51,8 @@
 
 <div class="min-h-screen flex bg-slate-100">
 
-  {# ------------- LEFT SIDEBAR (logged-in only) ------------- #}
   {% if is_logged_in and not hide_sidebar %}
     <aside class="flex flex-col w-72 bg-[#0a4d4c] text-white shadow-xl">
-      <!-- Brand / module switcher -->
       <div class="px-4 py-4 border-b border-white/10 flex items-center justify-between gap-3">
         <div class="flex items-center gap-3 min-w-0">
           <div class="h-9 w-9 rounded-xl bg-white flex items-center justify-center shrink-0">
@@ -75,11 +71,10 @@
         </a>
       </div>
 
-      <!-- Module pills -->
       <div class="px-3 pt-3 pb-2 border-b border-white/10">
-        <div class="flex items-center gap-2">
+        <div class="grid grid-cols-2 gap-2">
           <a href="{{ url_for('dashboard') }}"
-             class="flex-1 inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold
+             class="inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold
                     {% if active_module == 'PIP' %}
                       bg-white text-[#0a4d4c]
                     {% else %}
@@ -89,7 +84,7 @@
           </a>
 
           <a href="{{ url_for('probation_dashboard') }}"
-             class="flex-1 inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold
+             class="inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold
                     {% if active_module == 'Probation' %}
                       bg-white text-[#0a4d4c]
                     {% else %}
@@ -99,7 +94,7 @@
           </a>
 
           <a href="{{ url_for('sickness_dashboard') }}"
-             class="flex-1 inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold
+             class="inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold
                     {% if active_module == 'Sickness' %}
                       bg-white text-[#0a4d4c]
                     {% else %}
@@ -107,10 +102,21 @@
                     {% endif %}">
             <span class="text-xs">Sickness</span>
           </a>
+
+          {% if current_user.is_superuser() %}
+          <a href="{{ url_for('employee_relations.dashboard') }}"
+             class="inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold
+                    {% if active_module == 'Employee Relations' %}
+                      bg-white text-[#0a4d4c]
+                    {% else %}
+                      bg-white/5 text-white/80 hover:bg-white/10
+                    {% endif %}">
+            <span class="text-xs">Employee Relations</span>
+          </a>
+          {% endif %}
         </div>
       </div>
 
-      <!-- NAV GROUPS -->
       <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-6 text-sm">
 
         {% if active_module == 'PIP' %}
@@ -257,6 +263,67 @@
           </div>
         {% endif %}
 
+        {% if active_module == 'Employee Relations' and current_user.is_superuser() %}
+          <div>
+            <div class="px-1 text-[11px] font-semibold uppercase tracking-wide text-white/60 mb-1">
+              Employee Relations
+            </div>
+            <ul class="space-y-1">
+              <li>
+                <a href="{{ url_for('employee_relations.dashboard') }}"
+                   class="flex items-center gap-2 rounded-xl px-3 py-2
+                          {% if current_endpoint == 'employee_relations.dashboard' %}
+                            bg-white text-[#0a4d4c]
+                          {% else %}
+                            text-white/80 hover:bg-white/10
+                          {% endif %}">
+                  <span class="text-base">📊</span>
+                  <span class="text-sm font-medium">ER Dashboard</span>
+                </a>
+              </li>
+
+              <li>
+                <a href="{{ url_for('employee_relations.case_list') }}"
+                   class="flex items-center gap-2 rounded-xl px-3 py-2
+                          {% if current_endpoint == 'employee_relations.case_list' %}
+                            bg-white text-[#0a4d4c]
+                          {% else %}
+                            text-white/80 hover:bg-white/10
+                          {% endif %}">
+                  <span class="text-base">📋</span>
+                  <span class="text-sm font-medium">All ER Cases</span>
+                </a>
+              </li>
+
+              <li>
+                <a href="{{ url_for('employee_relations.create_case') }}"
+                   class="flex items-center gap-2 rounded-xl px-3 py-2
+                          {% if current_endpoint == 'employee_relations.create_case' %}
+                            bg-white text-[#0a4d4c]
+                          {% else %}
+                            text-white/80 hover:bg-white/10
+                          {% endif %}">
+                  <span class="text-base">➕</span>
+                  <span class="text-sm font-medium">Create ER Case</span>
+                </a>
+              </li>
+
+              <li>
+                <a href="{{ url_for('employee_list') }}"
+                   class="flex items-center gap-2 rounded-xl px-3 py-2
+                          {% if current_endpoint == 'employee_list' %}
+                            bg-white text-[#0a4d4c]
+                          {% else %}
+                            text-white/80 hover:bg-white/10
+                          {% endif %}">
+                  <span class="text-base">👥</span>
+                  <span class="text-sm font-medium">All Employees</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        {% endif %}
+
         {% if current_user.is_superuser() %}
           <div>
             <div class="px-1 text-[11px] font-semibold uppercase tracking-wide text-white/60 mb-1">
@@ -321,7 +388,6 @@
     </aside>
   {% endif %}
 
-  {# ------------- MAIN PANEL ------------- #}
   <div class="flex-1 flex flex-col min-w-0">
     <header class="w-full border-b border-slate-200 bg-white">
       <div class="px-4 sm:px-6 py-3 flex items-center justify-between gap-3">

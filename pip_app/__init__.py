@@ -1,19 +1,36 @@
-"""PIP Web App application package.
+"""Application package for the PIP Web App.
 
-Phase 1: provide an application factory that simply returns
-the existing app instance from app.py. This preserves all
-current behaviour while giving us a standard entrypoint
-for WSGI servers and future refactors.
+Phase 1A is intentionally conservative.
 
-IMPORTANT: We avoid importing `app` at module import time to
-prevent circular imports when `models` imports `pip_app`.
+We expose a standard factory signature now:
+    create_app(config_object=None)
+
+But to preserve existing behaviour 1:1, the factory still returns the
+current legacy Flask app instance from app.py. That lets us introduce a
+proper package structure and shared services without breaking routes,
+endpoint names, CSRF behaviour, or template wiring.
+
+Later phases will move actual app creation, extension init, context
+processors, and blueprint registration fully into this package.
 """
 
-def create_app():
-    """Return the existing Flask app instance.
+from __future__ import annotations
 
-    The import from `app` is done lazily inside this function
-    to avoid circular imports during normal module loading.
+from typing import Any
+
+
+def create_app(config_object: Any = None):
+    """Return the current legacy Flask app instance.
+
+    The import is intentionally lazy to avoid circular imports while the
+    codebase is in a hybrid state.
     """
-    from app import app as legacy_app  # local import to avoid cycles
+    from app import app as legacy_app  # local import on purpose
+
+    if config_object is not None:
+        if isinstance(config_object, dict):
+            legacy_app.config.update(config_object)
+        else:
+            legacy_app.config.from_object(config_object)
+
     return legacy_app

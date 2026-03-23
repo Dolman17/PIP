@@ -384,3 +384,352 @@ class SicknessMeeting(db.Model):
             f"<SicknessMeeting {self.id} case={self.sickness_case_id} "
             f"type={self.meeting_type}>"
         )
+
+
+class EmployeeRelationsCase(db.Model):
+    __tablename__ = "employee_relations_cases"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    employee_id = db.Column(
+        db.Integer, db.ForeignKey("employee.id"), nullable=False, index=True
+    )
+
+    case_type = db.Column(db.String(50), nullable=False, index=True)
+    title = db.Column(db.String(255), nullable=False)
+    summary = db.Column(db.Text, nullable=True)
+    allegation_or_grievance = db.Column(db.Text, nullable=False)
+
+    date_raised = db.Column(db.Date, nullable=False)
+    raised_by = db.Column(db.String(120), nullable=True)
+
+    status = db.Column(db.String(50), nullable=False, default="Draft", index=True)
+    stage = db.Column(db.String(100), nullable=False, default="Allegation Logged")
+    priority_level = db.Column(db.String(50), nullable=True)
+
+    service_area = db.Column(db.String(120), nullable=True)
+    department = db.Column(db.String(120), nullable=True)
+    policy_type = db.Column(db.String(50), nullable=True)
+
+    next_action_date = db.Column(db.Date, nullable=True)
+    investigation_deadline = db.Column(db.Date, nullable=True)
+    hearing_date = db.Column(db.Date, nullable=True)
+    outcome_due_date = db.Column(db.Date, nullable=True)
+    appeal_deadline = db.Column(db.Date, nullable=True)
+    date_closed = db.Column(db.Date, nullable=True)
+
+    outcome_status = db.Column(db.String(100), nullable=True)
+    confidential_notes = db.Column(db.Text, nullable=True)
+
+    hr_lead = db.Column(db.String(120), nullable=True)
+    investigating_manager = db.Column(db.String(120), nullable=True)
+    hearing_chair = db.Column(db.String(120), nullable=True)
+    note_taker = db.Column(db.String(120), nullable=True)
+    appeal_manager = db.Column(db.String(120), nullable=True)
+
+    disciplinary_category = db.Column(db.String(120), nullable=True)
+    gross_misconduct_flag = db.Column(db.Boolean, default=False)
+    misconduct_date = db.Column(db.Date, nullable=True)
+    suspension_flag = db.Column(db.Boolean, default=False)
+    suspension_with_pay = db.Column(db.Boolean, default=True)
+    previous_warnings_summary = db.Column(db.Text, nullable=True)
+    recommended_sanction = db.Column(db.String(120), nullable=True)
+    final_sanction = db.Column(db.String(120), nullable=True)
+    warning_level = db.Column(db.String(120), nullable=True)
+    warning_review_date = db.Column(db.Date, nullable=True)
+    warning_expiry_date = db.Column(db.Date, nullable=True)
+
+    grievance_category = db.Column(db.String(120), nullable=True)
+    person_complained_about = db.Column(db.String(120), nullable=True)
+    bullying_flag = db.Column(db.Boolean, default=False)
+    harassment_flag = db.Column(db.Boolean, default=False)
+    discrimination_flag = db.Column(db.Boolean, default=False)
+    requested_resolution = db.Column(db.Text, nullable=True)
+    mediation_considered = db.Column(db.Boolean, default=False)
+    grievance_outcome = db.Column(db.String(120), nullable=True)
+
+    investigation_scope = db.Column(db.Text, nullable=True)
+    investigation_findings = db.Column(db.Text, nullable=True)
+    recommended_next_step = db.Column(db.Text, nullable=True)
+
+    appeal_requested_flag = db.Column(db.Boolean, default=False)
+    appeal_request_date = db.Column(db.Date, nullable=True)
+    appeal_reason = db.Column(db.Text, nullable=True)
+    appeal_hearing_date = db.Column(db.Date, nullable=True)
+    appeal_outcome = db.Column(db.String(120), nullable=True)
+    appeal_outcome_date = db.Column(db.Date, nullable=True)
+
+    created_by = db.Column(db.String(120), nullable=True)
+    updated_by = db.Column(db.String(120), nullable=True)
+
+    created_at = db.Column(
+        db.DateTime, default=datetime.utcnow, nullable=False
+    )
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+
+    employee = db.relationship(
+        "Employee",
+        backref=db.backref("employee_relations_cases", lazy=True),
+    )
+
+    timeline_events = db.relationship(
+        "EmployeeRelationsTimelineEvent",
+        back_populates="case",
+        cascade="all, delete-orphan",
+        lazy=True,
+        order_by="desc(EmployeeRelationsTimelineEvent.timestamp)",
+    )
+
+    meetings = db.relationship(
+        "EmployeeRelationsMeeting",
+        back_populates="case",
+        cascade="all, delete-orphan",
+        lazy=True,
+        order_by="desc(EmployeeRelationsMeeting.meeting_datetime)",
+    )
+
+    attachments = db.relationship(
+        "EmployeeRelationsAttachment",
+        back_populates="case",
+        cascade="all, delete-orphan",
+        lazy=True,
+        order_by="desc(EmployeeRelationsAttachment.uploaded_at)",
+    )
+
+    documents = db.relationship(
+        "EmployeeRelationsDocument",
+        back_populates="case",
+        cascade="all, delete-orphan",
+        lazy=True,
+        order_by="desc(EmployeeRelationsDocument.updated_at)",
+    )
+
+    policy_texts = db.relationship(
+        "EmployeeRelationsPolicyText",
+        back_populates="case",
+        cascade="all, delete-orphan",
+        lazy=True,
+        order_by="desc(EmployeeRelationsPolicyText.updated_at)",
+    )
+
+    def __repr__(self):
+        return (
+            f"<EmployeeRelationsCase {self.id} "
+            f"type={self.case_type} status={self.status}>"
+        )
+
+
+class EmployeeRelationsTimelineEvent(db.Model):
+    __tablename__ = "employee_relations_timeline_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    case_id = db.Column(
+        db.Integer,
+        db.ForeignKey("employee_relations_cases.id"),
+        nullable=False,
+        index=True,
+    )
+
+    timestamp = db.Column(
+        db.DateTime, default=datetime.utcnow, nullable=False, index=True
+    )
+    event_type = db.Column(db.String(100), nullable=False)
+    notes = db.Column(db.Text, nullable=True)
+    updated_by = db.Column(db.String(120), nullable=True)
+    created_at = db.Column(
+        db.DateTime, default=datetime.utcnow, nullable=False
+    )
+
+    case = db.relationship(
+        "EmployeeRelationsCase",
+        back_populates="timeline_events",
+    )
+
+    def __repr__(self):
+        return (
+            f"<EmployeeRelationsTimelineEvent {self.id} "
+            f"case={self.case_id} type={self.event_type}>"
+        )
+
+
+class EmployeeRelationsMeeting(db.Model):
+    __tablename__ = "employee_relations_meetings"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    case_id = db.Column(
+        db.Integer,
+        db.ForeignKey("employee_relations_cases.id"),
+        nullable=False,
+        index=True,
+    )
+
+    meeting_type = db.Column(db.String(100), nullable=False)
+    meeting_datetime = db.Column(db.DateTime, nullable=False, index=True)
+    location = db.Column(db.String(255), nullable=True)
+    attendees = db.Column(db.Text, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    adjournment_notes = db.Column(db.Text, nullable=True)
+    outcome_summary = db.Column(db.Text, nullable=True)
+
+    created_by = db.Column(db.String(120), nullable=True)
+    created_at = db.Column(
+        db.DateTime, default=datetime.utcnow, nullable=False
+    )
+
+    case = db.relationship(
+        "EmployeeRelationsCase",
+        back_populates="meetings",
+    )
+
+    def __repr__(self):
+        return (
+            f"<EmployeeRelationsMeeting {self.id} "
+            f"case={self.case_id} type={self.meeting_type}>"
+        )
+
+
+class EmployeeRelationsAttachment(db.Model):
+    __tablename__ = "employee_relations_attachments"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    case_id = db.Column(
+        db.Integer,
+        db.ForeignKey("employee_relations_cases.id"),
+        nullable=False,
+        index=True,
+    )
+
+    original_filename = db.Column(db.String(255), nullable=False)
+    stored_filename = db.Column(db.String(255), nullable=False)
+    stored_path = db.Column(db.String(500), nullable=False)
+    document_category = db.Column(db.String(100), nullable=False, default="Other")
+    notes = db.Column(db.Text, nullable=True)
+
+    uploaded_by = db.Column(db.String(120), nullable=True)
+    uploaded_at = db.Column(
+        db.DateTime, default=datetime.utcnow, nullable=False, index=True
+    )
+
+    case = db.relationship(
+        "EmployeeRelationsCase",
+        back_populates="attachments",
+    )
+
+    def __repr__(self):
+        return (
+            f"<EmployeeRelationsAttachment {self.id} "
+            f"case={self.case_id} file={self.original_filename}>"
+        )
+
+
+class EmployeeRelationsPolicyText(db.Model):
+    __tablename__ = "employee_relations_policy_texts"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    case_id = db.Column(
+        db.Integer,
+        db.ForeignKey("employee_relations_cases.id"),
+        nullable=False,
+        index=True,
+    )
+
+    title = db.Column(db.String(255), nullable=False)
+    source_filename = db.Column(db.String(255), nullable=True)
+
+    source_attachment_id = db.Column(
+        db.Integer,
+        db.ForeignKey("employee_relations_attachments.id"),
+        nullable=True,
+        index=True,
+    )
+
+    raw_text = db.Column(db.Text, nullable=True)
+    cleaned_text = db.Column(db.Text, nullable=True)
+
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+
+    created_by = db.Column(db.String(120), nullable=True)
+    updated_by = db.Column(db.String(120), nullable=True)
+
+    created_at = db.Column(
+        db.DateTime, default=datetime.utcnow, nullable=False
+    )
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+
+    case = db.relationship(
+        "EmployeeRelationsCase",
+        back_populates="policy_texts",
+    )
+
+    source_attachment = db.relationship(
+        "EmployeeRelationsAttachment",
+        foreign_keys=[source_attachment_id],
+    )
+
+    def __repr__(self):
+        return (
+            f"<EmployeeRelationsPolicyText {self.id} "
+            f"case={self.case_id} title={self.title}>"
+        )
+
+
+class EmployeeRelationsDocument(db.Model):
+    __tablename__ = "employee_relations_documents"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    case_id = db.Column(
+        db.Integer,
+        db.ForeignKey("employee_relations_cases.id"),
+        nullable=False,
+        index=True,
+    )
+
+    document_type = db.Column(db.String(100), nullable=False, index=True)
+    title = db.Column(db.String(255), nullable=False)
+
+    status = db.Column(db.String(50), nullable=False, default="Draft", index=True)
+    version = db.Column(db.Integer, nullable=False, default=1)
+
+    html_content = db.Column(db.Text, nullable=True)
+    finalised_at = db.Column(db.DateTime, nullable=True)
+
+    file_path = db.Column(db.String(500), nullable=True)
+    file_name = db.Column(db.String(255), nullable=True)
+
+    created_by = db.Column(db.String(120), nullable=True)
+    updated_by = db.Column(db.String(120), nullable=True)
+    created_at = db.Column(
+        db.DateTime, default=datetime.utcnow, nullable=False
+    )
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+
+    case = db.relationship(
+        "EmployeeRelationsCase",
+        back_populates="documents",
+    )
+
+    def __repr__(self):
+        return (
+            f"<EmployeeRelationsDocument {self.id} "
+            f"case={self.case_id} type={self.document_type} status={self.status}>"
+        )

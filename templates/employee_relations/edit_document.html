@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Edit ER Document{% endblock %}
+{% block page_title %}<h1 class="text-base font-semibold text-slate-900">Edit ER Document</h1>{% endblock %}
+
+{% block content %}
+<div class="py-6 space-y-6 max-w-6xl">
+
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <h2 class="text-2xl font-bold text-slate-900">{{ document.title }}</h2>
+      <p class="text-sm text-slate-600">
+        {{ document.document_type }} · Version {{ document.version }} · {{ document.status }}
+      </p>
+    </div>
+    <a href="{{ url_for('employee_relations.view_case', case_id=er_case.id) }}"
+       class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+      Back to Case
+    </a>
+  </div>
+
+  <form method="post" class="space-y-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div>
+      <label class="mb-1 block text-sm font-medium text-slate-700">Document Title</label>
+      <input type="text" name="title" value="{{ document.title }}"
+             class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+    </div>
+
+    <div>
+      <label class="mb-1 block text-sm font-medium text-slate-700">Document Content</label>
+      <textarea name="html_content" rows="24"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">{{ document.html_content or '' }}</textarea>
+      <p class="mt-2 text-xs text-slate-500">
+        This editor currently stores HTML content for the draft. Finalising generates a DOCX file.
+      </p>
+    </div>
+
+    <div class="flex flex-wrap gap-3">
+      <button type="submit"
+              class="inline-flex items-center rounded-lg bg-[#0a4d4c] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#083b3a]">
+        Save Draft
+      </button>
+
+      {% if document.status != 'Final' %}
+      <form method="post" action="{{ url_for('employee_relations.finalise_document', document_id=document.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit"
+                class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          Finalise Document
+        </button>
+      </form>
+      {% endif %}
+
+      <a href="{{ url_for('employee_relations.view_case', case_id=er_case.id) }}"
+         class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        Cancel
+      </a>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

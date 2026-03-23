@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}Create Employee Relations Case{% endblock %}
+{% block page_title %}<h1 class="text-base font-semibold text-slate-900">Create Employee Relations Case</h1>{% endblock %}
+
+{% block content %}
+<div class="py-6 space-y-6 max-w-5xl">
+
+  <div>
+    <h2 class="text-2xl font-bold text-slate-900">Create ER Case</h2>
+    <p class="text-sm text-slate-600">Create a new disciplinary, grievance, or investigation case.</p>
+  </div>
+
+  <form method="post" class="space-y-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Employee *</label>
+        <select name="employee_id" required
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          <option value="">Select employee</option>
+          {% for employee in employees %}
+          <option value="{{ employee.id }}" {% if form_data.get('employee_id')|string == employee.id|string %}selected{% endif %}>
+            {{ employee.first_name }} {{ employee.last_name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Case Type *</label>
+        <select name="case_type" required
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          <option value="">Select case type</option>
+          {% for case_type in case_types %}
+          <option value="{{ case_type }}" {% if form_data.get('case_type') == case_type %}selected{% endif %}>{{ case_type }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-sm font-medium text-slate-700">Title *</label>
+        <input type="text" name="title" required value="{{ form_data.get('title', '') }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-sm font-medium text-slate-700">Allegation / Grievance Details *</label>
+        <textarea name="allegation_or_grievance" rows="5" required
+                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">{{ form_data.get('allegation_or_grievance', '') }}</textarea>
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-sm font-medium text-slate-700">Summary</label>
+        <textarea name="summary" rows="3"
+                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">{{ form_data.get('summary', '') }}</textarea>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Date Raised *</label>
+        <input type="date" name="date_raised" required value="{{ form_data.get('date_raised', '') }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Raised By</label>
+        <input type="text" name="raised_by" value="{{ form_data.get('raised_by', '') }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Status *</label>
+        <select name="status" required
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          {% for status in case_statuses %}
+          <option value="{{ status }}" {% if form_data.get('status', 'Draft') == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Stage *</label>
+        <select name="stage" required
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          {% for stage in case_stages %}
+          <option value="{{ stage }}" {% if form_data.get('stage', 'Allegation Logged') == stage %}selected{% endif %}>{{ stage }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Priority</label>
+        <select name="priority_level"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          <option value="">Select priority</option>
+          {% for priority in priority_levels %}
+          <option value="{{ priority }}" {% if form_data.get('priority_level') == priority %}selected{% endif %}>{{ priority }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Next Action Date</label>
+        <input type="date" name="next_action_date" value="{{ form_data.get('next_action_date', '') }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Service Area</label>
+        <input type="text" name="service_area" value="{{ form_data.get('service_area', '') }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Department</label>
+        <input type="text" name="department" value="{{ form_data.get('department', '') }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">HR Lead</label>
+        <input type="text" name="hr_lead" value="{{ form_data.get('hr_lead', '') }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Investigating Manager</label>
+        <input type="text" name="investigating_manager" value="{{ form_data.get('investigating_manager', '') }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Policy Type</label>
+        <input type="text" name="policy_type" value="{{ form_data.get('policy_type', '') }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Disciplinary Category</label>
+        <select name="disciplinary_category"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          <option value="">Select disciplinary category</option>
+          {% for category in disciplinary_categories %}
+          <option value="{{ category }}" {% if form_data.get('disciplinary_category') == category %}selected{% endif %}>{{ category }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Grievance Category</label>
+        <select name="grievance_category"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          <option value="">Select grievance category</option>
+          {% for category in grievance_categories %}
+          <option value="{{ category }}" {% if form_data.get('grievance_category') == category %}selected{% endif %}>{{ category }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-sm font-medium text-slate-700">Confidential Notes</label>
+        <textarea name="confidential_notes" rows="4"
+                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">{{ form_data.get('confidential_notes', '') }}</textarea>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap gap-3">
+      <button type="submit"
+              class="inline-flex items-center rounded-lg bg-[#0a4d4c] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#083b3a]">
+        Create Case
+      </button>
+      <a href="{{ url_for('employee_relations.case_list') }}"
+         class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        Cancel
+      </a>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

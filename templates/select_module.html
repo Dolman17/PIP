@@ -24,7 +24,7 @@
 <div class="min-h-screen w-full bg-gradient-to-br from-pink-100 via-pink-200 to-pink-300 animate-gradient-x flex items-center justify-center dark:from-gray-900 dark:via-gray-800 dark:to-gray-700">
 
   <!-- Content wrapper -->
-  <div class="bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg rounded-2xl shadow-2xl p-6 sm:p-10 max-w-4xl w-full mx-4 sm:mx-6 animate-fade-in">
+  <div class="bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg rounded-2xl shadow-2xl p-6 sm:p-10 max-w-5xl w-full mx-4 sm:mx-6 animate-fade-in">
 
     <!-- Top bar: Logo + Dark mode toggle -->
     <div class="flex items-center justify-between mb-6">
@@ -48,7 +48,7 @@
     </div>
 
     <!-- Module cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
 
       <!-- PIP Card -->
       <a href="{{ url_for('dashboard') }}"
@@ -103,6 +103,26 @@
           Log sickness cases, track meetings, and monitor long-term absence triggers.
         </p>
       </a>
+
+      {% if current_user.is_superuser() %}
+      <!-- Employee Relations Card -->
+      <a href="{{ url_for('employee_relations.dashboard') }}"
+         class="group block p-6 sm:p-8 bg-[#e6f3f3] dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl shadow-md hover:shadow-xl transition-all duration-300 hover:ring-2 hover:ring-teal-600 dark:hover:ring-teal-400">
+        <div class="flex items-center justify-center h-14 w-14 bg-teal-600 rounded-full mb-4 mx-auto">
+          <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" stroke-width="2"
+               viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M8 7h8M8 11h8M8 15h5M6 3h12a2 2 0 012 2v14l-4-2-4 2-4-2-4 2V5a2 2 0 012-2z" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-bold text-teal-800 dark:text-teal-300 group-hover:underline text-center mb-2">
+          Employee Relations
+        </h3>
+        <p class="text-sm text-gray-700 dark:text-gray-300 text-center group-hover:opacity-100 opacity-90">
+          Manage disciplinary, grievance, investigation, and appeal cases in one place.
+        </p>
+      </a>
+      {% endif %}
 
     </div>
 

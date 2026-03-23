@@ -14,6 +14,10 @@ from pip_app.models import (
     DocumentFile,
     SicknessCase,
     SicknessMeeting,
+    EmployeeRelationsCase,
+    EmployeeRelationsTimelineEvent,
+    EmployeeRelationsMeeting,
+    EmployeeRelationsAttachment,
 )
 
 __all__ = [
@@ -32,4 +36,8 @@ __all__ = [
     "DocumentFile",
     "SicknessCase",
     "SicknessMeeting",
+    "EmployeeRelationsCase",
+    "EmployeeRelationsTimelineEvent",
+    "EmployeeRelationsMeeting",
+    "EmployeeRelationsAttachment",
 ]

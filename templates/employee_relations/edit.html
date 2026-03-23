@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+{% block title %}Edit Employee Relations Case{% endblock %}
+{% block page_title %}<h1 class="text-base font-semibold text-slate-900">Edit Employee Relations Case</h1>{% endblock %}
+
+{% block content %}
+<div class="py-6 space-y-6 max-w-6xl">
+
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <h2 class="text-2xl font-bold text-slate-900">Edit ER Case</h2>
+      <p class="text-sm text-slate-600">{{ er_case.title }}</p>
+    </div>
+    <a href="{{ url_for('employee_relations.view_case', case_id=er_case.id) }}"
+       class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+      Back to Case
+    </a>
+  </div>
+
+  <form method="post" class="space-y-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Employee *</label>
+        <select name="employee_id" required
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          {% for employee in employees %}
+          <option value="{{ employee.id }}" {% if er_case.employee_id == employee.id %}selected{% endif %}>
+            {{ employee.first_name }} {{ employee.last_name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Case Type *</label>
+        <select name="case_type" required
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          {% for case_type in case_types %}
+          <option value="{{ case_type }}" {% if er_case.case_type == case_type %}selected{% endif %}>{{ case_type }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-sm font-medium text-slate-700">Title *</label>
+        <input type="text" name="title" required value="{{ er_case.title }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-sm font-medium text-slate-700">Allegation / Grievance Details *</label>
+        <textarea name="allegation_or_grievance" rows="5" required
+                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">{{ er_case.allegation_or_grievance }}</textarea>
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-sm font-medium text-slate-700">Summary</label>
+        <textarea name="summary" rows="3"
+                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">{{ er_case.summary or '' }}</textarea>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Date Raised *</label>
+        <input type="date" name="date_raised" required
+               value="{{ er_case.date_raised.isoformat() if er_case.date_raised else '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Raised By</label>
+        <input type="text" name="raised_by" value="{{ er_case.raised_by or '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Status *</label>
+        <select name="status" required
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          {% for status in case_statuses %}
+          <option value="{{ status }}" {% if er_case.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Stage *</label>
+        <select name="stage" required
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          {% for stage in case_stages %}
+          <option value="{{ stage }}" {% if er_case.stage == stage %}selected{% endif %}>{{ stage }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Priority</label>
+        <select name="priority_level"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          <option value="">Select priority</option>
+          {% for priority in priority_levels %}
+          <option value="{{ priority }}" {% if er_case.priority_level == priority %}selected{% endif %}>{{ priority }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Service Area</label>
+        <input type="text" name="service_area" value="{{ er_case.service_area or '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Department</label>
+        <input type="text" name="department" value="{{ er_case.department or '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Policy Type</label>
+        <input type="text" name="policy_type" value="{{ er_case.policy_type or '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Next Action Date</label>
+        <input type="date" name="next_action_date"
+               value="{{ er_case.next_action_date.isoformat() if er_case.next_action_date else '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Investigation Deadline</label>
+        <input type="date" name="investigation_deadline"
+               value="{{ er_case.investigation_deadline.isoformat() if er_case.investigation_deadline else '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Hearing Date</label>
+        <input type="date" name="hearing_date"
+               value="{{ er_case.hearing_date.isoformat() if er_case.hearing_date else '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Outcome Due Date</label>
+        <input type="date" name="outcome_due_date"
+               value="{{ er_case.outcome_due_date.isoformat() if er_case.outcome_due_date else '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Appeal Deadline</label>
+        <input type="date" name="appeal_deadline"
+               value="{{ er_case.appeal_deadline.isoformat() if er_case.appeal_deadline else '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Date Closed</label>
+        <input type="date" name="date_closed"
+               value="{{ er_case.date_closed.isoformat() if er_case.date_closed else '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Outcome Status</label>
+        <input type="text" name="outcome_status" value="{{ er_case.outcome_status or '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">HR Lead</label>
+        <input type="text" name="hr_lead" value="{{ er_case.hr_lead or '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Investigating Manager</label>
+        <input type="text" name="investigating_manager" value="{{ er_case.investigating_manager or '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Hearing Chair</label>
+        <input type="text" name="hearing_chair" value="{{ er_case.hearing_chair or '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Note Taker</label>
+        <input type="text" name="note_taker" value="{{ er_case.note_taker or '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Appeal Manager</label>
+        <input type="text" name="appeal_manager" value="{{ er_case.appeal_manager or '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Disciplinary Category</label>
+        <select name="disciplinary_category"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          <option value="">Select disciplinary category</option>
+          {% for category in disciplinary_categories %}
+          <option value="{{ category }}" {% if er_case.disciplinary_category == category %}selected{% endif %}>{{ category }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Grievance Category</label>
+        <select name="grievance_category"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          <option value="">Select grievance category</option>
+          {% for category in grievance_categories %}
+          <option value="{{ category }}" {% if er_case.grievance_category == category %}selected{% endif %}>{{ category }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-sm font-medium text-slate-700">Previous Warnings Summary</label>
+        <textarea name="previous_warnings_summary" rows="3"
+                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">{{ er_case.previous_warnings_summary or '' }}</textarea>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Recommended Sanction</label>
+        <select name="recommended_sanction"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          <option value="">Select sanction</option>
+          {% for sanction in disciplinary_sanctions %}
+          <option value="{{ sanction }}" {% if er_case.recommended_sanction == sanction %}selected{% endif %}>{{ sanction }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Final Sanction</label>
+        <select name="final_sanction"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          <option value="">Select sanction</option>
+          {% for sanction in disciplinary_sanctions %}
+          <option value="{{ sanction }}" {% if er_case.final_sanction == sanction %}selected{% endif %}>{{ sanction }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Warning Level</label>
+        <select name="warning_level"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          <option value="">Select warning level</option>
+          {% for sanction in disciplinary_sanctions %}
+          <option value="{{ sanction }}" {% if er_case.warning_level == sanction %}selected{% endif %}>{{ sanction }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Misconduct Date</label>
+        <input type="date" name="misconduct_date"
+               value="{{ er_case.misconduct_date.isoformat() if er_case.misconduct_date else '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Warning Review Date</label>
+        <input type="date" name="warning_review_date"
+               value="{{ er_case.warning_review_date.isoformat() if er_case.warning_review_date else '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Warning Expiry Date</label>
+        <input type="date" name="warning_expiry_date"
+               value="{{ er_case.warning_expiry_date.isoformat() if er_case.warning_expiry_date else '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Person Complained About</label>
+        <input type="text" name="person_complained_about" value="{{ er_case.person_complained_about or '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Grievance Outcome</label>
+        <select name="grievance_outcome"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+          <option value="">Select grievance outcome</option>
+          {% for outcome in grievance_outcomes %}
+          <option value="{{ outcome }}" {% if er_case.grievance_outcome == outcome %}selected{% endif %}>{{ outcome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-sm font-medium text-slate-700">Requested Resolution</label>
+        <textarea name="requested_resolution" rows="3"
+                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">{{ er_case.requested_resolution or '' }}</textarea>
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-sm font-medium text-slate-700">Investigation Scope</label>
+        <textarea name="investigation_scope" rows="3"
+                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">{{ er_case.investigation_scope or '' }}</textarea>
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-sm font-medium text-slate-700">Investigation Findings</label>
+        <textarea name="investigation_findings" rows="3"
+                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">{{ er_case.investigation_findings or '' }}</textarea>
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-sm font-medium text-slate-700">Recommended Next Step</label>
+        <textarea name="recommended_next_step" rows="3"
+                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">{{ er_case.recommended_next_step or '' }}</textarea>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Appeal Request Date</label>
+        <input type="date" name="appeal_request_date"
+               value="{{ er_case.appeal_request_date.isoformat() if er_case.appeal_request_date else '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Appeal Hearing Date</label>
+        <input type="date" name="appeal_hearing_date"
+               value="{{ er_case.appeal_hearing_date.isoformat() if er_case.appeal_hearing_date else '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Appeal Outcome</label>
+        <input type="text" name="appeal_outcome" value="{{ er_case.appeal_outcome or '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Appeal Outcome Date</label>
+        <input type="date" name="appeal_outcome_date"
+               value="{{ er_case.appeal_outcome_date.isoformat() if er_case.appeal_outcome_date else '' }}"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-sm font-medium text-slate-700">Appeal Reason</label>
+        <textarea name="appeal_reason" rows="3"
+                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">{{ er_case.appeal_reason or '' }}</textarea>
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="mb-1 block text-sm font-medium text-slate-700">Confidential Notes</label>
+        <textarea name="confidential_notes" rows="4"
+                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20">{{ er_case.confidential_notes or '' }}</textarea>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <label class="inline-flex items-center gap-3 rounded-xl border border-slate-200 p-3">
+        <input type="checkbox" name="gross_misconduct_flag" {% if er_case.gross_misconduct_flag %}checked{% endif %}
+               class="h-4 w-4 rounded border-slate-300 text-[#0a4d4c] focus:ring-[#0a4d4c]">
+        <span class="text-sm text-slate-700">Gross Misconduct</span>
+      </label>
+
+      <label class="inline-flex items-center gap-3 rounded-xl border border-slate-200 p-3">
+        <input type="checkbox" name="suspension_flag" {% if er_case.suspension_flag %}checked{% endif %}
+               class="h-4 w-4 rounded border-slate-300 text-[#0a4d4c] focus:ring-[#0a4d4c]">
+        <span class="text-sm text-slate-700">Suspension in Place</span>
+      </label>
+
+      <label class="inline-flex items-center gap-3 rounded-xl border border-slate-200 p-3">
+        <input type="checkbox" name="suspension_with_pay" {% if er_case.suspension_with_pay %}checked{% endif %}
+               class="h-4 w-4 rounded border-slate-300 text-[#0a4d4c] focus:ring-[#0a4d4c]">
+        <span class="text-sm text-slate-700">Suspension With Pay</span>
+      </label>
+
+      <label class="inline-flex items-center gap-3 rounded-xl border border-slate-200 p-3">
+        <input type="checkbox" name="bullying_flag" {% if er_case.bullying_flag %}checked{% endif %}
+               class="h-4 w-4 rounded border-slate-300 text-[#0a4d4c] focus:ring-[#0a4d4c]">
+        <span class="text-sm text-slate-700">Bullying Related</span>
+      </label>
+
+      <label class="inline-flex items-center gap-3 rounded-xl border border-slate-200 p-3">
+        <input type="checkbox" name="harassment_flag" {% if er_case.harassment_flag %}checked{% endif %}
+               class="h-4 w-4 rounded border-slate-300 text-[#0a4d4c] focus:ring-[#0a4d4c]">
+        <span class="text-sm text-slate-700">Harassment Related</span>
+      </label>
+
+      <label class="inline-flex items-center gap-3 rounded-xl border border-slate-200 p-3">
+        <input type="checkbox" name="discrimination_flag" {% if er_case.discrimination_flag %}checked{% endif %}
+               class="h-4 w-4 rounded border-slate-300 text-[#0a4d4c] focus:ring-[#0a4d4c]">
+        <span class="text-sm text-slate-700">Discrimination Related</span>
+      </label>
+
+      <label class="inline-flex items-center gap-3 rounded-xl border border-slate-200 p-3">
+        <input type="checkbox" name="mediation_considered" {% if er_case.mediation_considered %}checked{% endif %}
+               class="h-4 w-4 rounded border-slate-300 text-[#0a4d4c] focus:ring-[#0a4d4c]">
+        <span class="text-sm text-slate-700">Mediation Considered</span>
+      </label>
+
+      <label class="inline-flex items-center gap-3 rounded-xl border border-slate-200 p-3">
+        <input type="checkbox" name="appeal_requested_flag" {% if er_case.appeal_requested_flag %}checked{% endif %}
+               class="h-4 w-4 rounded border-slate-300 text-[#0a4d4c] focus:ring-[#0a4d4c]">
+        <span class="text-sm text-slate-700">Appeal Requested</span>
+      </label>
+    </div>
+
+    <div class="flex flex-wrap gap-3">
+      <button type="submit"
+              class="inline-flex items-center rounded-lg bg-[#0a4d4c] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#083b3a]">
+        Save Changes
+      </button>
+      <a href="{{ url_for('employee_relations.view_case', case_id=er_case.id) }}"
+         class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        Cancel
+      </a>
+    </div>
+  </form>
+
+</div>
+{% endblock %}
