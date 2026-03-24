@@ -152,6 +152,19 @@
               </li>
 
               <li>
+                <a href="{{ url_for('manage_employee.index') }}"
+                   class="flex items-center gap-2 rounded-xl px-3 py-2
+                          {% if current_endpoint.startswith('manage_employee.') %}
+                            bg-white text-[#0a4d4c]
+                          {% else %}
+                            text-white/80 hover:bg-white/10
+                          {% endif %}">
+                  <span class="text-base">🗂️</span>
+                  <span class="text-sm font-medium">Manage Employees</span>
+                </a>
+              </li>
+
+              <li>
                 <a href="{{ url_for('pip_list') }}"
                    class="flex items-center gap-2 rounded-xl px-3 py-2
                           {% if current_endpoint == 'pip_list' %}
@@ -213,6 +226,19 @@
               </li>
 
               <li>
+                <a href="{{ url_for('manage_employee.index') }}"
+                   class="flex items-center gap-2 rounded-xl px-3 py-2
+                          {% if current_endpoint.startswith('manage_employee.') %}
+                            bg-white text-[#0a4d4c]
+                          {% else %}
+                            text-white/80 hover:bg-white/10
+                          {% endif %}">
+                  <span class="text-base">🗂️</span>
+                  <span class="text-sm font-medium">Manage Employees</span>
+                </a>
+              </li>
+
+              <li>
                 <a href="{{ url_for('probation_dashboard') }}"
                    class="flex items-center gap-2 rounded-xl px-3 py-2
                           {% if current_endpoint == 'probation_dashboard' %}
@@ -244,6 +270,19 @@
                           {% endif %}">
                   <span class="text-base">👥</span>
                   <span class="text-sm font-medium">All Employees</span>
+                </a>
+              </li>
+
+              <li>
+                <a href="{{ url_for('manage_employee.index') }}"
+                   class="flex items-center gap-2 rounded-xl px-3 py-2
+                          {% if current_endpoint.startswith('manage_employee.') %}
+                            bg-white text-[#0a4d4c]
+                          {% else %}
+                            text-white/80 hover:bg-white/10
+                          {% endif %}">
+                  <span class="text-base">🗂️</span>
+                  <span class="text-sm font-medium">Manage Employees</span>
                 </a>
               </li>
 
@@ -320,6 +359,19 @@
                   <span class="text-sm font-medium">All Employees</span>
                 </a>
               </li>
+
+              <li>
+                <a href="{{ url_for('manage_employee.index') }}"
+                   class="flex items-center gap-2 rounded-xl px-3 py-2
+                          {% if current_endpoint.startswith('manage_employee.') %}
+                            bg-white text-[#0a4d4c]
+                          {% else %}
+                            text-white/80 hover:bg-white/10
+                          {% endif %}">
+                  <span class="text-base">🗂️</span>
+                  <span class="text-sm font-medium">Manage Employees</span>
+                </a>
+              </li>
             </ul>
           </div>
         {% endif %}
@@ -353,6 +405,19 @@
                           {% endif %}">
                   <span class="text-base">⬆</span>
                   <span class="text-sm font-medium">Employee Import</span>
+                </a>
+              </li>
+
+              <li>
+                <a href="{{ url_for('manage_employee.index') }}"
+                   class="flex items-center gap-2 rounded-xl px-3 py-2
+                          {% if current_endpoint.startswith('manage_employee.') %}
+                            bg-white text-[#0a4d4c]
+                          {% else %}
+                            text-white/80 hover:bg-white/10
+                          {% endif %}">
+                  <span class="text-base">🗂️</span>
+                  <span class="text-sm font-medium">Manage Employees</span>
                 </a>
               </li>
             </ul>

@@ -1,4 +1,5 @@
 import os
+import json
 from openai import OpenAI
 
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -13,15 +14,8 @@ def _safe_text(value):
     return text if text else "—"
 
 
-def _join_items(values):
-    cleaned = [str(v).strip() for v in values if v and str(v).strip()]
-    return ", ".join(cleaned) if cleaned else "—"
-
-
 def build_employee_relations_prompt(er_case, active_policy_text=None):
     employee_name = f"{er_case.employee.first_name} {er_case.employee.last_name}".strip()
-    employee_job_title = _safe_text(getattr(er_case.employee, "job_title", None))
-    employee_service = _safe_text(getattr(er_case.employee, "service", None))
 
     recent_meetings = []
     for meeting in (er_case.meetings or [])[:5]:
@@ -57,32 +51,37 @@ def build_employee_relations_prompt(er_case, active_policy_text=None):
     system_prompt = """
 You are an expert UK HR Employee Relations advisor.
 
-Your task is to provide practical, policy-aware guidance for an internal HR case.
-You are supporting HR professionals and managers with structured advice, not giving legal advice.
+You are supporting HR professionals and managers with practical internal guidance.
+You are not providing legal advice.
 
 Rules:
-- Be balanced, fair, and neutral.
+- Be balanced, fair, neutral, and policy-aware.
 - Do not assume guilt or wrongdoing.
-- Base advice on the case details provided.
-- Where policy text is provided, use it as the primary internal standard.
-- If information is missing, explicitly say what is missing.
+- Base the advice on the facts supplied.
+- If policy text is supplied, treat it as the primary internal standard.
+- If key information is missing, state that clearly.
 - Avoid unnecessary repetition.
-- Do not include special category personal data unless directly relevant.
-- Do not make up policy wording that is not supported by the provided policy text.
-- Keep the advice practical and operational.
+- Do not invent policy wording.
+- Keep the advice operational and useful.
 
-Return the answer using these exact section headings:
+You must return valid JSON only.
+Do not include markdown.
+Do not include code fences.
+Do not include any text before or after the JSON.
 
-1. Overall Risk View
-2. Immediate Next Steps
-3. Investigation Questions
-4. Hearing Questions
-5. Outcome / Sanction Guidance
-6. Fairness & Process Checks
-7. Suggested Wording for HR / Manager
-8. Missing Information
+Return exactly this JSON structure:
+{
+  "overall_risk_view": "string",
+  "immediate_next_steps": "string",
+  "investigation_questions": "string",
+  "hearing_questions": "string",
+  "outcome_sanction_guidance": "string",
+  "fairness_process_checks": "string",
+  "suggested_wording": "string",
+  "missing_information": "string"
+}
 
-Under each section, use short bullet points.
+Each field should contain concise but useful bullet-style plain text using hyphens.
 """.strip()
 
     user_prompt = f"""
@@ -99,8 +98,8 @@ Raised By: {_safe_text(er_case.raised_by)}
 
 EMPLOYEE
 Name: {_safe_text(employee_name)}
-Job Title: {employee_job_title}
-Service: {employee_service}
+Job Title: {_safe_text(getattr(er_case.employee, "job_title", None))}
+Service: {_safe_text(getattr(er_case.employee, "service", None))}
 Service Area: {_safe_text(er_case.service_area)}
 Department: {_safe_text(er_case.department)}
 
@@ -174,11 +173,48 @@ def generate_employee_relations_advice(er_case, active_policy_text=None):
 
     response = client.chat.completions.create(
         model=DEFAULT_OPENAI_MODEL,
-        temperature=0.3,
+        temperature=0.2,
+        response_format={"type": "json_object"},
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
     )
 
-    return response.choices[0].message.content.strip()
+    raw_content = response.choices[0].message.content.strip()
+    parsed = json.loads(raw_content)
+
+    return {
+        "model_name": DEFAULT_OPENAI_MODEL,
+        "raw_response": raw_content,
+        "overall_risk_view": parsed.get("overall_risk_view", "").strip(),
+        "immediate_next_steps": parsed.get("immediate_next_steps", "").strip(),
+        "investigation_questions": parsed.get("investigation_questions", "").strip(),
+        "hearing_questions": parsed.get("hearing_questions", "").strip(),
+        "outcome_sanction_guidance": parsed.get("outcome_sanction_guidance", "").strip(),
+        "fairness_process_checks": parsed.get("fairness_process_checks", "").strip(),
+        "suggested_wording": parsed.get("suggested_wording", "").strip(),
+        "missing_information": parsed.get("missing_information", "").strip(),
+    }
+
+
+def render_employee_relations_advice_for_timeline(advice_data):
+    sections = [
+        ("Overall Risk View", advice_data.get("overall_risk_view")),
+        ("Immediate Next Steps", advice_data.get("immediate_next_steps")),
+        ("Investigation Questions", advice_data.get("investigation_questions")),
+        ("Hearing Questions", advice_data.get("hearing_questions")),
+        ("Outcome / Sanction Guidance", advice_data.get("outcome_sanction_guidance")),
+        ("Fairness & Process Checks", advice_data.get("fairness_process_checks")),
+        ("Suggested Wording for HR / Manager", advice_data.get("suggested_wording")),
+        ("Missing Information", advice_data.get("missing_information")),
+    ]
+
+    lines = ["Employee Relations AI Advice", ""]
+
+    for heading, content in sections:
+        lines.append(heading)
+        lines.append(content.strip() if content else "—")
+        lines.append("")
+
+    return "\n".join(lines).strip()

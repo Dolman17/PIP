@@ -17,6 +17,7 @@ from flask import (
     url_for,
 )
 from flask_login import current_user, login_required
+from sqlalchemy import or_
 
 from forms import PIPForm
 from models import DraftPIP, DocumentFile, Employee, PIPActionItem, PIPRecord, TimelineEvent, db
@@ -57,6 +58,32 @@ def _max_wizard_step(data: dict) -> int:
 def get_active_draft_for_user(user_id):
     return DraftPIP.query.filter_by(user_id=user_id, is_dismissed=False) \
                          .order_by(DraftPIP.updated_at.desc()).first()
+
+
+def _scoped_employee_query():
+    q = Employee.query
+    if current_user.admin_level == 0:
+        if current_user.team_id:
+            q = q.filter(Employee.team_id == current_user.team_id)
+        else:
+            q = q.filter(Employee.id == -1)
+    return q
+
+
+def _active_employee_query(include_employee_id=None):
+    q = _scoped_employee_query()
+
+    if include_employee_id:
+        q = q.filter(
+            or_(
+                Employee.is_leaver.is_(False),
+                Employee.id == include_employee_id
+            )
+        )
+    else:
+        q = q.filter(Employee.is_leaver.is_(False))
+
+    return q.order_by(Employee.last_name.asc(), Employee.first_name.asc())
 
 
 @pip_bp.route('/pip/<int:id>')
@@ -323,10 +350,11 @@ def generate_ai_advice(id):
 @pip_bp.route('/pip/create/<int:employee_id>', methods=['GET', 'POST'])
 @login_required
 def create_pip(employee_id):
-    employee = Employee.query.get_or_404(employee_id)
-    if current_user.admin_level == 0 and employee.team_id != current_user.team_id:
-        flash('Access denied.')
-        return redirect(url_for('dashboard'))
+    employee = _scoped_employee_query().filter(Employee.id == employee_id).first_or_404()
+
+    if employee.is_leaver:
+        flash('You cannot start a new PIP for an employee who is marked as a leaver.', 'warning')
+        return redirect(url_for('manage_employee.detail', employee_id=employee.id))
 
     form = PIPForm()
     if request.method == 'GET' and len(form.actions.entries) == 0:
@@ -372,9 +400,12 @@ def pip_list():
 @pip_bp.route('/pip/select-employee', methods=['GET', 'POST'])
 @login_required
 def select_employee_for_pip():
-    employees = Employee.query.order_by(Employee.last_name).all()
+    employees = _active_employee_query().all()
+
     if request.method == 'POST':
-        return redirect(url_for('pip.create_pip', employee_id=request.form.get('employee_id')))
+        employee_id = request.form.get('employee_id')
+        return redirect(url_for('pip.create_pip', employee_id=employee_id))
+
     return render_template('pip_select_employee.html', employees=employees)
 
 
@@ -413,10 +444,29 @@ def create_pip_wizard():
         if step == 1:
             employee_id = request.form.get('employee_id')
             draft_name = request.form.get('draft_name', '').strip()
+
             if not employee_id:
                 wizard_errors['employee_id'] = "Please select an employee."
             else:
-                data['employee_id'] = int(employee_id)
+                try:
+                    employee_id_int = int(employee_id)
+                except (TypeError, ValueError):
+                    employee_id_int = None
+
+                employee = None
+                if employee_id_int:
+                    employee = _active_employee_query(include_employee_id=employee_id_int) \
+                        .filter(Employee.id == employee_id_int) \
+                        .first()
+
+                if not employee:
+                    wizard_errors['employee_id'] = "Please select a valid employee."
+                elif employee.is_leaver:
+                    wizard_errors['employee_id'] = "You cannot start a new PIP for an employee who is marked as a leaver."
+                else:
+                    data['employee_id'] = employee.id
+                    data['employee_name'] = employee.full_name
+
             data['draft_name'] = draft_name
 
         elif step == 2:
@@ -492,6 +542,14 @@ def create_pip_wizard():
 
         elif step == 6:
             try:
+                employee_id = int(data['employee_id'])
+                employee = _scoped_employee_query().filter(Employee.id == employee_id).first_or_404()
+
+                if employee.is_leaver:
+                    flash("You cannot create a new PIP for an employee who is marked as a leaver.", "warning")
+                    session['wizard_step'] = 1
+                    return redirect(url_for('pip.create_pip_wizard'))
+
                 items = data.get('action_plan_items') or []
                 if not any((x or '').strip() for x in items):
                     flash("Please add at least one action plan item.", "warning")
@@ -499,7 +557,7 @@ def create_pip_wizard():
                     return redirect(url_for('pip.create_pip_wizard'))
 
                 pip = PIPRecord(
-                    employee_id=int(data['employee_id']),
+                    employee_id=employee_id,
                     concerns=data['concerns'],
                     concern_category=data.get('concern_category'),
                     severity=data.get('severity'),
@@ -546,7 +604,14 @@ def create_pip_wizard():
             session['wizard_step'] = step + 1
             return redirect(url_for('pip.create_pip_wizard'))
 
-    employees = Employee.query.all() if step == 1 else []
+    selected_employee_id = None
+    try:
+        if data.get('employee_id'):
+            selected_employee_id = int(data.get('employee_id'))
+    except (TypeError, ValueError):
+        selected_employee_id = None
+
+    employees = _active_employee_query(include_employee_id=selected_employee_id).all() if step == 1 else []
     max_allowed = _max_wizard_step(data)
 
     return render_template(

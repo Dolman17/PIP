@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Mark Employee as Leaver{% endblock %}
+{% block page_title %}Mark Employee as Leaver{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto p-6 space-y-6">
+
+  <div>
+    <h1 class="text-2xl font-bold text-ellipse-teal">Mark Employee as Leaver</h1>
+    <p class="mt-1 text-sm text-slate-500">
+      This keeps the employee historically in the system and updates their lifecycle status instead of deleting their record.
+    </p>
+  </div>
+
+  <div class="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+    <h2 class="text-sm font-semibold text-amber-900">Before you continue</h2>
+    <p class="mt-1 text-sm text-amber-800">
+      Once marked as a leaver, this employee will remain in the system for historic reporting, but new PIPs, probation records, sickness cases, and Employee Relations cases should not be started for them unless they are reactivated.
+    </p>
+  </div>
+
+  <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="mb-6">
+      <p class="text-sm text-slate-500">Employee</p>
+      <p class="text-lg font-semibold text-slate-900">
+        {{ employee.first_name }} {{ employee.last_name }}
+      </p>
+      <p class="text-sm text-slate-500">
+        {{ employee.job_title or 'No job title set' }}
+        {% if employee.service %} · {{ employee.service }}{% endif %}
+      </p>
+      <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+        <div class="rounded-xl bg-slate-50 p-3">
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Employment Status</p>
+          <p class="mt-1 font-medium text-slate-900">{{ employee.employment_status or 'Active' }}</p>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-3">
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Start Date</p>
+          <p class="mt-1 font-medium text-slate-900">
+            {{ employee.start_date.strftime('%d %b %Y') if employee.start_date else 'Not set' }}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <form method="POST" class="space-y-5">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div>
+        <label for="leaving_date" class="block text-sm font-medium text-slate-700 mb-1">
+          Leaving Date <span class="text-rose-600">*</span>
+        </label>
+        <input
+          type="date"
+          id="leaving_date"
+          name="leaving_date"
+          value="{{ form_data.get('leaving_date', '') if form_data else '' }}"
+          class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ellipse-teal"
+          required
+        >
+      </div>
+
+      <div>
+        <label for="leaving_reason_category" class="block text-sm font-medium text-slate-700 mb-1">
+          Leaving Reason Category <span class="text-rose-600">*</span>
+        </label>
+        <select
+          id="leaving_reason_category"
+          name="leaving_reason_category"
+          class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ellipse-teal"
+          required
+        >
+          <option value="">Select a reason</option>
+          {% for reason in leaving_reason_choices %}
+            <option
+              value="{{ reason }}"
+              {{ 'selected' if form_data and form_data.get('leaving_reason_category') == reason else '' }}
+            >
+              {{ reason }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label for="leaving_reason_detail" class="block text-sm font-medium text-slate-700 mb-1">
+          Reason Detail
+        </label>
+        <textarea
+          id="leaving_reason_detail"
+          name="leaving_reason_detail"
+          rows="4"
+          class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ellipse-teal"
+          placeholder="Optional extra detail about why the employee is leaving"
+        >{{ form_data.get('leaving_reason_detail', '') if form_data else '' }}</textarea>
+        <p class="mt-1 text-xs text-slate-500">
+          Add more context where the category alone is not enough.
+        </p>
+      </div>
+
+      <div>
+        <label for="leaving_notes" class="block text-sm font-medium text-slate-700 mb-1">
+          Lifecycle Notes
+        </label>
+        <textarea
+          id="leaving_notes"
+          name="leaving_notes"
+          rows="4"
+          class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ellipse-teal"
+          placeholder="Optional internal note for historic reference"
+        >{{ form_data.get('leaving_notes', '') if form_data else '' }}</textarea>
+        <p class="mt-1 text-xs text-slate-500">
+          Useful for internal audit trail, transition context, or future reporting notes.
+        </p>
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-3 pt-2">
+        <button
+          type="submit"
+          class="inline-flex items-center justify-center rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-rose-700"
+        >
+          Confirm Mark as Leaver
+        </button>
+
+        <a
+          href="{{ url_for('manage_employee.detail', employee_id=employee.id) }}"
+          class="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        >
+          Cancel
+        </a>
+      </div>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

@@ -78,6 +78,11 @@
         ✏️ Edit Employee
       </a>
 
+      <a href="{{ url_for('manage_employee.detail', employee_id=employee.id) }}"
+         class="inline-flex items-center bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-full text-sm hover:bg-slate-50">
+        🗂️ Open Manage Employee
+      </a>
+
       <button onclick="openPipModal()"
               class="inline-flex items-center bg-blue-600 text-white px-4 py-2 rounded-full text-sm hover:bg-blue-700">
         ➕ Start New PIP
@@ -95,8 +100,32 @@
     </div>
   </div>
 
+  {% if employee.is_leaver %}
+  <div class="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div>
+        <p class="text-sm font-semibold text-rose-800">This employee is marked as a leaver.</p>
+        <p class="mt-1 text-sm text-rose-700">
+          {% if employee.leaving_date %}
+            Leaving date: {{ employee.leaving_date.strftime('%d %b %Y') }}
+          {% else %}
+            Leaving date not recorded.
+          {% endif %}
+          {% if employee.leaving_reason_category %}
+            · Reason: {{ employee.leaving_reason_category }}
+          {% endif %}
+        </p>
+      </div>
+      <a href="{{ url_for('manage_employee.detail', employee_id=employee.id) }}"
+         class="inline-flex items-center justify-center rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700">
+        Review Lifecycle Details
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Top Summary Cards -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
     <div class="bg-white p-4 rounded-2xl shadow border border-gray-100">
       <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Job Title</p>
       <p class="mt-1 text-base font-semibold text-gray-900">
@@ -116,6 +145,20 @@
           {{ employee.start_date.strftime('%d %b %Y') }}
         {% else %}
           Not set
+        {% endif %}
+      </p>
+    </div>
+    <div class="bg-white p-4 rounded-2xl shadow border border-gray-100">
+      <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Employment Status</p>
+      <p class="mt-1">
+        {% if employee.is_leaver %}
+          <span class="inline-flex rounded-full bg-rose-100 px-3 py-1 text-sm font-semibold text-rose-700">
+            Leaver
+          </span>
+        {% else %}
+          <span class="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-700">
+            Active
+          </span>
         {% endif %}
       </p>
     </div>
@@ -274,6 +317,59 @@
 
     <!-- Right: Summary -->
     <aside class="space-y-4">
+
+      <!-- Employee Lifecycle -->
+      <div class="bg-white p-5 rounded-2xl shadow border border-gray-100">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h3 class="text-sm font-semibold text-gray-900">🗂️ Employee lifecycle</h3>
+            <p class="text-xs text-gray-500 mt-0.5">Manage active/leaver status and historic employee info.</p>
+          </div>
+          <a href="{{ url_for('manage_employee.detail', employee_id=employee.id) }}"
+             class="text-xs font-medium text-ellipse-teal hover:underline shrink-0">
+            Open
+          </a>
+        </div>
+
+        <dl class="mt-4 space-y-2 text-sm">
+          <div class="flex justify-between gap-4">
+            <dt class="text-gray-500">Status</dt>
+            <dd class="font-semibold text-gray-900">
+              {% if employee.is_leaver %}Leaver{% else %}Active{% endif %}
+            </dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-gray-500">Leaving date</dt>
+            <dd class="font-semibold text-gray-900 text-right">
+              {% if employee.leaving_date %}
+                {{ employee.leaving_date.strftime('%d %b %Y') }}
+              {% else %}
+                —
+              {% endif %}
+            </dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-gray-500">Leaving reason</dt>
+            <dd class="font-semibold text-gray-900 text-right">
+              {{ employee.leaving_reason_category or '—' }}
+            </dd>
+          </div>
+        </dl>
+
+        <div class="mt-4 flex flex-wrap gap-2">
+          <a href="{{ url_for('manage_employee.detail', employee_id=employee.id) }}"
+             class="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-800 hover:bg-slate-50">
+            View lifecycle
+          </a>
+
+          {% if not employee.is_leaver %}
+          <a href="{{ url_for('manage_employee.mark_leaver', employee_id=employee.id) }}"
+             class="inline-flex items-center gap-2 rounded-full bg-rose-600 text-white px-3 py-1.5 text-sm hover:bg-rose-700">
+            Mark as leaver
+          </a>
+          {% endif %}
+        </div>
+      </div>
 
       <!-- Phase 3: Trigger status (employee-level) -->
       <div class="bg-white p-5 rounded-2xl shadow border border-gray-100">

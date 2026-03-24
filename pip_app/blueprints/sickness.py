@@ -27,11 +27,21 @@ class SicknessCaseForm(FlaskForm):
     submit = SubmitField("Save sickness record")
 
 
+def _scoped_employee_query():
+    q = Employee.query
+    if current_user.admin_level == 0:
+        if current_user.team_id:
+            q = q.filter(Employee.team_id == current_user.team_id)
+        else:
+            q = q.filter(Employee.id == -1)
+    return q
+
+
 @sickness_bp.route("/sickness/dashboard")
 @login_required
 def sickness_dashboard():
     session["active_module"] = "Sickness"
-    
+
     today = today_local()
     long_term_threshold = today - timedelta(days=28)
     one_year_ago = today - timedelta(days=365)
@@ -201,7 +211,12 @@ def sickness_create_for_employee(employee_id):
 
     from app import today_local  # safe during hybrid phase
 
-    employee = Employee.query.get_or_404(employee_id)
+    employee = _scoped_employee_query().filter(Employee.id == employee_id).first_or_404()
+
+    if employee.is_leaver:
+        flash("You cannot start a new sickness case for an employee who is marked as a leaver.", "warning")
+        return redirect(url_for("manage_employee.detail", employee_id=employee.id))
+
     form = SicknessCaseForm()
 
     if request.method == "GET" and not form.start_date.data:
@@ -261,7 +276,12 @@ def sickness_create_for_employee(employee_id):
 def create_sickness_case(employee_id):
     session["active_module"] = "Sickness"
 
-    employee = Employee.query.get_or_404(employee_id)
+    employee = _scoped_employee_query().filter(Employee.id == employee_id).first_or_404()
+
+    if employee.is_leaver:
+        flash("You cannot start a new sickness case for an employee who is marked as a leaver.", "warning")
+        return redirect(url_for("manage_employee.detail", employee_id=employee.id))
+
     form = SicknessCaseForm()
 
     if form.validate_on_submit():

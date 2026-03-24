@@ -32,7 +32,31 @@ class Employee(db.Model):
     team_id = db.Column(db.Integer)
     email = db.Column(db.String(120), nullable=True)
 
+    # --- Manage Employee / lifecycle fields ---
+    employment_status = db.Column(db.String(20), nullable=False, default="Active")
+    is_leaver = db.Column(db.Boolean, nullable=False, default=False)
+
+    leaving_date = db.Column(db.Date, nullable=True)
+    leaving_reason_category = db.Column(db.String(100), nullable=True)
+    leaving_reason_detail = db.Column(db.Text, nullable=True)
+    leaving_notes = db.Column(db.Text, nullable=True)
+
+    marked_as_leaver_at = db.Column(db.DateTime, nullable=True)
+    marked_as_leaver_by = db.Column(db.String(120), nullable=True)
+
+    reactivated_at = db.Column(db.DateTime, nullable=True)
+    reactivated_by = db.Column(db.String(120), nullable=True)
+    # --- end lifecycle fields ---
+
     pips = db.relationship("PIPRecord", back_populates="employee", lazy=True)
+
+    @property
+    def full_name(self):
+        return f"{self.first_name or ''} {self.last_name or ''}".strip()
+
+    @property
+    def status_label(self):
+        return "Leaver" if self.is_leaver else (self.employment_status or "Active")
 
 
 class PIPRecord(db.Model):
@@ -517,6 +541,14 @@ class EmployeeRelationsCase(db.Model):
         order_by="desc(EmployeeRelationsPolicyText.updated_at)",
     )
 
+    ai_advice_records = db.relationship(
+        "EmployeeRelationsAIAdvice",
+        back_populates="case",
+        cascade="all, delete-orphan",
+        lazy=True,
+        order_by="desc(EmployeeRelationsAIAdvice.created_at)",
+    )
+
     def __repr__(self):
         return (
             f"<EmployeeRelationsCase {self.id} "
@@ -680,10 +712,69 @@ class EmployeeRelationsPolicyText(db.Model):
         foreign_keys=[source_attachment_id],
     )
 
+    ai_advice_records = db.relationship(
+        "EmployeeRelationsAIAdvice",
+        back_populates="policy_text",
+        lazy=True,
+    )
+
     def __repr__(self):
         return (
             f"<EmployeeRelationsPolicyText {self.id} "
             f"case={self.case_id} title={self.title}>"
+        )
+
+
+class EmployeeRelationsAIAdvice(db.Model):
+    __tablename__ = "employee_relations_ai_advice"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    case_id = db.Column(
+        db.Integer,
+        db.ForeignKey("employee_relations_cases.id"),
+        nullable=False,
+        index=True,
+    )
+
+    policy_text_id = db.Column(
+        db.Integer,
+        db.ForeignKey("employee_relations_policy_texts.id"),
+        nullable=True,
+        index=True,
+    )
+
+    overall_risk_view = db.Column(db.Text, nullable=True)
+    immediate_next_steps = db.Column(db.Text, nullable=True)
+    investigation_questions = db.Column(db.Text, nullable=True)
+    hearing_questions = db.Column(db.Text, nullable=True)
+    outcome_sanction_guidance = db.Column(db.Text, nullable=True)
+    fairness_process_checks = db.Column(db.Text, nullable=True)
+    suggested_wording = db.Column(db.Text, nullable=True)
+    missing_information = db.Column(db.Text, nullable=True)
+
+    raw_response = db.Column(db.Text, nullable=True)
+    model_name = db.Column(db.String(120), nullable=True)
+
+    created_by = db.Column(db.String(120), nullable=True)
+    created_at = db.Column(
+        db.DateTime, default=datetime.utcnow, nullable=False, index=True
+    )
+
+    case = db.relationship(
+        "EmployeeRelationsCase",
+        back_populates="ai_advice_records",
+    )
+
+    policy_text = db.relationship(
+        "EmployeeRelationsPolicyText",
+        back_populates="ai_advice_records",
+    )
+
+    def __repr__(self):
+        return (
+            f"<EmployeeRelationsAIAdvice {self.id} "
+            f"case={self.case_id} model={self.model_name}>"
         )
 
 
@@ -704,6 +795,12 @@ class EmployeeRelationsDocument(db.Model):
 
     status = db.Column(db.String(50), nullable=False, default="Draft", index=True)
     version = db.Column(db.Integer, nullable=False, default=1)
+    draft_origin = db.Column(
+        db.String(50),
+        nullable=False,
+        default="plain",
+        index=True,
+    )  # plain | ai | ai_fallback_plain
 
     html_content = db.Column(db.Text, nullable=True)
     finalised_at = db.Column(db.DateTime, nullable=True)
@@ -731,5 +828,6 @@ class EmployeeRelationsDocument(db.Model):
     def __repr__(self):
         return (
             f"<EmployeeRelationsDocument {self.id} "
-            f"case={self.case_id} type={self.document_type} status={self.status}>"
+            f"case={self.case_id} type={self.document_type} "
+            f"status={self.status} origin={self.draft_origin}>"
         )

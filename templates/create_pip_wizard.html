@@ -76,12 +76,22 @@
         <option value="">-- Select Employee --</option>
         {% for emp in employees %}
           <option value="{{ emp.id }}" {% if data.employee_id == emp.id %}selected{% endif %}>
-            {{ emp.first_name }} {{ emp.last_name }}
+            {{ emp.first_name }} {{ emp.last_name }}{% if emp.is_leaver %} — LEAVER{% endif %}
           </option>
         {% endfor %}
       </select>
       <button type="button" id="openQuickAdd" class="px-3 py-2 bg-[#005b5a] text-white rounded-lg hover:bg-[#004746]">+ Add</button>
     </div>
+
+    {% if data.employee_id and employees and (employees | selectattr('id', 'equalto', data.employee_id) | list | length) %}
+      {% set selected_emp = (employees | selectattr('id', 'equalto', data.employee_id) | list | first) %}
+      {% if selected_emp and selected_emp.is_leaver %}
+        <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          This draft currently references an employee marked as a leaver. New PIPs cannot be created for leavers.
+        </div>
+      {% endif %}
+    {% endif %}
+
     <input type="hidden" name="employee_name" id="employee_name" value="{{ data.employee_name or '' }}">
     {% if wizard_errors.employee_id %}
       <p class="text-red-600 text-sm mt-1">{{ wizard_errors.employee_id }}</p>
@@ -504,7 +514,6 @@
   </div>
 {% endif %}
 
-
     <!-- Navigation Buttons -->
     <div class="mt-8 flex flex-wrap justify-between items-center gap-4">
       {% if step > 1 %}
@@ -592,10 +601,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const target = parseInt(btn.dataset.step||'0',10);
       if (!enabled || target === currentStep) { ev.preventDefault(); return; }
       const go = ()=>{
-        window.__navigating = true;   // ✅ suppress beforeunload
-        window.__dirty = false;       // optional: avoid flicker if save was noop
+        window.__navigating = true;
+        window.__dirty = false;
         window.location = '{{ url_for("create_pip_wizard") }}?goto=' + target;
-    };
+      };
 
       if (target > currentStep) {
         ev.preventDefault();
@@ -689,45 +698,89 @@ document.addEventListener('DOMContentLoaded', () => {
       const csrf=document.querySelector('[name="csrf_token"]')?.value;
       const res=await fetch('{{ url_for("suggest_actions_ai") }}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify(payload)});
       const data=await res.json();
-      const actions=Array.isArray(data.actions)?data.actions:[]; aiList?.replaceChildren();
-      if(actions.length){ actions.forEach(a=>{const li=document.createElement('li'); li.textContent=a; li.className='py-1'; aiList?.appendChild(li);}); addActionItemsBulk(actions); debouncedSave(); }
-      else if(aiList){ const li=document.createElement('li'); li.textContent='No suggestions returned.'; li.className='text-gray-500'; aiList.appendChild(li); }
-      if(cards && nextWrap){ cards.innerHTML=''; const nexts=Array.isArray(data.next_up)?data.next_up:[]; if(nexts.length){ nextWrap.classList.remove('hidden'); nexts.forEach(t=>{const {card}=buildNextUpCard(t,false); cards.appendChild(card);}); } else { nextWrap.classList.add('hidden'); } }
+      const actions=Array.isArray(data.actions)?data.actions:[];
+      aiList?.replaceChildren();
+      if(actions.length){
+        actions.forEach(a=>{
+          const li=document.createElement('li');
+          li.textContent=a;
+          li.className='py-1';
+          aiList?.appendChild(li);
+        });
+        addActionItemsBulk(actions);
+        debouncedSave();
+      } else if(aiList){
+        const li=document.createElement('li');
+        li.textContent='No suggestions returned.';
+        li.className='text-gray-500';
+        aiList.appendChild(li);
+      }
+      if(cards && nextWrap){
+        cards.innerHTML='';
+        const nexts=Array.isArray(data.next_up)?data.next_up:[];
+        if(nexts.length){
+          nextWrap.classList.remove('hidden');
+          nexts.forEach(t=>{
+            const {card}=buildNextUpCard(t,false);
+            cards.appendChild(card);
+          });
+        } else {
+          nextWrap.classList.add('hidden');
+        }
+      }
     }catch(err){
-      if(aiList){ const li=document.createElement('li'); li.textContent='Could not fetch suggestions.'; li.className='text-red-600'; aiList.appendChild(li); }
-    }finally{ aiBtn.disabled=false; aiBtn.textContent='⚡ Suggest with AI'; updateActionCount(); }
+      if(aiList){
+        const li=document.createElement('li');
+        li.textContent='Could not fetch suggestions.';
+        li.className='text-red-600';
+        aiList.appendChild(li);
+      }
+    }finally{
+      aiBtn.disabled=false;
+      aiBtn.textContent='⚡ Suggest with AI';
+      updateActionCount();
+    }
   });
+
   clearAI?.addEventListener('click',()=>{ if(aiList) aiList.innerHTML=''; });
 
   document.getElementById('insert-selected-nextup')?.addEventListener('click',()=>{
-    if(!cards)return; const picked=[];
+    if(!cards)return;
+    const picked=[];
     cards.querySelectorAll('label').forEach(lbl=>{
       const cb=lbl.querySelector('input[type="checkbox"]');
       const text=lbl.querySelector('span')?.textContent||'';
       if(cb?.checked && text) picked.push(text);
     });
-    if(picked.length){ addActionItemsBulk(picked); cards.querySelectorAll('input[type="checkbox"]').forEach(cb=>cb.checked=false); updateActionCount(); debouncedSave(); }
+    if(picked.length){
+      addActionItemsBulk(picked);
+      cards.querySelectorAll('input[type="checkbox"]').forEach(cb=>cb.checked=false);
+      updateActionCount();
+      debouncedSave();
+    }
   });
 });
 
 /* ===== Save Draft / Validation / Next ===== */
 window.saveDraft = function(callback){
-  const form = document.getElementById("wizardForm"); 
+  const form = document.getElementById("wizardForm");
   if (!form) return;
   const formData = new FormData(form);
   fetch("{{ url_for('save_pip_draft') }}", { method:"POST", body: formData })
     .then(res => res.json()).then(() => {
       const status = document.getElementById("autosave-status");
       if (status) status.innerText = `Last saved: ${new Date().toLocaleTimeString()}`;
-      // ✅ consider the page "clean" after we save successfully
       window.__dirty = false;
       if (callback) callback();
     })
     .catch(() => { alert("Failed to save draft."); });
 };
+
 function validateStep(step,callback){
-  const form=document.getElementById("wizardForm"); if(!form){callback(false);return;}
-  const formData=new FormData(form); formData.append("step",step);
+  const form=document.getElementById("wizardForm");
+  if(!form){callback(false);return;}
+  const formData=new FormData(form);
+  formData.append("step",step);
   fetch("{{ url_for('validate_wizard_step') }}",{method:"POST",body:formData})
     .then(r=>r.json()).then(data=>{
       document.querySelectorAll(".wizard-error").forEach(el=>el.remove());
@@ -745,19 +798,19 @@ function validateStep(step,callback){
       callback(data.success);
     }).catch(()=>callback(false));
 }
+
 const currentStep={{ step | int }};
 document.getElementById("nextBtn")?.addEventListener("click", function(e){
   e.preventDefault();
   validateStep(currentStep, function(valid){
     if (!valid) return;
     saveDraft(function(){
-      window.__navigating = true;   // ✅ intentional nav
+      window.__navigating = true;
       window.__dirty = false;
       document.getElementById("wizardForm").submit();
     });
   });
 });
-
 
 /* Quick-Add modal */
 document.addEventListener("DOMContentLoaded",()=>{
@@ -767,8 +820,14 @@ document.addEventListener("DOMContentLoaded",()=>{
   const form=document.getElementById("quickAddForm");
   const employeeSelect=document.getElementById("employee_id");
 
-  openBtn?.addEventListener("click",()=>{modal.classList.remove("hidden"); modal.classList.add("flex");});
-  cancelBtn?.addEventListener("click",()=>{modal.classList.add("hidden"); modal.classList.remove("flex");});
+  openBtn?.addEventListener("click",()=>{
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+  });
+  cancelBtn?.addEventListener("click",()=>{
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+  });
 
   form?.addEventListener("submit",async(e)=>{
     e.preventDefault();
@@ -778,15 +837,20 @@ document.addEventListener("DOMContentLoaded",()=>{
       const data=await res.json();
       if(data.success){
         const opt=document.createElement("option");
-        opt.value=data.id; opt.textContent=data.display_name; opt.selected=true;
+        opt.value=data.id;
+        opt.textContent=data.display_name;
+        opt.selected=true;
         employeeSelect.appendChild(opt);
         const hiddenName=document.getElementById('employee_name');
         if(hiddenName) hiddenName.value=data.display_name;
-        form.reset(); modal.classList.add("hidden"); modal.classList.remove("flex");
+        form.reset();
+        modal.classList.add("hidden");
+        modal.classList.remove("flex");
         const toast=document.createElement("div");
         toast.textContent="✅ Employee added successfully";
         toast.className="fixed bottom-4 right-4 bg-[#005b5a] text-white py-2 px-4 rounded-lg shadow-lg";
-        document.body.appendChild(toast); setTimeout(()=>toast.remove(),3000);
+        document.body.appendChild(toast);
+        setTimeout(()=>toast.remove(),3000);
         debouncedSave();
       } else {
         alert(data.error || "Error adding employee");
@@ -798,7 +862,6 @@ document.addEventListener("DOMContentLoaded",()=>{
 });
 
 // Unload guard
-// --- put this near the top of your big <script> block or before other handlers ---
 window.__dirty = window.__dirty || false;
 window.__navigating = false;
 
@@ -824,7 +887,8 @@ function hydrateFinalHiddenFields(){
   const keys=['pipWizardLocal','pip_wizard_local','pip_draft','pipDraft'];
   for(const k of keys){
     try{
-      const raw=localStorage.getItem(k); if(!raw) continue;
+      const raw=localStorage.getItem(k);
+      if(!raw) continue;
       const obj=JSON.parse(raw);
       if(eid && !eid.value && (obj.employee_id || obj.employeeId)){ eid.value=obj.employee_id || obj.employeeId; }
       if(ename && !ename.value && (obj.employee_name || obj.employeeName)){ ename.value=obj.employee_name || obj.employeeName; }

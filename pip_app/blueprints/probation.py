@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required
+from sqlalchemy import or_
 
 from forms import ProbationPlanForm, ProbationRecordForm, ProbationReviewForm
 from models import db, DraftProbation, Employee, ProbationPlan, ProbationRecord, ProbationReview, TimelineEvent
@@ -14,6 +15,32 @@ def get_active_probation_draft_for_user(user_id: int):
     return DraftProbation.query.filter_by(user_id=user_id, is_dismissed=False).first()
 
 
+def _scoped_employee_query():
+    q = Employee.query
+    if current_user.admin_level == 0:
+        if current_user.team_id:
+            q = q.filter(Employee.team_id == current_user.team_id)
+        else:
+            q = q.filter(Employee.id == -1)
+    return q
+
+
+def _active_employee_query(include_employee_id=None):
+    q = _scoped_employee_query()
+
+    if include_employee_id:
+        q = q.filter(
+            or_(
+                Employee.is_leaver.is_(False),
+                Employee.id == include_employee_id
+            )
+        )
+    else:
+        q = q.filter(Employee.is_leaver.is_(False))
+
+    return q.order_by(Employee.last_name.asc(), Employee.first_name.asc())
+
+
 @probation_bp.route("/probation/create-wizard", methods=["GET"])
 @login_required
 def probation_create_wizard():
@@ -21,7 +48,23 @@ def probation_create_wizard():
     draft = DraftProbation.query.filter_by(user_id=current_user.id, is_dismissed=False).first()
     step = draft.step if draft else 1
     data = draft.payload if draft else {}
-    return render_template("probation_create_wizard.html", step=step, data=data, draft=draft)
+
+    selected_employee_id = None
+    try:
+        if data and data.get("employee_id"):
+            selected_employee_id = int(data.get("employee_id"))
+    except (TypeError, ValueError):
+        selected_employee_id = None
+
+    employees = _active_employee_query(include_employee_id=selected_employee_id).all()
+
+    return render_template(
+        "probation_create_wizard.html",
+        step=step,
+        data=data,
+        draft=draft,
+        employees=employees,
+    )
 
 
 @probation_bp.route("/probation/save-draft", methods=["POST"])
@@ -187,7 +230,12 @@ def update_probation_status(id, new_status):
 @login_required
 def create_probation(employee_id):
     session["active_module"] = "Probation"
-    employee = Employee.query.get_or_404(employee_id)
+    employee = _scoped_employee_query().filter(Employee.id == employee_id).first_or_404()
+
+    if employee.is_leaver:
+        flash("You cannot start a new probation record for an employee who is marked as a leaver.", "warning")
+        return redirect(url_for("manage_employee.detail", employee_id=employee.id))
+
     form = ProbationRecordForm()
 
     if form.validate_on_submit():
@@ -212,7 +260,6 @@ def probation_dashboard():
     session["active_module"] = "Probation"
 
     from datetime import timedelta
-    
 
     global_active = ProbationRecord.query.filter_by(status="Active").count()
     global_completed = ProbationRecord.query.filter_by(status="Completed").count()
@@ -281,5 +328,5 @@ def probation_dashboard():
 @login_required
 def probation_employee_list():
     session["active_module"] = "Probation"
-    employees = Employee.query.all()
+    employees = _active_employee_query().all()
     return render_template("probation_employee_list.html", employees=employees)

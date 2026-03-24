@@ -14,7 +14,7 @@
         Capture key probation details in a few guided steps, then create the record.
       </p>
     </div>
-    <a href="{{ url_for('probation_dashboard') }}"
+    <a href="{{ url_for('probation.probation_dashboard') }}"
        class="inline-flex items-center text-sm font-medium text-[#005b5a] hover:text-[#004442]">
       <span class="mr-1.5">←</span>
       Back to Probation Dashboard
@@ -79,21 +79,29 @@
         </p>
 
         <div class="space-y-4">
-          <!-- Employee selection (simple for now: ID + name) -->
+          <!-- Employee selection -->
           <div class="grid gap-3 sm:grid-cols-2">
             <div class="sm:col-span-1">
               <label for="employee_id" class="block text-xs font-medium text-slate-700 mb-1">
-                Employee ID
+                Employee
               </label>
-              <input
+              <select
                 id="employee_id"
-                type="number"
                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#005b5a] focus:ring-2 focus:ring-[#005b5a]/20"
-                placeholder="e.g. 123"
               >
+                <option value="">-- Select Employee --</option>
+                {% for emp in employees %}
+                  <option
+                    value="{{ emp.id }}"
+                    {% if data.employee_id == emp.id or data.employee_id == (emp.id | string) %}selected{% endif %}
+                  >
+                    {{ emp.first_name }} {{ emp.last_name }}{% if emp.is_leaver %} — LEAVER{% endif %}
+                  </option>
+                {% endfor %}
+              </select>
               <p class="mt-1 text-[11px] text-slate-500">
-                Use the Probation Employee list to confirm the ID.
-                <a href="{{ url_for('probation_employee_list') }}" target="_blank"
+                Active employees are shown by default.
+                <a href="{{ url_for('probation.probation_employee_list') }}" target="_blank"
                    class="text-[#005b5a] hover:text-[#004442] underline">
                   Open employee list
                 </a>
@@ -111,6 +119,22 @@
               >
             </div>
           </div>
+
+          {% if data.employee_id and employees and (employees | selectattr('id', 'equalto', data.employee_id) | list | length) %}
+            {% set selected_emp = (employees | selectattr('id', 'equalto', data.employee_id) | list | first) %}
+            {% if selected_emp and selected_emp.is_leaver %}
+              <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                This draft currently references an employee marked as a leaver. New probation records should not be created for leavers.
+              </div>
+            {% endif %}
+          {% elif data.employee_id and employees and (employees | selectattr('id', 'equalto', (data.employee_id | int)) | list | length) %}
+            {% set selected_emp = (employees | selectattr('id', 'equalto', (data.employee_id | int)) | list | first) %}
+            {% if selected_emp and selected_emp.is_leaver %}
+              <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                This draft currently references an employee marked as a leaver. New probation records should not be created for leavers.
+              </div>
+            {% endif %}
+          {% endif %}
 
           <div class="grid gap-3 sm:grid-cols-2">
             <div>
@@ -303,7 +327,7 @@
     // Initial state from server
     const initialStep = {{ step or 1 }};
     const initialData = {{ data | tojson | safe }} || {};
-    const saveUrl = "{{ url_for('probation_save_draft') }}";
+    const saveUrl = "{{ url_for('probation.probation_save_draft') }}";
 
     const state = {
       step: initialStep,
@@ -357,6 +381,13 @@
       if (inputObjectives) inputObjectives.value = state.objectives || "";
       if (inputSupport) inputSupport.value = state.support || "";
       if (inputMonitoring) inputMonitoring.value = state.monitoring || "";
+
+      if (inputEmployeeId && inputEmployeeName && !inputEmployeeName.value && inputEmployeeId.value) {
+        const selected = inputEmployeeId.options[inputEmployeeId.selectedIndex];
+        if (selected && selected.value) {
+          inputEmployeeName.value = selected.text.replace(/\s+— LEAVER$/, '').trim();
+        }
+      }
     }
 
     hydrateFields();
@@ -480,6 +511,20 @@
       }
     }
 
+    function syncEmployeeNameFromSelect() {
+      if (!inputEmployeeId || !inputEmployeeName) return;
+      const selected = inputEmployeeId.options[inputEmployeeId.selectedIndex];
+      if (selected && selected.value) {
+        inputEmployeeName.value = selected.text.replace(/\s+— LEAVER$/, '').trim();
+      } else {
+        inputEmployeeName.value = '';
+      }
+    }
+
+    inputEmployeeId?.addEventListener('change', () => {
+      syncEmployeeNameFromSelect();
+    });
+
     // Navigation handlers
     btnPrev.addEventListener('click', async () => {
       if (state.step > 1) {
@@ -510,7 +555,7 @@
       collectFromFields();
 
       if (!state.employee_id) {
-        alert('Employee ID is required to create the probation record.');
+        alert('Employee selection is required to create the probation record.');
         return;
       }
       if (!state.start_date || !state.expected_end_date) {

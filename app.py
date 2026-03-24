@@ -100,6 +100,7 @@ from pip_app.blueprints.sickness import sickness_bp
 from pip_app.blueprints.employees import employees_bp
 from pip_app.blueprints.pip import pip_bp, get_active_draft_for_user
 from pip_app.blueprints.employee_relations import employee_relations_bp
+from pip_app.blueprints.manage_employee import manage_employee_bp
 
 login_manager = LoginManager()
 login_manager.login_view = 'auth.login'
@@ -115,6 +116,7 @@ app.register_blueprint(sickness_bp)
 app.register_blueprint(employees_bp)
 app.register_blueprint(pip_bp)
 app.register_blueprint(employee_relations_bp)
+app.register_blueprint(manage_employee_bp)
 
 csrf.exempt(app.view_functions['employees.quick_add_employee'])
 csrf.exempt(app.view_functions['pip.suggest_actions_ai'])
@@ -214,6 +216,11 @@ LEGACY_ENDPOINT_ALIASES = {
     "employee_relations_create_case": "employee_relations.create_case",
     "employee_relations_view_case": "employee_relations.view_case",
     "employee_relations_edit_case": "employee_relations.edit_case",
+
+    "manage_employee_index": "manage_employee.index",
+    "manage_employee_detail": "manage_employee.detail",
+    "manage_employee_mark_leaver": "manage_employee.mark_leaver",
+    "manage_employee_reactivate": "manage_employee.reactivate",
 }
 
 from flask import url_for as flask_url_for

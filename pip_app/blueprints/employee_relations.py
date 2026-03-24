@@ -15,6 +15,7 @@ from flask import (
 )
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
+from sqlalchemy import or_
 
 from pip_app.extensions import db
 from pip_app.models import (
@@ -25,8 +26,12 @@ from pip_app.models import (
     EmployeeRelationsAttachment,
     EmployeeRelationsDocument,
     EmployeeRelationsPolicyText,
+    EmployeeRelationsAIAdvice,
 )
-from pip_app.services.ai_utils import generate_employee_relations_advice
+from pip_app.services.ai_utils import (
+    generate_employee_relations_advice,
+    render_employee_relations_advice_for_timeline,
+)
 from pip_app.services.document_utils import (
     BASE_DIR,
     html_to_docx_bytes,
@@ -57,6 +62,9 @@ ER_DOCUMENT_DIR = os.path.join(ER_UPLOAD_DIR, "documents")
 os.makedirs(ER_UPLOAD_DIR, exist_ok=True)
 os.makedirs(ER_DOCUMENT_DIR, exist_ok=True)
 
+ER_DOCUMENT_DRAFT_MODES = ["plain", "ai"]
+ER_DOCUMENT_DRAFT_ORIGINS = ["plain", "ai", "ai_fallback_plain"]
+
 
 def _superuser_required():
     if not current_user.is_authenticated:
@@ -69,6 +77,32 @@ def _superuser_required():
 
 def _set_active_module():
     session["active_module"] = "Employee Relations"
+
+
+def _scoped_employee_query():
+    q = Employee.query
+    if getattr(current_user, "admin_level", 0) == 0:
+        if getattr(current_user, "team_id", None):
+            q = q.filter(Employee.team_id == current_user.team_id)
+        else:
+            q = q.filter(Employee.id == -1)
+    return q
+
+
+def _active_employee_query(include_employee_id=None):
+    q = _scoped_employee_query()
+
+    if include_employee_id:
+        q = q.filter(
+            or_(
+                Employee.is_leaver.is_(False),
+                Employee.id == include_employee_id,
+            )
+        )
+    else:
+        q = q.filter(Employee.is_leaver.is_(False))
+
+    return q.order_by(Employee.first_name.asc(), Employee.last_name.asc())
 
 
 def _log_case_event(case_id, event_type, notes=None):
@@ -141,6 +175,348 @@ def _get_active_policy_text(er_case):
 
     policy_text = active_policy.cleaned_text or active_policy.raw_text or None
     return active_policy, policy_text
+
+
+def _latest_er_ai_advice(er_case):
+    return (
+        EmployeeRelationsAIAdvice.query.filter_by(case_id=er_case.id)
+        .order_by(EmployeeRelationsAIAdvice.created_at.desc())
+        .first()
+    )
+
+
+def _default_er_document_mode(er_case):
+    return "ai" if _latest_er_ai_advice(er_case) else "plain"
+
+
+def _normalise_er_document_mode(mode_value):
+    mode = (mode_value or "").strip().lower()
+    return mode if mode in ER_DOCUMENT_DRAFT_MODES else "plain"
+
+
+def _draft_mode_label(mode):
+    return "AI-prefilled draft" if mode == "ai" else "Plain draft"
+
+
+def _draft_origin_label(origin):
+    if origin == "ai":
+        return "AI-prefilled draft"
+    if origin == "ai_fallback_plain":
+        return "AI requested, plain draft used"
+    return "Plain draft"
+
+
+def _resolve_draft_origin(requested_mode, effective_mode):
+    if requested_mode == "ai" and effective_mode == "plain":
+        return "ai_fallback_plain"
+    if effective_mode == "ai":
+        return "ai"
+    return "plain"
+
+
+def _html_paragraphs_from_bullet_text(text_value):
+    if not text_value:
+        return "<p>—</p>"
+
+    lines = [line.strip() for line in str(text_value).splitlines() if line.strip()]
+    if not lines:
+        return "<p>—</p>"
+
+    html_parts = []
+    for line in lines:
+        html_parts.append(f"<p>{line}</p>")
+    return "\n".join(html_parts)
+
+
+def _build_er_document_header_html(er_case, document_type, latest_ai):
+    employee_name = f"{er_case.employee.first_name} {er_case.employee.last_name}"
+    policy_title = latest_ai.policy_text.title if latest_ai and latest_ai.policy_text else "No linked policy text"
+    generated_at = (
+        latest_ai.created_at.strftime("%d/%m/%Y %H:%M")
+        if latest_ai and latest_ai.created_at
+        else "—"
+    )
+
+    return f"""
+        <h1>{document_type}</h1>
+        <p><strong>Employee:</strong> {employee_name}</p>
+        <p><strong>Case Type:</strong> {er_case.case_type}</p>
+        <p><strong>Case Title:</strong> {er_case.title}</p>
+        <p><strong>Status:</strong> {er_case.status}</p>
+        <p><strong>Stage:</strong> {er_case.stage}</p>
+        <p><strong>Date Raised:</strong> {er_case.date_raised.strftime('%d/%m/%Y') if er_case.date_raised else '—'}</p>
+        <p><strong>Policy Type:</strong> {er_case.policy_type or '—'}</p>
+        <p><strong>AI Advice Timestamp:</strong> {generated_at}</p>
+        <p><strong>Policy Reference:</strong> {policy_title}</p>
+        <hr>
+    """.strip()
+
+
+def _build_er_document_body_html(document_type, latest_ai):
+    document_templates = {
+        "Investigation Invite": f"""
+            <h2>Suggested Wording for Investigation Invite</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.suggested_wording)}
+
+            <h2>Immediate Next Steps</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.immediate_next_steps)}
+
+            <h2>Investigation Questions</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.investigation_questions)}
+
+            <h2>Fairness &amp; Process Checks</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.fairness_process_checks)}
+
+            <h2>Missing Information</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.missing_information)}
+        """,
+
+        "Suspension Confirmation": f"""
+            <h2>Suggested Wording for Suspension Confirmation</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.suggested_wording)}
+
+            <h2>Overall Risk View</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.overall_risk_view)}
+
+            <h2>Immediate Next Steps</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.immediate_next_steps)}
+
+            <h2>Fairness &amp; Process Checks</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.fairness_process_checks)}
+
+            <h2>Missing Information</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.missing_information)}
+        """,
+
+        "Disciplinary Hearing Invite": f"""
+            <h2>Suggested Wording for Disciplinary Hearing Invite</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.suggested_wording)}
+
+            <h2>Immediate Next Steps</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.immediate_next_steps)}
+
+            <h2>Hearing Questions</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.hearing_questions)}
+
+            <h2>Outcome / Sanction Guidance</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.outcome_sanction_guidance)}
+
+            <h2>Fairness &amp; Process Checks</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.fairness_process_checks)}
+        """,
+
+        "Disciplinary Outcome Letter": f"""
+            <h2>Suggested Wording for Disciplinary Outcome</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.suggested_wording)}
+
+            <h2>Outcome / Sanction Guidance</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.outcome_sanction_guidance)}
+
+            <h2>Fairness &amp; Process Checks</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.fairness_process_checks)}
+
+            <h2>Immediate Next Steps</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.immediate_next_steps)}
+
+            <h2>Missing Information</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.missing_information)}
+        """,
+
+        "Warning Letter": f"""
+            <h2>Suggested Wording for Warning Letter</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.suggested_wording)}
+
+            <h2>Outcome / Sanction Guidance</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.outcome_sanction_guidance)}
+
+            <h2>Fairness &amp; Process Checks</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.fairness_process_checks)}
+
+            <h2>Immediate Next Steps</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.immediate_next_steps)}
+        """,
+
+        "Dismissal Letter": f"""
+            <h2>Suggested Wording for Dismissal Letter</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.suggested_wording)}
+
+            <h2>Outcome / Sanction Guidance</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.outcome_sanction_guidance)}
+
+            <h2>Fairness &amp; Process Checks</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.fairness_process_checks)}
+
+            <h2>Missing Information</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.missing_information)}
+        """,
+
+        "Grievance Meeting Invite": f"""
+            <h2>Suggested Wording for Grievance Meeting Invite</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.suggested_wording)}
+
+            <h2>Immediate Next Steps</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.immediate_next_steps)}
+
+            <h2>Investigation Questions</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.investigation_questions)}
+
+            <h2>Fairness &amp; Process Checks</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.fairness_process_checks)}
+
+            <h2>Missing Information</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.missing_information)}
+        """,
+
+        "Grievance Outcome Letter": f"""
+            <h2>Suggested Wording for Grievance Outcome</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.suggested_wording)}
+
+            <h2>Fairness &amp; Process Checks</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.fairness_process_checks)}
+
+            <h2>Immediate Next Steps</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.immediate_next_steps)}
+
+            <h2>Missing Information</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.missing_information)}
+        """,
+
+        "Appeal Invite": f"""
+            <h2>Suggested Wording for Appeal Invite</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.suggested_wording)}
+
+            <h2>Immediate Next Steps</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.immediate_next_steps)}
+
+            <h2>Hearing Questions</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.hearing_questions)}
+
+            <h2>Fairness &amp; Process Checks</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.fairness_process_checks)}
+
+            <h2>Missing Information</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.missing_information)}
+        """,
+
+        "Appeal Outcome Letter": f"""
+            <h2>Suggested Wording for Appeal Outcome</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.suggested_wording)}
+
+            <h2>Outcome / Sanction Guidance</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.outcome_sanction_guidance)}
+
+            <h2>Fairness &amp; Process Checks</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.fairness_process_checks)}
+
+            <h2>Immediate Next Steps</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.immediate_next_steps)}
+        """,
+
+        "Witness Statement Template": f"""
+            <h2>Witness Statement Template Guidance</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.investigation_questions)}
+
+            <h2>Fairness &amp; Process Checks</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.fairness_process_checks)}
+
+            <h2>Missing Information</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.missing_information)}
+        """,
+
+        "Meeting Notes Template": f"""
+            <h2>Meeting Notes Template Guidance</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.immediate_next_steps)}
+
+            <h2>Investigation Questions</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.investigation_questions)}
+
+            <h2>Hearing Questions</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.hearing_questions)}
+
+            <h2>Fairness &amp; Process Checks</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.fairness_process_checks)}
+        """,
+    }
+
+    return document_templates.get(
+        document_type,
+        f"""
+            <h2>Suggested Wording for HR / Manager</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.suggested_wording)}
+
+            <h2>Immediate Next Steps</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.immediate_next_steps)}
+
+            <h2>Fairness &amp; Process Checks</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.fairness_process_checks)}
+
+            <h2>Outcome / Sanction Guidance</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.outcome_sanction_guidance)}
+
+            <h2>Missing Information</h2>
+            {_html_paragraphs_from_bullet_text(latest_ai.missing_information)}
+        """,
+    ).strip()
+
+
+def _build_er_document_plain_html(er_case, document_type, draft_origin="plain"):
+    employee_name = f"{er_case.employee.first_name} {er_case.employee.last_name}"
+    draft_label = _draft_origin_label(draft_origin)
+
+    return f"""
+        <h1>{document_type}</h1>
+        <p><strong>Draft mode:</strong> {draft_label}</p>
+        <p><strong>Employee:</strong> {employee_name}</p>
+        <p><strong>Case Type:</strong> {er_case.case_type}</p>
+        <p><strong>Case Title:</strong> {er_case.title}</p>
+        <p><strong>Status:</strong> {er_case.status}</p>
+        <p><strong>Stage:</strong> {er_case.stage}</p>
+        <p><strong>Date Raised:</strong> {er_case.date_raised.strftime('%d/%m/%Y') if er_case.date_raised else '—'}</p>
+        <hr>
+
+        <p>Draft document created for Employee Relations case #{er_case.id}.</p>
+
+        <h2>Purpose of Document</h2>
+        <p>Add the purpose of this document here.</p>
+
+        <h2>Background</h2>
+        <p>Set out the relevant background, facts, and dates here.</p>
+
+        <h2>Key Details</h2>
+        <p>Add the case-specific details, concerns, allegations, or grievance points here.</p>
+
+        <h2>Next Steps / Required Action</h2>
+        <p>Insert the next steps, expectations, hearing details, or outcome wording here.</p>
+
+        <h2>Review Notes</h2>
+        <p>Check the wording, dates, policy references, and names before finalising.</p>
+    """.strip()
+
+
+def _build_er_document_ai_html(er_case, document_type, latest_ai):
+    header_html = _build_er_document_header_html(er_case, document_type, latest_ai)
+    body_html = _build_er_document_body_html(document_type, latest_ai)
+
+    return f"""
+        {header_html}
+        {body_html}
+        <hr>
+        <p><strong>Draft mode:</strong> AI-prefilled draft</p>
+        <p>This draft was prefilled using the latest structured Employee Relations AI advice for case #{er_case.id}. Review and edit before finalising.</p>
+    """.strip()
+
+
+def _build_er_document_default_html(er_case, document_type, draft_origin="plain"):
+    latest_ai = _latest_er_ai_advice(er_case)
+
+    if draft_origin == "ai" and latest_ai:
+        return _build_er_document_ai_html(er_case, document_type, latest_ai)
+
+    return _build_er_document_plain_html(
+        er_case,
+        document_type,
+        draft_origin=draft_origin,
+    )
 
 
 @employee_relations_bp.before_request
@@ -258,7 +634,7 @@ def case_list():
 
 @employee_relations_bp.route("/cases/create", methods=["GET", "POST"])
 def create_case():
-    employees = Employee.query.order_by(Employee.first_name.asc(), Employee.last_name.asc()).all()
+    employees = _active_employee_query().all()
 
     if request.method == "POST":
         employee_id = request.form.get("employee_id", type=int)
@@ -284,9 +660,11 @@ def create_case():
 
         errors = []
 
-        employee = Employee.query.get(employee_id) if employee_id else None
+        employee = _scoped_employee_query().filter(Employee.id == employee_id).first() if employee_id else None
         if not employee:
             errors.append("Please select an employee.")
+        elif employee.is_leaver:
+            errors.append("You cannot create a new Employee Relations case for an employee who is marked as a leaver.")
 
         if case_type not in CASE_TYPES:
             errors.append("Please select a valid case type.")
@@ -378,6 +756,7 @@ def create_case():
 @employee_relations_bp.route("/cases/<int:case_id>")
 def view_case(case_id):
     er_case = EmployeeRelationsCase.query.get_or_404(case_id)
+    latest_ai = _latest_er_ai_advice(er_case)
 
     return render_template(
         "employee_relations/detail.html",
@@ -387,13 +766,16 @@ def view_case(case_id):
         meeting_types=MEETING_TYPES,
         attachment_categories=ATTACHMENT_CATEGORIES,
         er_document_types=ER_DOCUMENT_TYPES,
+        er_document_draft_modes=ER_DOCUMENT_DRAFT_MODES,
+        default_er_document_mode="ai" if latest_ai else "plain",
+        has_er_ai_advice=bool(latest_ai),
     )
 
 
 @employee_relations_bp.route("/cases/<int:case_id>/edit", methods=["GET", "POST"])
 def edit_case(case_id):
     er_case = EmployeeRelationsCase.query.get_or_404(case_id)
-    employees = Employee.query.order_by(Employee.first_name.asc(), Employee.last_name.asc()).all()
+    employees = _active_employee_query(include_employee_id=er_case.employee_id).all()
 
     if request.method == "POST":
         old_status = er_case.status
@@ -410,7 +792,7 @@ def edit_case(case_id):
 
         errors = []
 
-        employee = Employee.query.get(employee_id) if employee_id else None
+        employee = _scoped_employee_query().filter(Employee.id == employee_id).first() if employee_id else None
         if not employee:
             errors.append("Please select an employee.")
 
@@ -509,7 +891,7 @@ def edit_case(case_id):
         er_case.appeal_reason = request.form.get("appeal_reason", "").strip() or None
         er_case.appeal_hearing_date = _parse_date(request.form.get("appeal_hearing_date", "").strip())
         er_case.appeal_outcome = request.form.get("appeal_outcome", "").strip() or None
-        er_case.appeal_outcome_date = _parse_date(request.form.get("appeal_outcome_date", "").strip())
+        er_case.appeal_outcome_date = _parse_date(request.form.get("appeal_outcome_date", "").strip()) or None
 
         er_case.updated_by = getattr(current_user, "username", None)
 
@@ -725,7 +1107,7 @@ def generate_ai_advice(case_id):
     active_policy, active_policy_text = _get_active_policy_text(er_case)
 
     try:
-        advice = generate_employee_relations_advice(
+        advice_data = generate_employee_relations_advice(
             er_case=er_case,
             active_policy_text=active_policy_text,
         )
@@ -733,28 +1115,35 @@ def generate_ai_advice(case_id):
         flash(f"AI advice could not be generated: {exc}", "danger")
         return redirect(url_for("employee_relations.view_case", case_id=case_id))
 
-    notes_parts = [
-        "Employee Relations AI Advice",
-        "",
-        advice,
-    ]
+    advice_record = EmployeeRelationsAIAdvice(
+        case_id=er_case.id,
+        policy_text_id=active_policy.id if active_policy else None,
+        overall_risk_view=advice_data.get("overall_risk_view"),
+        immediate_next_steps=advice_data.get("immediate_next_steps"),
+        investigation_questions=advice_data.get("investigation_questions"),
+        hearing_questions=advice_data.get("hearing_questions"),
+        outcome_sanction_guidance=advice_data.get("outcome_sanction_guidance"),
+        fairness_process_checks=advice_data.get("fairness_process_checks"),
+        suggested_wording=advice_data.get("suggested_wording"),
+        missing_information=advice_data.get("missing_information"),
+        raw_response=advice_data.get("raw_response"),
+        model_name=advice_data.get("model_name"),
+        created_by=getattr(current_user, "username", None),
+    )
+    db.session.add(advice_record)
 
+    timeline_notes = render_employee_relations_advice_for_timeline(advice_data)
     if active_policy:
-        notes_parts.extend(
-            [
-                "",
-                f"[Policy Source: {active_policy.title}]",
-            ]
-        )
+        timeline_notes = f"{timeline_notes}\n\n[Policy Source: {active_policy.title}]"
 
     _log_case_event(
         er_case.id,
         "AI Advice Generated",
-        "\n".join(notes_parts),
+        timeline_notes,
     )
 
     db.session.commit()
-    flash("AI advice generated and saved to the timeline.", "success")
+    flash("AI advice generated and saved.", "success")
     return redirect(url_for("employee_relations.view_case", case_id=case_id))
 
 
@@ -781,19 +1170,25 @@ def create_document(case_id):
         flash("Please select a valid document type.", "danger")
         return redirect(url_for("employee_relations.view_case", case_id=case_id))
 
-    title = request.form.get("title", "").strip() or _build_er_document_title(er_case, document_type)
+    requested_mode = _normalise_er_document_mode(request.form.get("draft_mode"))
+    latest_ai = _latest_er_ai_advice(er_case)
 
-    employee_name = f"{er_case.employee.first_name} {er_case.employee.last_name}"
-    default_html = f"""
-        <h1>{document_type}</h1>
-        <p><strong>Employee:</strong> {employee_name}</p>
-        <p><strong>Case Type:</strong> {er_case.case_type}</p>
-        <p><strong>Case Title:</strong> {er_case.title}</p>
-        <p><strong>Status:</strong> {er_case.status}</p>
-        <p><strong>Stage:</strong> {er_case.stage}</p>
-        <hr>
-        <p>Draft document created for Employee Relations case #{er_case.id}.</p>
-    """.strip()
+    effective_mode = requested_mode
+    if requested_mode == "ai" and not latest_ai:
+        effective_mode = "plain"
+        flash(
+            "AI-prefilled draft was requested, but no AI advice exists for this case yet. A plain draft was created instead.",
+            "warning",
+        )
+
+    draft_origin = _resolve_draft_origin(requested_mode, effective_mode)
+
+    title = request.form.get("title", "").strip() or _build_er_document_title(er_case, document_type)
+    default_html = _build_er_document_default_html(
+        er_case,
+        document_type,
+        draft_origin=draft_origin,
+    )
 
     doc = EmployeeRelationsDocument(
         case_id=er_case.id,
@@ -801,6 +1196,7 @@ def create_document(case_id):
         title=title,
         status="Draft",
         version=_next_er_document_version(er_case.id, document_type),
+        draft_origin=draft_origin,
         html_content=default_html,
         created_by=getattr(current_user, "username", None),
         updated_by=getattr(current_user, "username", None),
@@ -809,10 +1205,22 @@ def create_document(case_id):
     db.session.add(doc)
     db.session.flush()
 
+    if draft_origin == "ai_fallback_plain":
+        timeline_note = (
+            f"{document_type} draft created (v{doc.version}) "
+            f"with requested mode '{_draft_mode_label(requested_mode)}', "
+            f"but no AI advice was available so '{_draft_origin_label(draft_origin)}' was used."
+        )
+    else:
+        timeline_note = (
+            f"{document_type} draft created (v{doc.version}) "
+            f"using {_draft_origin_label(draft_origin)}."
+        )
+
     _log_case_event(
         er_case.id,
         "Document Draft Created",
-        f"{document_type} draft created (v{doc.version}).",
+        timeline_note,
     )
 
     db.session.commit()

@@ -21,10 +21,22 @@
           <option value="">Select employee</option>
           {% for employee in employees %}
           <option value="{{ employee.id }}" {% if form_data.get('employee_id')|string == employee.id|string %}selected{% endif %}>
-            {{ employee.first_name }} {{ employee.last_name }}
+            {{ employee.first_name }} {{ employee.last_name }}{% if employee.is_leaver %} — LEAVER{% endif %}
           </option>
           {% endfor %}
         </select>
+        <p class="mt-1 text-[11px] text-slate-500">
+          Active employees are shown by default.
+        </p>
+
+        {% if form_data.get('employee_id') %}
+          {% set selected_emp = (employees | selectattr('id', 'equalto', (form_data.get('employee_id') | int)) | list | first) %}
+          {% if selected_emp and selected_emp.is_leaver %}
+            <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              This selection references an employee marked as a leaver. New ER cases should not be created for leavers.
+            </div>
+          {% endif %}
+        {% endif %}
       </div>
 
       <div>

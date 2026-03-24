@@ -7,8 +7,25 @@
 
   <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
     <div>
-      <h2 class="text-2xl font-bold text-slate-900">{{ document.title }}</h2>
-      <p class="text-sm text-slate-600">
+      <div class="flex flex-wrap items-center gap-2">
+        <h2 class="text-2xl font-bold text-slate-900">{{ document.title }}</h2>
+
+        {% if document.draft_origin == 'ai' %}
+        <span class="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+          AI-prefilled
+        </span>
+        {% elif document.draft_origin == 'ai_fallback_plain' %}
+        <span class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+          AI fallback
+        </span>
+        {% else %}
+        <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+          Plain
+        </span>
+        {% endif %}
+      </div>
+
+      <p class="mt-1 text-sm text-slate-600">
         {{ document.document_type }} · Version {{ document.version }} · {{ document.status }}
       </p>
     </div>
@@ -16,6 +33,16 @@
        class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
       Back to Case
     </a>
+  </div>
+
+  <div class="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200">
+    {% if document.draft_origin == 'ai' %}
+    This document started as an <strong class="text-slate-800">AI-prefilled draft</strong> using the latest structured ER AI advice available at creation time.
+    {% elif document.draft_origin == 'ai_fallback_plain' %}
+    AI-prefilled drafting was requested for this document, but no AI advice existed at the time, so a <strong class="text-slate-800">plain draft</strong> was created instead.
+    {% else %}
+    This document started as a <strong class="text-slate-800">plain draft</strong> for manual editing.
+    {% endif %}
   </div>
 
   <form method="post" class="space-y-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
@@ -42,22 +69,24 @@
         Save Draft
       </button>
 
-      {% if document.status != 'Final' %}
-      <form method="post" action="{{ url_for('employee_relations.finalise_document', document_id=document.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit"
-                class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
-          Finalise Document
-        </button>
-      </form>
-      {% endif %}
-
       <a href="{{ url_for('employee_relations.view_case', case_id=er_case.id) }}"
          class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
         Cancel
       </a>
     </div>
   </form>
+
+  {% if document.status != 'Final' %}
+  <form method="post"
+        action="{{ url_for('employee_relations.finalise_document', document_id=document.id) }}"
+        class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit"
+            class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+      Finalise Document
+    </button>
+  </form>
+  {% endif %}
 
 </div>
 {% endblock %}
