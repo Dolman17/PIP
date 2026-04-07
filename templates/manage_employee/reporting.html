@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% block title %}Manage Employee Reporting{% endblock %}
+{% block page_title %}
+<h1 class="text-base font-semibold text-slate-900">Manage Employee Reporting</h1>
+{% endblock %}
+
+{% block content %}
+<div class="py-6 space-y-6 max-w-7xl">
+
+  <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <div>
+      <p class="text-sm text-slate-600">
+        Lifecycle reporting view for active employees, leavers, turnover, and service-level analysis.
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="{{ url_for('manage_employee.index') }}"
+         class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">
+        Back to Manage Employees
+      </a>
+    </div>
+  </div>
+
+  <section class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="border-b border-slate-200 px-5 py-4">
+      <h2 class="text-sm font-semibold text-slate-900">Filters</h2>
+    </div>
+    <div class="p-5">
+      <form method="GET" class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Start Date</label>
+          <input
+            type="date"
+            name="start_date"
+            value="{{ start_date_raw }}"
+            class="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ellipse-teal"
+          >
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">End Date</label>
+          <input
+            type="date"
+            name="end_date"
+            value="{{ end_date_raw }}"
+            class="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ellipse-teal"
+          >
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Service</label>
+          <select
+            name="service"
+            class="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ellipse-teal"
+          >
+            <option value="">All Services</option>
+            {% for service in available_services %}
+              <option value="{{ service }}" {{ 'selected' if selected_service == service else '' }}>
+                {{ service }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="flex items-end">
+          <button
+            type="submit"
+            class="inline-flex w-full items-center justify-center rounded-xl bg-ellipse-teal px-4 py-2 text-sm font-semibold text-white hover:bg-ellipse-hover"
+          >
+            Apply Filters
+          </button>
+        </div>
+
+        <div class="flex items-end">
+          <a
+            href="{{ url_for('manage_employee.reporting') }}"
+            class="inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Clear Filters
+          </a>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Employees</p>
+      <p class="mt-3 text-3xl font-bold text-slate-900">{{ total_employees }}</p>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Active Employees</p>
+      <p class="mt-3 text-3xl font-bold text-emerald-700">{{ active_employees }}</p>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Leavers</p>
+      <p class="mt-3 text-3xl font-bold text-rose-700">{{ leavers_count }}</p>
+    </div>
+  </div>
+
+  <section class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="border-b border-slate-200 px-5 py-4">
+      <h2 class="text-sm font-semibold text-slate-900">Turnover Summary</h2>
+      <p class="mt-1 text-xs text-slate-500">
+        Turnover is calculated only when both a start date and end date are selected.
+      </p>
+    </div>
+
+    <div class="p-5">
+      {% if start_date_raw and end_date_raw %}
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Period Leavers</p>
+            <p class="mt-2 text-2xl font-bold text-slate-900">{{ period_leavers }}</p>
+          </div>
+
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Opening Headcount</p>
+            <p class="mt-2 text-2xl font-bold text-slate-900">{{ opening_headcount }}</p>
+          </div>
+
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Closing Headcount</p>
+            <p class="mt-2 text-2xl font-bold text-slate-900">{{ closing_headcount }}</p>
+          </div>
+
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Average Headcount</p>
+            <p class="mt-2 text-2xl font-bold text-slate-900">{{ average_headcount }}</p>
+          </div>
+
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Turnover %</p>
+            <p class="mt-2 text-2xl font-bold text-ellipse-teal">{{ turnover_percent }}%</p>
+          </div>
+        </div>
+      {% else %}
+        <p class="text-sm text-slate-500">
+          Select both a start date and end date to calculate turnover for a period.
+        </p>
+      {% endif %}
+    </div>
+  </section>
+
+  <div class="grid gap-6 xl:grid-cols-2">
+    <section class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="border-b border-slate-200 px-5 py-4">
+        <h2 class="text-sm font-semibold text-slate-900">Leavers by Month</h2>
+      </div>
+
+      <div class="p-5">
+        {% if leavers_by_month %}
+          <div class="space-y-3">
+            {% for item in leavers_by_month %}
+              <div>
+                <div class="mb-1 flex items-center justify-between text-sm">
+                  <span class="font-medium text-slate-700">{{ item.label }}</span>
+                  <span class="text-slate-500">{{ item.count }}</span>
+                </div>
+                <div class="h-3 rounded-full bg-slate-100">
+                  <div
+                    class="h-3 rounded-full bg-ellipse-teal"
+                    style="width: {{ item.width_pct }}%;"
+                  ></div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-sm text-slate-500">No leaver data recorded yet.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="border-b border-slate-200 px-5 py-4">
+        <h2 class="text-sm font-semibold text-slate-900">Leavers by Reason</h2>
+      </div>
+
+      <div class="p-5">
+        {% if leavers_by_reason %}
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="px-4 py-3 text-left font-semibold text-slate-600">Reason</th>
+                  <th class="px-4 py-3 text-left font-semibold text-slate-600">Count</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 bg-white">
+                {% for item in leavers_by_reason %}
+                  <tr>
+                    <td class="px-4 py-3 text-slate-700">{{ item.reason }}</td>
+                    <td class="px-4 py-3 font-medium text-slate-900">{{ item.count }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="text-sm text-slate-500">No leaving reasons recorded yet.</p>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  <div class="grid gap-6 xl:grid-cols-2">
+    <section class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="border-b border-slate-200 px-5 py-4">
+        <h2 class="text-sm font-semibold text-slate-900">Leavers by Service</h2>
+      </div>
+
+      <div class="p-5">
+        {% if leavers_by_service %}
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="px-4 py-3 text-left font-semibold text-slate-600">Service</th>
+                  <th class="px-4 py-3 text-left font-semibold text-slate-600">Count</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 bg-white">
+                {% for item in leavers_by_service %}
+                  <tr>
+                    <td class="px-4 py-3 text-slate-700">{{ item.service }}</td>
+                    <td class="px-4 py-3 font-medium text-slate-900">{{ item.count }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="text-sm text-slate-500">No service-level leaver data recorded yet.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="border-b border-slate-200 px-5 py-4">
+        <h2 class="text-sm font-semibold text-slate-900">Active vs Leavers by Service</h2>
+      </div>
+
+      <div class="p-5">
+        {% if active_vs_leavers_by_service %}
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="px-4 py-3 text-left font-semibold text-slate-600">Service</th>
+                  <th class="px-4 py-3 text-left font-semibold text-slate-600">Active</th>
+                  <th class="px-4 py-3 text-left font-semibold text-slate-600">Leavers</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 bg-white">
+                {% for item in active_vs_leavers_by_service %}
+                  <tr>
+                    <td class="px-4 py-3 text-slate-700">{{ item.service }}</td>
+                    <td class="px-4 py-3 font-medium text-emerald-700">{{ item.active_count }}</td>
+                    <td class="px-4 py-3 font-medium text-rose-700">{{ item.leaver_count }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="text-sm text-slate-500">No service comparison data available yet.</p>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+</div>
+{% endblock %}

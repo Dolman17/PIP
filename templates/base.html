@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>{% block title %}Ellipse HR System{% endblock %}</title>
+  <title>{% block title %}HR System{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   {% if current_user.is_authenticated %}
@@ -57,10 +57,10 @@
         <div class="flex items-center gap-3 min-w-0">
           <div class="h-9 w-9 rounded-xl bg-white flex items-center justify-center shrink-0">
             <img src="{{ url_for('static', filename='images/logo.avif') }}"
-                 alt="Ellipse HR" class="h-8 w-8 rounded-lg object-cover">
+                 alt="HR" class="h-8 w-8 rounded-lg object-cover">
           </div>
           <div class="min-w-0">
-            <div class="text-sm font-semibold leading-tight truncate">Ellipse HR</div>
+            <div class="text-sm font-semibold leading-tight truncate">HR</div>
             <div class="text-[11px] text-white/70 truncate">Performance &amp; Case Management</div>
           </div>
         </div>
@@ -153,14 +153,24 @@
 
               <li>
                 <a href="{{ url_for('manage_employee.index') }}"
-                   class="flex items-center gap-2 rounded-xl px-3 py-2
+                   class="flex items-center justify-between gap-2 rounded-xl px-3 py-2
                           {% if current_endpoint.startswith('manage_employee.') %}
                             bg-white text-[#0a4d4c]
                           {% else %}
                             text-white/80 hover:bg-white/10
                           {% endif %}">
-                  <span class="text-base">🗂️</span>
-                  <span class="text-sm font-medium">Manage Employees</span>
+                  <span class="flex items-center gap-2 min-w-0">
+                    <span class="text-base">🗂️</span>
+                    <span class="text-sm font-medium">Manage Employees</span>
+                  </span>
+                  <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold
+                               {% if current_endpoint == 'manage_employee.reporting' %}
+                                 bg-[#0a4d4c] text-white
+                               {% else %}
+                                 bg-white/15 text-inherit
+                               {% endif %}">
+                    Reporting
+                  </span>
                 </a>
               </li>
 
@@ -227,14 +237,24 @@
 
               <li>
                 <a href="{{ url_for('manage_employee.index') }}"
-                   class="flex items-center gap-2 rounded-xl px-3 py-2
+                   class="flex items-center justify-between gap-2 rounded-xl px-3 py-2
                           {% if current_endpoint.startswith('manage_employee.') %}
                             bg-white text-[#0a4d4c]
                           {% else %}
                             text-white/80 hover:bg-white/10
                           {% endif %}">
-                  <span class="text-base">🗂️</span>
-                  <span class="text-sm font-medium">Manage Employees</span>
+                  <span class="flex items-center gap-2 min-w-0">
+                    <span class="text-base">🗂️</span>
+                    <span class="text-sm font-medium">Manage Employees</span>
+                  </span>
+                  <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold
+                               {% if current_endpoint == 'manage_employee.reporting' %}
+                                 bg-[#0a4d4c] text-white
+                               {% else %}
+                                 bg-white/15 text-inherit
+                               {% endif %}">
+                    Reporting
+                  </span>
                 </a>
               </li>
 
@@ -275,14 +295,24 @@
 
               <li>
                 <a href="{{ url_for('manage_employee.index') }}"
-                   class="flex items-center gap-2 rounded-xl px-3 py-2
+                   class="flex items-center justify-between gap-2 rounded-xl px-3 py-2
                           {% if current_endpoint.startswith('manage_employee.') %}
                             bg-white text-[#0a4d4c]
                           {% else %}
                             text-white/80 hover:bg-white/10
                           {% endif %}">
-                  <span class="text-base">🗂️</span>
-                  <span class="text-sm font-medium">Manage Employees</span>
+                  <span class="flex items-center gap-2 min-w-0">
+                    <span class="text-base">🗂️</span>
+                    <span class="text-sm font-medium">Manage Employees</span>
+                  </span>
+                  <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold
+                               {% if current_endpoint == 'manage_employee.reporting' %}
+                                 bg-[#0a4d4c] text-white
+                               {% else %}
+                                 bg-white/15 text-inherit
+                               {% endif %}">
+                    Reporting
+                  </span>
                 </a>
               </li>
 
@@ -362,14 +392,24 @@
 
               <li>
                 <a href="{{ url_for('manage_employee.index') }}"
-                   class="flex items-center gap-2 rounded-xl px-3 py-2
+                   class="flex items-center justify-between gap-2 rounded-xl px-3 py-2
                           {% if current_endpoint.startswith('manage_employee.') %}
                             bg-white text-[#0a4d4c]
                           {% else %}
                             text-white/80 hover:bg-white/10
                           {% endif %}">
-                  <span class="text-base">🗂️</span>
-                  <span class="text-sm font-medium">Manage Employees</span>
+                  <span class="flex items-center gap-2 min-w-0">
+                    <span class="text-base">🗂️</span>
+                    <span class="text-sm font-medium">Manage Employees</span>
+                  </span>
+                  <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold
+                               {% if current_endpoint == 'manage_employee.reporting' %}
+                                 bg-[#0a4d4c] text-white
+                               {% else %}
+                                 bg-white/15 text-inherit
+                               {% endif %}">
+                    Reporting
+                  </span>
                 </a>
               </li>
             </ul>
@@ -410,14 +450,24 @@
 
               <li>
                 <a href="{{ url_for('manage_employee.index') }}"
-                   class="flex items-center gap-2 rounded-xl px-3 py-2
+                   class="flex items-center justify-between gap-2 rounded-xl px-3 py-2
                           {% if current_endpoint.startswith('manage_employee.') %}
                             bg-white text-[#0a4d4c]
                           {% else %}
                             text-white/80 hover:bg-white/10
                           {% endif %}">
-                  <span class="text-base">🗂️</span>
-                  <span class="text-sm font-medium">Manage Employees</span>
+                  <span class="flex items-center gap-2 min-w-0">
+                    <span class="text-base">🗂️</span>
+                    <span class="text-sm font-medium">Manage Employees</span>
+                  </span>
+                  <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold
+                               {% if current_endpoint == 'manage_employee.reporting' %}
+                                 bg-[#0a4d4c] text-white
+                               {% else %}
+                                 bg-white/15 text-inherit
+                               {% endif %}">
+                    Reporting
+                  </span>
                 </a>
               </li>
             </ul>
@@ -467,7 +517,7 @@
           <div>
             {% block page_title %}
               <h1 class="text-base font-semibold text-slate-900">
-                Ellipse HR
+                HR
               </h1>
             {% endblock %}
             {% if is_logged_in and active_module %}

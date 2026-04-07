@@ -55,7 +55,17 @@ def export_data():
             employees = Employee.query.all()
             write_csv(
                 "employees.csv",
-                ["id", "first_name", "last_name", "job_title", "line_manager", "service", "start_date", "team_id", "email"],
+                [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "job_title",
+                    "line_manager",
+                    "service",
+                    "start_date",
+                    "team_id",
+                    "email",
+                ],
                 [
                     {
                         "id": employee.id,
@@ -76,7 +86,19 @@ def export_data():
             pips = PIPRecord.query.all()
             write_csv(
                 "pip_records.csv",
-                ["id", "employee_id", "concerns", "concern_category", "severity", "frequency", "tags", "start_date", "review_date", "status", "created_by"],
+                [
+                    "id",
+                    "employee_id",
+                    "concerns",
+                    "concern_category",
+                    "severity",
+                    "frequency",
+                    "tags",
+                    "start_date",
+                    "review_date",
+                    "status",
+                    "created_by",
+                ],
                 [
                     {
                         "id": pip_record.id,
@@ -222,7 +244,7 @@ def edit_user(user_id):
         user.team_id = form.team_id.data
         db.session.commit()
         flash("User updated successfully.", "success")
-        return redirect(url_for("manage_users"))
+        return redirect(url_for("admin.manage_users"))
 
     return render_template("edit_user.html", form=form, user=user)
 
@@ -235,11 +257,12 @@ def create_user():
         return redirect(url_for("dashboard"))
 
     if request.method == "POST":
-        username = request.form.get("username")
-        email = request.form.get("email")
+        username = (request.form.get("username") or "").strip()
+        email = (request.form.get("email") or "").strip()
         password = request.form.get("password")
         admin_level = int(request.form.get("admin_level", 0))
-        team_id = request.form.get("team_id") or None
+        team_id_raw = (request.form.get("team_id") or "").strip()
+        team_id = int(team_id_raw) if team_id_raw else None
 
         if not username or not email or not password:
             flash("All fields except team ID are required.", "danger")
@@ -265,7 +288,7 @@ def create_user():
         db.session.commit()
 
         flash("User created successfully.", "success")
-        return redirect(url_for("manage_users"))
+        return redirect(url_for("admin.manage_users"))
 
     return render_template("admin_create_user.html")
 
@@ -280,12 +303,12 @@ def delete_user(user_id):
     user = User.query.get_or_404(user_id)
     if user.id == current_user.id:
         flash("You cannot delete your own account while logged in.", "warning")
-        return redirect(url_for("manage_users"))
+        return redirect(url_for("admin.manage_users"))
 
     db.session.delete(user)
     db.session.commit()
     flash("User deleted successfully.", "success")
-    return redirect(url_for("manage_users"))
+    return redirect(url_for("admin.manage_users"))
 
 
 @admin_bp.route("/admin/backup")
