@@ -19,6 +19,14 @@ class User(db.Model, UserMixin):
 
     def is_superuser(self):
         return self.admin_level == 2
+    
+    def is_manager(self):
+        return self.admin_level == 0
+
+    def can_access_team(self, team_id):
+        if self.is_admin():
+            return True
+        return bool(self.team_id and team_id and self.team_id == team_id)
 
 
 class Employee(db.Model):
@@ -831,3 +839,53 @@ class EmployeeRelationsDocument(db.Model):
             f"case={self.case_id} type={self.document_type} "
             f"status={self.status} origin={self.draft_origin}>"
         )
+
+class AIConsentLog(db.Model):
+    __tablename__ = "ai_consent_logs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    context = db.Column(db.String(100), nullable=False)  # e.g. "pip_advice", "er_advice"
+    accepted = db.Column(db.Boolean, default=False, nullable=False)
+    accepted_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    request_ip = db.Column(db.String(100), nullable=True)
+    user_agent = db.Column(db.String(500), nullable=True)
+
+    user = db.relationship("User", backref=db.backref("ai_consents", lazy=True))
+
+    def __repr__(self):
+        return f"<AIConsentLog user_id={self.user_id} context={self.context} accepted={self.accepted}>"
+    
+class APIKey(db.Model):
+    __tablename__ = "api_keys"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    key_prefix = db.Column(db.String(20), nullable=False, index=True)
+    key_hash = db.Column(db.String(64), nullable=False, unique=True, index=True)
+
+    organisation_id = db.Column(db.Integer, nullable=True, index=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    scopes = db.Column(db.Text, nullable=True)  # comma-separated initially
+    last_used_at = db.Column(db.DateTime, nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    revoked_at = db.Column(db.DateTime, nullable=True)
+
+    created_by = db.relationship("User", backref=db.backref("created_api_keys", lazy=True))
+
+    def has_scope(self, scope: str) -> bool:
+        if not self.scopes:
+            return False
+        allowed = {s.strip() for s in self.scopes.split(",") if s.strip()}
+        return scope in allowed
+
+    def revoke(self):
+        self.is_active = False
+        self.revoked_at = datetime.utcnow()
+
+    def __repr__(self):
+        return f"<APIKey id={self.id} name={self.name} active={self.is_active}>"

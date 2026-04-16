@@ -69,6 +69,7 @@ from pip_app.services.taxonomy import (
     merge_curated_and_recent as _merge_curated_and_recent,
     pick_actions_from_templates as _pick_actions_from_templates,
 )
+from pip_app.security import init_security
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-only-secret')
@@ -86,6 +87,18 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 app.config['WTF_CSRF_ENABLED'] = True
 app.config['WTF_CSRF_TIME_LIMIT'] = None
+
+# Security / session baseline
+app.config["SESSION_COOKIE_SECURE"] = not app.debug
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
+app.config["REMEMBER_COOKIE_SECURE"] = not app.debug
+app.config["REMEMBER_COOKIE_HTTPONLY"] = True
+app.config["REMEMBER_COOKIE_SAMESITE"] = "Lax"
+
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=45)
+
 csrf = CSRFProtect(app)
 
 db.init_app(app)
@@ -101,11 +114,15 @@ from pip_app.blueprints.employees import employees_bp
 from pip_app.blueprints.pip import pip_bp, get_active_draft_for_user
 from pip_app.blueprints.employee_relations import employee_relations_bp
 from pip_app.blueprints.manage_employee import manage_employee_bp
+from pip_app.blueprints.ai_consent import ai_consent_bp
 
 login_manager = LoginManager()
 login_manager.login_view = 'auth.login'
 login_manager.login_message_category = 'info'
 login_manager.init_app(app)
+
+# Initialise security hooks
+init_security(app)
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(main_bp)
@@ -117,6 +134,7 @@ app.register_blueprint(employees_bp)
 app.register_blueprint(pip_bp)
 app.register_blueprint(employee_relations_bp)
 app.register_blueprint(manage_employee_bp)
+app.register_blueprint(ai_consent_bp)
 
 csrf.exempt(app.view_functions['employees.quick_add_employee'])
 csrf.exempt(app.view_functions['pip.suggest_actions_ai'])

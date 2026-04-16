@@ -20,7 +20,13 @@ from flask_login import current_user, login_required
 from sqlalchemy import or_
 
 from forms import PIPForm
-from models import DraftPIP, DocumentFile, Employee, PIPActionItem, PIPRecord, TimelineEvent, db
+from models import AIConsentLog, DraftPIP, DocumentFile, Employee, PIPActionItem, PIPRecord, TimelineEvent, db
+from pip_app.security import (
+    log_security_event,
+    require_employee_access,
+    require_pip_access,
+    scoped_employee_query,
+)
 from pip_app.services.ai_utils import client
 from pip_app.services.document_utils import (
     BASE_DIR,
@@ -61,13 +67,7 @@ def get_active_draft_for_user(user_id):
 
 
 def _scoped_employee_query():
-    q = Employee.query
-    if current_user.admin_level == 0:
-        if current_user.team_id:
-            q = q.filter(Employee.team_id == current_user.team_id)
-        else:
-            q = q.filter(Employee.id == -1)
-    return q
+    return scoped_employee_query(Employee.query, Employee)
 
 
 def _active_employee_query(include_employee_id=None):
@@ -86,10 +86,39 @@ def _active_employee_query(include_employee_id=None):
     return q.order_by(Employee.last_name.asc(), Employee.first_name.asc())
 
 
+def _scoped_pip_query():
+    q = PIPRecord.query.join(Employee)
+    if current_user.admin_level == 0:
+        if current_user.team_id:
+            q = q.filter(Employee.team_id == current_user.team_id)
+        else:
+            q = q.filter(Employee.id == -1)
+    return q
+
+
+def _has_recent_ai_consent(context_name: str, minutes: int = 120) -> bool:
+    latest = (
+        AIConsentLog.query
+        .filter_by(user_id=current_user.id, context=context_name, accepted=True)
+        .order_by(AIConsentLog.accepted_at.desc())
+        .first()
+    )
+    if not latest or not latest.accepted_at:
+        return False
+
+    accepted_at = latest.accepted_at
+    if accepted_at.tzinfo is not None:
+        accepted_at = accepted_at.replace(tzinfo=None)
+
+    age_seconds = (datetime.utcnow() - accepted_at).total_seconds()
+    return age_seconds <= minutes * 60
+
+
 @pip_bp.route('/pip/<int:id>')
 @login_required
 def pip_detail(id):
     pip = PIPRecord.query.get_or_404(id)
+    require_pip_access(pip)
     employee = pip.employee
     return render_template('pip_detail.html', pip=pip, employee=employee)
 
@@ -98,6 +127,8 @@ def pip_detail(id):
 @login_required
 def pip_documents(pip_id):
     pip_rec = PIPRecord.query.get_or_404(pip_id)
+    require_pip_access(pip_rec)
+
     docs = (
         DocumentFile.query
         .filter_by(pip_id=pip_id)
@@ -111,6 +142,8 @@ def pip_documents(pip_id):
 @login_required
 def create_pip_doc_draft(pip_id, doc_type):
     pip_rec = PIPRecord.query.get_or_404(pip_id)
+    require_pip_access(pip_rec)
+
     mapping = build_placeholder_mapping(pip_rec)
 
     template_map = {
@@ -150,6 +183,16 @@ def create_pip_doc_draft(pip_id, doc_type):
         notes=f"{doc.doc_type.capitalize()} v{doc.version} created from template.",
     )
 
+    try:
+        log_security_event(
+            event_type="PIP Document Draft Created",
+            notes=f"{doc.doc_type.capitalize()} v{doc.version} created for PIP #{pip_id}",
+            pip_record_id=pip_id,
+            updated_by=current_user.username,
+        )
+    except Exception:
+        pass
+
     flash(f"{doc_type.capitalize()} draft v{version} created.", "success")
     return redirect(url_for("pip.edit_pip_doc", pip_id=pip_id, doc_id=doc.id))
 
@@ -158,6 +201,8 @@ def create_pip_doc_draft(pip_id, doc_type):
 @login_required
 def edit_pip_doc(pip_id, doc_id):
     pip_rec = PIPRecord.query.get_or_404(pip_id)
+    require_pip_access(pip_rec)
+
     doc = DocumentFile.query.filter_by(id=doc_id, pip_id=pip_id).first_or_404()
 
     if request.method == "POST":
@@ -190,6 +235,16 @@ def edit_pip_doc(pip_id, doc_id):
             notes=f"{doc.doc_type.capitalize()} v{doc.version} draft updated.",
         )
 
+        try:
+            log_security_event(
+                event_type="PIP Document Draft Updated",
+                notes=f"{doc.doc_type.capitalize()} v{doc.version} updated for PIP #{pip_id}",
+                pip_record_id=pip_id,
+                updated_by=current_user.username,
+            )
+        except Exception:
+            pass
+
         flash("Draft updated.", "success")
         return redirect(request.url)
 
@@ -204,6 +259,9 @@ def edit_pip_doc(pip_id, doc_id):
 @pip_bp.route("/pip/<int:pip_id>/doc/<int:doc_id>/finalise", methods=["POST"])
 @login_required
 def finalise_pip_doc(pip_id, doc_id):
+    pip_rec = PIPRecord.query.get_or_404(pip_id)
+    require_pip_access(pip_rec)
+
     doc = DocumentFile.query.filter_by(id=doc_id, pip_id=pip_id).first_or_404()
     if doc.status == "final":
         flash("Document already final.", "info")
@@ -218,6 +276,16 @@ def finalise_pip_doc(pip_id, doc_id):
         notes=f"{doc.doc_type.capitalize()} v{doc.version} finalised.",
     )
 
+    try:
+        log_security_event(
+            event_type="PIP Document Finalised",
+            notes=f"{doc.doc_type.capitalize()} v{doc.version} finalised for PIP #{pip_id}",
+            pip_record_id=pip_id,
+            updated_by=current_user.username,
+        )
+    except Exception:
+        pass
+
     flash(f"{doc.doc_type.capitalize()} v{doc.version} finalised.", "success")
     return redirect(url_for("pip.pip_documents", pip_id=pip_id))
 
@@ -226,6 +294,9 @@ def finalise_pip_doc(pip_id, doc_id):
 @login_required
 def download_doc(doc_id):
     doc = DocumentFile.query.get_or_404(doc_id)
+    pip_rec = PIPRecord.query.get_or_404(doc.pip_id)
+    require_pip_access(pip_rec)
+
     abs_path = os.path.join(current_app.config['UPLOAD_FOLDER'], doc.docx_path)
 
     if not os.path.exists(abs_path):
@@ -235,6 +306,16 @@ def download_doc(doc_id):
     size = os.path.getsize(abs_path)
     print(f"[DOWNLOAD] doc_id={doc_id} path={abs_path} size={size} bytes")
 
+    try:
+        log_security_event(
+            event_type="PIP Document Downloaded",
+            notes=f"{doc.doc_type.capitalize()} v{doc.version} downloaded for PIP #{doc.pip_id}",
+            pip_record_id=doc.pip_id,
+            updated_by=current_user.username,
+        )
+    except Exception:
+        pass
+
     return send_file(abs_path, as_attachment=True, download_name=os.path.basename(abs_path))
 
 
@@ -242,6 +323,7 @@ def download_doc(doc_id):
 @login_required
 def edit_pip(id):
     pip = PIPRecord.query.get_or_404(id)
+    require_pip_access(pip)
     employee = pip.employee
 
     if request.method == 'POST':
@@ -258,6 +340,10 @@ def edit_pip(id):
     advice_text = None
 
     if request.method == 'POST' and 'generate_advice' in request.form:
+        if not _has_recent_ai_consent("pip_advice"):
+            flash("Please accept the AI guidance notice before generating advice.", "warning")
+            return redirect(url_for('pip.edit_pip', id=pip.id))
+
         prompt = (
             f"You are a performance coach.\n"
             f"Employee: {employee.first_name} {employee.last_name}\n"
@@ -278,6 +364,17 @@ def edit_pip(id):
             temperature=0.7,
         )
         advice_text = resp.choices[0].message.content.strip()
+
+        try:
+            log_security_event(
+                event_type="PIP AI Advice Preview Generated",
+                notes=f"Inline AI advice generated for PIP #{pip.id}",
+                pip_record_id=pip.id,
+                updated_by=current_user.username,
+            )
+        except Exception:
+            pass
+
         return render_template('edit_pip.html', form=form, pip=pip, employee=employee, advice_text=advice_text)
 
     if form.validate_on_submit():
@@ -300,6 +397,17 @@ def edit_pip(id):
             )
 
         db.session.commit()
+
+        try:
+            log_security_event(
+                event_type="PIP Updated",
+                notes=f"PIP #{pip.id} updated",
+                pip_record_id=pip.id,
+                updated_by=current_user.username,
+            )
+        except Exception:
+            pass
+
         flash('PIP updated successfully.', 'success')
         return redirect(url_for('pip.pip_detail', id=pip.id))
 
@@ -310,7 +418,12 @@ def edit_pip(id):
 @login_required
 def generate_ai_advice(id):
     pip = PIPRecord.query.get_or_404(id)
+    require_pip_access(pip)
     employee = pip.employee
+
+    if not _has_recent_ai_consent("pip_advice"):
+        flash("Please accept the AI guidance notice before generating advice.", "warning")
+        return redirect(url_for('pip.pip_detail', id=pip.id))
 
     prompt = (
         "You are an experienced HR Line Manager based in the UK. "
@@ -341,8 +454,18 @@ def generate_ai_advice(id):
         updated_by=current_user.username
     )
     db.session.add(event)
-
     db.session.commit()
+
+    try:
+        log_security_event(
+            event_type="PIP AI Advice Generated",
+            notes=f"AI advice generated for PIP #{pip.id}",
+            pip_record_id=pip.id,
+            updated_by=current_user.username,
+        )
+    except Exception:
+        pass
+
     flash('AI advice generated.', 'success')
     return redirect(url_for('pip.pip_detail', id=pip.id))
 
@@ -351,6 +474,7 @@ def generate_ai_advice(id):
 @login_required
 def create_pip(employee_id):
     employee = _scoped_employee_query().filter(Employee.id == employee_id).first_or_404()
+    require_employee_access(employee)
 
     if employee.is_leaver:
         flash('You cannot start a new PIP for an employee who is marked as a leaver.', 'warning')
@@ -384,6 +508,17 @@ def create_pip(employee_id):
             db.session.add(item)
 
         db.session.commit()
+
+        try:
+            log_security_event(
+                event_type="PIP Created",
+                notes=f"PIP #{pip.id} created for employee {employee.full_name}",
+                pip_record_id=pip.id,
+                updated_by=current_user.username,
+            )
+        except Exception:
+            pass
+
         flash('New PIP created.')
         return redirect(url_for('employees.employee_detail', employee_id=employee.id))
 
@@ -393,7 +528,7 @@ def create_pip(employee_id):
 @pip_bp.route('/pip/list')
 @login_required
 def pip_list():
-    pips = PIPRecord.query.join(Employee).all()
+    pips = _scoped_pip_query().all()
     return render_template('pip_list.html', pips=pips)
 
 
@@ -544,6 +679,7 @@ def create_pip_wizard():
             try:
                 employee_id = int(data['employee_id'])
                 employee = _scoped_employee_query().filter(Employee.id == employee_id).first_or_404()
+                require_employee_access(employee)
 
                 if employee.is_leaver:
                     flash("You cannot create a new PIP for an employee who is marked as a leaver.", "warning")
@@ -589,6 +725,16 @@ def create_pip_wizard():
 
                 db.session.commit()
 
+                try:
+                    log_security_event(
+                        event_type="PIP Created",
+                        notes=f"PIP #{pip.id} created via multi-step wizard",
+                        pip_record_id=pip.id,
+                        updated_by=current_user.username,
+                    )
+                except Exception:
+                    pass
+
                 session.pop('wizard_step', None)
                 session.pop('pip_data', None)
 
@@ -613,6 +759,7 @@ def create_pip_wizard():
 
     employees = _active_employee_query(include_employee_id=selected_employee_id).all() if step == 1 else []
     max_allowed = _max_wizard_step(data)
+    draft = get_active_draft_for_user(current_user.id)
 
     return render_template(
         'create_pip_wizard.html',
@@ -634,8 +781,24 @@ def validate_wizard_step():
     errors = {}
 
     if step == 1:
-        if not request.form.get("employee_id"):
+        employee_id = request.form.get("employee_id")
+        if not employee_id:
             errors["employee_id"] = "Please select an employee."
+        else:
+            try:
+                employee_id_int = int(employee_id)
+            except (TypeError, ValueError):
+                employee_id_int = None
+
+            if not employee_id_int:
+                errors["employee_id"] = "Please select a valid employee."
+            else:
+                employee = _active_employee_query(include_employee_id=employee_id_int).filter(Employee.id == employee_id_int).first()
+                if not employee:
+                    errors["employee_id"] = "Please select a valid employee."
+                elif employee.is_leaver:
+                    errors["employee_id"] = "You cannot start a new PIP for an employee who is marked as a leaver."
+
     elif step == 2:
         if not (request.form.get("concerns", "").strip()):
             errors["concerns"] = "Please describe the concern."
@@ -645,16 +808,23 @@ def validate_wizard_step():
             errors["severity"] = "Please select severity."
         if not (request.form.get("frequency", "").strip()):
             errors["frequency"] = "Please select frequency."
+
     elif step == 3:
         if not (request.form.get("start_date", "").strip()):
             errors["start_date"] = "Please enter a start date."
+
     elif step == 4:
-        meeting_date = request.form.get("meeting_date", "").strip()
-        meeting_time = request.form.get("meeting_time", "").strip()
+        meeting_date = (request.form.get("capability_meeting_date") or request.form.get("meeting_date") or "").strip()
+        meeting_time = (request.form.get("capability_meeting_time") or request.form.get("meeting_time") or "").strip()
+        meeting_venue = (request.form.get("capability_meeting_venue") or request.form.get("meeting_venue") or "").strip()
+
         if not meeting_date:
-            errors["meeting_date"] = "Please enter a meeting date."
+            errors["capability_meeting_date"] = "Please enter a meeting date."
         if not meeting_time:
-            errors["meeting_time"] = "Please enter a meeting time."
+            errors["capability_meeting_time"] = "Please enter a meeting time."
+        if not meeting_venue:
+            errors["capability_meeting_venue"] = "Please enter a meeting venue."
+
     elif step == 5:
         actions = [a.strip() for a in request.form.getlist("action_plan_items[]") if a.strip()]
         if not actions:
@@ -666,6 +836,12 @@ def validate_wizard_step():
 @pip_bp.route('/suggest_actions_ai', methods=['POST'])
 @login_required
 def suggest_actions_ai():
+    if not _has_recent_ai_consent("pip_advice"):
+        return jsonify({
+            "success": False,
+            "message": "AI consent required before generating suggestions."
+        }), 403
+
     data = request.get_json(silent=True) or {}
     concerns = (data.get('concerns') or '').strip()
     severity = (data.get('severity') or '').strip()
@@ -805,6 +981,15 @@ Rules:
     merged_actions = merged_actions[:8] if merged_actions else []
     next_up = next_up[:8] if next_up else []
 
+    try:
+        log_security_event(
+            event_type="PIP AI Suggestions Generated",
+            notes="Action suggestions generated in PIP wizard",
+            updated_by=current_user.username,
+        )
+    except Exception:
+        pass
+
     return jsonify({"success": True, "actions": merged_actions, "next_up": next_up}), 200
 
 
@@ -816,6 +1001,16 @@ def dismiss_draft():
         draft.is_dismissed = True
         draft.updated_at = datetime.now(timezone.utc)
         db.session.commit()
+
+        try:
+            log_security_event(
+                event_type="PIP Draft Dismissed",
+                notes=f"PIP draft dismissed by {current_user.username}",
+                updated_by=current_user.username,
+            )
+        except Exception:
+            pass
+
         return jsonify({"success": True})
     return jsonify({"success": False, "message": "No active draft found"}), 404
 
@@ -841,6 +1036,16 @@ def save_pip_draft():
         }
         cleaned_data = {k: v for k, v in data.items() if v not in [None, '', []]}
 
+        employee_id = cleaned_data.get('employee_id')
+        if employee_id:
+            try:
+                employee_id_int = int(employee_id)
+                employee = _scoped_employee_query().filter(Employee.id == employee_id_int).first()
+                if not employee:
+                    return jsonify({"success": False, "message": "Invalid employee selection."}), 403
+            except (TypeError, ValueError):
+                return jsonify({"success": False, "message": "Invalid employee selection."}), 400
+
         existing_draft = DraftPIP.query.filter_by(user_id=current_user.id, is_dismissed=False).first()
         if existing_draft:
             db.session.delete(existing_draft)
@@ -856,6 +1061,15 @@ def save_pip_draft():
         db.session.add(new_draft)
         db.session.commit()
 
+        try:
+            log_security_event(
+                event_type="PIP Draft Saved",
+                notes=f"PIP draft saved at step {session.get('wizard_step', 1)}",
+                updated_by=current_user.username,
+            )
+        except Exception:
+            pass
+
         return jsonify({"success": True, "message": "Draft saved."})
     except Exception as e:
         print(f"[ERROR] Failed to save draft: {e}")
@@ -869,6 +1083,29 @@ def pip_wizard_resume():
     if not draft or not draft.data:
         flash("No active draft to resume.", "warning")
         return redirect(url_for('dashboard'))
+
+    employee_id = draft.data.get("employee_id")
+    if employee_id:
+        try:
+            employee_id_int = int(employee_id)
+            employee = _scoped_employee_query().filter(Employee.id == employee_id_int).first()
+            if not employee:
+                flash("You no longer have access to the employee on this draft.", "warning")
+                return redirect(url_for('dashboard'))
+        except (TypeError, ValueError):
+            flash("The saved draft contains an invalid employee reference.", "warning")
+            return redirect(url_for('dashboard'))
+
     session['pip_data'] = dict(draft.data)
     session['wizard_step'] = _max_wizard_step(session['pip_data'])
+
+    try:
+        log_security_event(
+            event_type="PIP Draft Resumed",
+            notes=f"PIP draft resumed at step {session['wizard_step']}",
+            updated_by=current_user.username,
+        )
+    except Exception:
+        pass
+
     return redirect(url_for('pip.create_pip_wizard'))

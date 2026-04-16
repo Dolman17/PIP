@@ -10,6 +10,11 @@ from werkzeug.utils import secure_filename
 
 from forms import EmployeeForm
 from models import Employee, SicknessCase, TimelineEvent, db
+from pip_app.security import (
+    log_security_event,
+    require_employee_access,
+    scoped_employee_query,
+)
 from pip_app.services.auth_utils import superuser_required
 from pip_app.services.import_utils import (
     ALLOWED_EXTS,
@@ -62,9 +67,7 @@ def employee_detail(employee_id):
         .get_or_404(employee_id)
     )
 
-    if current_user.admin_level == 0 and employee.team_id != current_user.team_id:
-        flash('Access denied')
-        return redirect(url_for('dashboard'))
+    require_employee_access(employee)
 
     today = today_local()
     q_cases = SicknessCase.query.join(Employee).filter(SicknessCase.employee_id == employee.id)
@@ -93,9 +96,7 @@ def employee_detail(employee_id):
 @login_required
 def edit_employee(employee_id):
     employee = Employee.query.get_or_404(employee_id)
-    if current_user.admin_level == 0 and employee.team_id != current_user.team_id:
-        flash('Access denied.')
-        return redirect(url_for('dashboard'))
+    require_employee_access(employee)
 
     form = EmployeeForm(obj=employee)
     if form.validate_on_submit():
@@ -108,6 +109,16 @@ def edit_employee(employee_id):
         employee.team_id = form.team_id.data
         employee.email = form.email.data
         db.session.commit()
+
+        try:
+            log_security_event(
+                event_type="Employee Updated",
+                notes=f"Employee {employee.full_name} updated",
+                updated_by=current_user.username,
+            )
+        except Exception:
+            pass
+
         flash('Employee details updated.', 'success')
         return redirect(url_for('employees.employee_detail', employee_id=employee.id))
     return render_template('edit_employee.html', form=form, employee=employee)
@@ -134,6 +145,16 @@ def add_employee():
         )
         db.session.add(emp)
         db.session.commit()
+
+        try:
+            log_security_event(
+                event_type="Employee Created",
+                notes=f"Employee {emp.full_name} created",
+                updated_by=current_user.username,
+            )
+        except Exception:
+            pass
+
         flash('New employee added.')
         return redirect(url_for('employees.employee_list'))
 
@@ -165,13 +186,11 @@ def quick_add_employee():
     db.session.commit()
 
     try:
-        evt = TimelineEvent(
+        log_security_event(
             event_type="Employee Created",
             notes="Employee created via Quick-Add in wizard",
-            updated_by=current_user.username
+            updated_by=current_user.username,
         )
-        db.session.add(evt)
-        db.session.commit()
     except Exception:
         pass
 
@@ -182,12 +201,7 @@ def quick_add_employee():
 @login_required
 def employee_list():
     template = 'probation_employee_list.html' if session.get('active_module') == 'Probation' else 'employee_list.html'
-    q = Employee.query
-    if current_user.admin_level == 0:
-        if current_user.team_id:
-            q = q.filter(Employee.team_id == current_user.team_id)
-        else:
-            q = q.filter(False)
+    q = scoped_employee_query(Employee.query, Employee)
     employees = q.order_by(Employee.last_name.asc(), Employee.first_name.asc()).all()
     return render_template(template, employees=employees)
 

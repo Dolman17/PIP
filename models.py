@@ -18,6 +18,8 @@ from pip_app.models import (
     EmployeeRelationsTimelineEvent,
     EmployeeRelationsMeeting,
     EmployeeRelationsAttachment,
+    AIConsentLog,
+    APIKey,
 )
 
 __all__ = [
@@ -40,4 +42,6 @@ __all__ = [
     "EmployeeRelationsTimelineEvent",
     "EmployeeRelationsMeeting",
     "EmployeeRelationsAttachment",
+    "AIConsentLog",
+    "APIKey",
 ]
