@@ -439,22 +439,41 @@ def generate_ai_advice(id):
     prompt += f"Meeting Notes: {pip.meeting_notes or '[none]'}\n\n"
     prompt += "Provide your advice as a bullet-pointed list."
 
-    resp = client.chat.completions.create(
-        model="gpt-4",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.7,
-    )
-    pip.ai_advice = resp.choices[0].message.content.strip()
-    pip.ai_advice_generated_at = datetime.now(timezone.utc)
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+        )
 
-    event = TimelineEvent(
-        pip_record_id=pip.id,
-        event_type="AI Advice Generated",
-        notes="Advice generated using OpenAI",
-        updated_by=current_user.username
-    )
-    db.session.add(event)
-    db.session.commit()
+        pip.ai_advice = resp.choices[0].message.content.strip()
+        pip.ai_advice_generated_at = datetime.now(timezone.utc)
+
+        event = TimelineEvent(
+            pip_record_id=pip.id,
+            event_type="AI Advice Generated",
+            notes="Advice generated using OpenAI",
+            updated_by=current_user.username
+        )
+        db.session.add(event)
+
+        consent = AIConsentLog(
+            user_id=current_user.id,
+            context="pip_advice",
+            accepted=True,
+            accepted_at=datetime.now(timezone.utc),
+            request_ip=request.remote_addr,
+            user_agent=request.headers.get("User-Agent")
+        )
+        db.session.add(consent)
+
+        db.session.commit()
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"[AI ERROR] Failed to generate AI advice for PIP #{pip.id}: {e}")
+        flash("AI advice could not be generated. Please try again.", "error")
+        return redirect(url_for('pip.pip_detail', id=pip.id))
 
     try:
         log_security_event(

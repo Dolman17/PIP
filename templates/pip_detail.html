@@ -34,7 +34,7 @@
 
         <p><strong>Concerns:</strong><br>{{ pip.concerns }}</p>
 
-        <!-- NEW: Concern taxonomy & tags -->
+        <!-- Concern taxonomy & tags -->
         <div class="pt-1">
           <p class="text-sm">
             <strong>Category:</strong> {{ pip.concern_category or '—' }}
@@ -92,7 +92,12 @@
         </a>
       </div>
 
-      <!-- AI Advice block (kept in main column so it's prominent) -->
+      <!-- Hidden AI submit form -->
+      <form id="generateAiAdviceForm" action="{{ url_for('generate_ai_advice', id=pip.id) }}" method="post" class="hidden">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      </form>
+
+      <!-- AI Advice block -->
       <div class="mt-2 p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
         <div class="flex items-center justify-between">
           <h3 class="text-md font-semibold text-[#005b5a]">💬 AI Advice</h3>
@@ -127,11 +132,10 @@
     </div>
   </div>
 
-  <!-- Document Actions + AI -->
+  <!-- Document Actions -->
   <aside class="lg:w-1/3 bg-[#e6f3f3] border border-gray-200 shadow rounded-2xl p-4 sm:p-6 space-y-4">
     <h2 class="text-lg font-semibold text-[#005b5a]">Generate Documents</h2>
 
-    <!-- New: generate draft -> preview editor -->
     <form action="{{ url_for('create_pip_doc_draft', pip_id=pip.id, doc_type='invite') }}" method="post" class="block">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="w-full text-center bg-[#005b5a] text-white py-2 rounded hover:bg-[#007876] transition text-sm font-medium">
@@ -168,49 +172,97 @@
 <!-- Modal -->
 <div id="aiModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
   <div class="bg-white p-6 rounded-xl shadow-xl max-w-md w-full space-y-4 mx-2">
-    <h2 class="text-xl font-bold text-[#005b5a]">Are you sure?</h2>
+    <h2 class="text-xl font-bold text-[#005b5a]">AI guidance notice</h2>
     <p class="text-sm text-gray-700">
       {% if pip.ai_advice %}
-        This will overwrite the existing AI advice. Are you sure you want to regenerate it?
+        This will overwrite the existing AI advice.
       {% else %}
         This will generate AI suggestions based on the current PIP data.
       {% endif %}
     </p>
+    <p class="text-sm text-gray-700">
+      AI-generated guidance is for support only and is not legal or professional advice. Please review the output carefully and escalate where needed.
+    </p>
+
+    <div id="aiConsentError" class="hidden text-sm text-red-600"></div>
+
     <div class="flex justify-end space-x-4 pt-2">
-      <button onclick="closeModal()" class="text-sm text-gray-600 hover:underline">Cancel</button>
-      <form action="{{ url_for('generate_ai_advice', id=pip.id) }}" method="post">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit"
-                class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm font-medium">
-          Yes, Proceed
-        </button>
-      </form>
+      <button type="button" onclick="closeModal()" class="text-sm text-gray-600 hover:underline">Cancel</button>
+      <button id="confirmAiButton"
+        onclick="acceptConsentAndGenerate()"
+        class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm font-medium">
+        Yes, Proceed
+      </button>           
     </div>
   </div>
 </div>
 {% endblock %}
 
-{% block scripts %}
+{% block extra_js %}
 <script>
   function openModal() {
     document.getElementById('aiModal').classList.remove('hidden');
     document.getElementById('aiModal').classList.add('flex');
+    const errorBox = document.getElementById('aiConsentError');
+    if (errorBox) {
+      errorBox.classList.add('hidden');
+      errorBox.textContent = '';
+    }
   }
+
   function closeModal() {
     document.getElementById('aiModal').classList.remove('flex');
     document.getElementById('aiModal').classList.add('hidden');
   }
+
   function copyAdvice() {
     const el = document.getElementById('aiAdviceText');
     if (!el) return;
     const text = el.innerText || el.textContent || '';
-    navigator.clipboard.writeText(text).then(()=>{
+    navigator.clipboard.writeText(text).then(() => {
       const t = document.createElement('div');
       t.textContent = 'Copied!';
       t.className = 'fixed bottom-4 right-4 bg-[#005b5a] text-white px-3 py-1 rounded shadow';
       document.body.appendChild(t);
-      setTimeout(()=> t.remove(), 1200);
+      setTimeout(() => t.remove(), 1200);
     });
+  }
+
+  async function acceptConsentAndGenerate() {
+    const button = document.getElementById('confirmAiButton');
+    const errorBox = document.getElementById('aiConsentError');
+
+    try {
+      button.disabled = true;
+      button.textContent = 'Please wait...';
+
+      const response = await fetch('/ai/consent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': '{{ csrf_token() }}'
+        },
+        body: JSON.stringify({
+          context: 'pip_advice',
+          accepted: true
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || 'Unable to record AI consent.');
+      }
+
+      document.getElementById('generateAiAdviceForm').submit();
+    } catch (error) {
+      if (errorBox) {
+        errorBox.textContent = error.message || 'Unable to continue.';
+        errorBox.classList.remove('hidden');
+      }
+      button.disabled = false;
+      button.textContent = 'Yes, Proceed';
+    }
   }
 </script>
 {% endblock %}
