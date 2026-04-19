@@ -33,7 +33,6 @@ from models import (
     SicknessCase,
 )
 
-from pip_app.services.ai_utils import client
 from pip_app.services.auth_utils import superuser_required
 from pip_app.services.dashboard_utils import counts_by_field, open_pips_scoped_query
 from pip_app.services.document_utils import (
@@ -59,6 +58,7 @@ from pip_app.services.import_utils import (
     read_xlsx_bytes,
     try_parse_date,
 )
+from pip_app.services.module_settings import DEFAULT_MODULE_KEYS, get_enabled_modules
 from pip_app.services.sickness_metrics import compute_sickness_trigger_metrics
 from pip_app.services.storage_utils import next_version_for, save_file
 from pip_app.services.time_utils import LONDON_TZ, auto_review_date, now_local, now_utc, today_local
@@ -150,6 +150,14 @@ def load_user(user_id):
 @app.context_processor
 def inject_module():
     return dict(active_module=session.get('active_module'))
+
+
+@app.context_processor
+def inject_enabled_modules():
+    try:
+        return dict(enabled_modules=get_enabled_modules())
+    except Exception:
+        return dict(enabled_modules={module_key: True for module_key in DEFAULT_MODULE_KEYS})
 
 
 @app.context_processor

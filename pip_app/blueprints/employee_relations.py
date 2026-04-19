@@ -519,6 +519,37 @@ def _build_er_document_default_html(er_case, document_type, draft_origin="plain"
     )
 
 
+def _friendly_ai_error_message(exc):
+    message = str(exc).strip()
+
+    if "OPENAI_API_KEY is not configured" in message:
+        return (
+            "AI advice is not available because the OpenAI API key has not been configured. "
+            "Please add a valid API key in the environment settings."
+        )
+
+    if "Incorrect API key" in message or "invalid_api_key" in message:
+        return (
+            "AI advice could not be generated because the configured OpenAI API key appears to be invalid."
+        )
+
+    if "Rate limit" in message or "rate_limit" in message:
+        return (
+            "AI advice is temporarily unavailable because the OpenAI rate limit has been reached. "
+            "Please try again shortly."
+        )
+
+    if "insufficient_quota" in message:
+        return (
+            "AI advice could not be generated because the OpenAI account has insufficient quota."
+        )
+
+    return (
+        "AI advice could not be generated at the moment. "
+        "Please try again later or check the AI configuration."
+    )
+
+
 @employee_relations_bp.before_request
 @login_required
 def employee_relations_before_request():
@@ -1112,7 +1143,7 @@ def generate_ai_advice(case_id):
             active_policy_text=active_policy_text,
         )
     except Exception as exc:
-        flash(f"AI advice could not be generated: {exc}", "danger")
+        flash(_friendly_ai_error_message(exc), "danger")
         return redirect(url_for("employee_relations.view_case", case_id=case_id))
 
     advice_record = EmployeeRelationsAIAdvice(

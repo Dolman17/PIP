@@ -74,7 +74,7 @@ class PIPRecord(db.Model):
     employee_id = db.Column(db.Integer, db.ForeignKey("employee.id"), nullable=False)
     assigned_to = db.Column(
         db.Integer, db.ForeignKey("user.id"), nullable=True
-    )
+    )  # NEW
 
     # Core PIP fields
     concerns = db.Column(db.Text, nullable=False)
@@ -104,19 +104,26 @@ class PIPRecord(db.Model):
     tags = db.Column(db.Text)
 
     # -------- New AI-integrated structured fields for documents --------
+    # High-level AI narrative summary to include in letters
     ai_summary = db.Column(db.Text, nullable=True)
+
+    # Raw structured suggestions returned by AI (list[dict] or list[str])
     ai_action_suggestions = db.Column(JSON, nullable=True)
+
+    # “Next up” nudges from AI (list[dict] or list[str])
     ai_next_up = db.Column(JSON, nullable=True)
+
+    # Subset of suggestions the manager accepted for the plan (list[dict] or list[str])
     ai_actions_accepted = db.Column(JSON, nullable=True)
 
     # Outcome fields for the outcome letter
-    outcome_status = db.Column(db.String(50), nullable=True)
+    outcome_status = db.Column(db.String(50), nullable=True)  # e.g., Successful, Extended, Unsuccessful
     outcome_notes = db.Column(db.Text, nullable=True)
     # -------------------------------------------------------------------
 
     # Relationships
     employee = db.relationship("Employee", back_populates="pips")
-    assignee = db.relationship("User", backref="assigned_pips")
+    assignee = db.relationship("User", backref="assigned_pips")  # NEW
     action_items = db.relationship(
         "PIPActionItem",
         back_populates="pip_record",
@@ -213,9 +220,13 @@ class ProbationPlan(db.Model):
         db.Integer, db.ForeignKey("probation_record.id"), nullable=False
     )
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    objectives = db.Column(db.Text)
+    objectives = db.Column(
+        db.Text
+    )  # Optionally replace with structured fields later
     deadline = db.Column(db.Date)
-    outcome = db.Column(db.String(100))
+    outcome = db.Column(
+        db.String(100)
+    )  # e.g., Met, Not Met, Ongoing
 
 
 class DraftPIP(db.Model):
@@ -240,7 +251,7 @@ class DraftProbation(db.Model):
     employee_id = db.Column(db.Integer, nullable=True)
     step = db.Column(db.Integer, default=1)
     name = db.Column(db.String(120), default="Untitled Probation Draft")
-    payload = db.Column(db.JSON, default={})
+    payload = db.Column(db.JSON, default={})  # store step data incrementally
     is_dismissed = db.Column(db.Boolean, default=False)
     created_at = db.Column(
         db.DateTime(timezone=True), server_default=func.now()
@@ -269,7 +280,7 @@ class ImportJob(db.Model):
     skipped_rows = db.Column(db.Integer, nullable=False, default=0)
     errors_json = db.Column(
         db.Text, nullable=True
-    )
+    )  # store per-row errors / warnings
 
     def errors(self):
         try:
@@ -278,10 +289,13 @@ class ImportJob(db.Model):
             return []
 
 
+# --- New Model: DocumentFile ---
 class DocumentFile(db.Model):
     __tablename__ = "document_files"
 
     id = db.Column(db.Integer, primary_key=True)
+
+    # Correct FK to pip_record.id
     pip_id = db.Column(
         db.Integer,
         db.ForeignKey("pip_record.id"),
@@ -289,7 +303,7 @@ class DocumentFile(db.Model):
         nullable=False,
     )
 
-    doc_type = db.Column(db.String(32), nullable=False)
+    doc_type = db.Column(db.String(32), nullable=False)  # invite | plan | outcome
     version = db.Column(db.Integer, nullable=False, default=1)
     status = db.Column(db.String(16), nullable=False, default="draft")
     docx_path = db.Column(db.String(255), nullable=False)
@@ -307,6 +321,7 @@ class DocumentFile(db.Model):
     )
     created_by = db.Column(db.String(120))
 
+    # Relationship back to PIPRecord
     pip = db.relationship(
         "PIPRecord", backref=db.backref("documents", lazy="dynamic")
     )
@@ -316,6 +331,9 @@ class DocumentFile(db.Model):
             "pip_id", "doc_type", "version", name="uq_pip_doctype_version"
         ),
     )
+
+
+# --- New Models: Sickness Management ---
 
 
 class SicknessCase(db.Model):
@@ -332,12 +350,12 @@ class SicknessCase(db.Model):
     reason = db.Column(db.String(255), nullable=True)
     trigger_type = db.Column(
         db.String(50), nullable=True
-    )
+    )  # short_term / long_term / pattern / other / ''
     notes = db.Column(db.Text, nullable=True)
 
     status = db.Column(
         db.String(32), nullable=False, default="Open"
-    )
+    )  # Open, Closed, Monitoring, etc.
 
     created_at = db.Column(
         db.DateTime, default=datetime.utcnow, nullable=False
@@ -349,6 +367,7 @@ class SicknessCase(db.Model):
         nullable=False,
     )
 
+    # Relationships
     employee = db.relationship(
         "Employee", backref=db.backref("sickness_cases", lazy=True)
     )
@@ -360,7 +379,9 @@ class SicknessCase(db.Model):
     )
 
     def __repr__(self):
-        return f"<SicknessCase {self.id} emp={self.employee_id} status={self.status}>"
+        return (
+            f"<SicknessCase {self.id} emp={self.employee_id} status={self.status}>"
+        )
 
 
 class SicknessMeeting(db.Model):
@@ -377,7 +398,7 @@ class SicknessMeeting(db.Model):
     meeting_date = db.Column(db.Date, nullable=False)
     meeting_type = db.Column(
         db.String(50), nullable=False
-    )
+    )  # RTW / Absence Review / Welfare / Other
     chair = db.Column(db.String(100), nullable=True)
     notes = db.Column(db.Text, nullable=True)
     outcome = db.Column(db.Text, nullable=True)
@@ -391,7 +412,10 @@ class SicknessMeeting(db.Model):
     )
 
     def __repr__(self):
-        return f"<SicknessMeeting {self.id} case={self.sickness_case_id} type={self.meeting_type}>"
+        return (
+            f"<SicknessMeeting {self.id} case={self.sickness_case_id} "
+            f"type={self.meeting_type}>"
+        )
 
 
 class EmployeeRelationsCase(db.Model):
@@ -534,7 +558,10 @@ class EmployeeRelationsCase(db.Model):
     )
 
     def __repr__(self):
-        return f"<EmployeeRelationsCase {self.id} type={self.case_type} status={self.status}>"
+        return (
+            f"<EmployeeRelationsCase {self.id} "
+            f"type={self.case_type} status={self.status}>"
+        )
 
 
 class EmployeeRelationsTimelineEvent(db.Model):
@@ -565,7 +592,10 @@ class EmployeeRelationsTimelineEvent(db.Model):
     )
 
     def __repr__(self):
-        return f"<EmployeeRelationsTimelineEvent {self.id} case={self.case_id} type={self.event_type}>"
+        return (
+            f"<EmployeeRelationsTimelineEvent {self.id} "
+            f"case={self.case_id} type={self.event_type}>"
+        )
 
 
 class EmployeeRelationsMeeting(db.Model):
@@ -599,7 +629,10 @@ class EmployeeRelationsMeeting(db.Model):
     )
 
     def __repr__(self):
-        return f"<EmployeeRelationsMeeting {self.id} case={self.case_id} type={self.meeting_type}>"
+        return (
+            f"<EmployeeRelationsMeeting {self.id} "
+            f"case={self.case_id} type={self.meeting_type}>"
+        )
 
 
 class EmployeeRelationsAttachment(db.Model):
@@ -631,7 +664,10 @@ class EmployeeRelationsAttachment(db.Model):
     )
 
     def __repr__(self):
-        return f"<EmployeeRelationsAttachment {self.id} case={self.case_id} file={self.original_filename}>"
+        return (
+            f"<EmployeeRelationsAttachment {self.id} "
+            f"case={self.case_id} file={self.original_filename}>"
+        )
 
 
 class EmployeeRelationsPolicyText(db.Model):
@@ -691,7 +727,10 @@ class EmployeeRelationsPolicyText(db.Model):
     )
 
     def __repr__(self):
-        return f"<EmployeeRelationsPolicyText {self.id} case={self.case_id} title={self.title}>"
+        return (
+            f"<EmployeeRelationsPolicyText {self.id} "
+            f"case={self.case_id} title={self.title}>"
+        )
 
 
 class EmployeeRelationsAIAdvice(db.Model):
@@ -741,7 +780,10 @@ class EmployeeRelationsAIAdvice(db.Model):
     )
 
     def __repr__(self):
-        return f"<EmployeeRelationsAIAdvice {self.id} case={self.case_id} model={self.model_name}>"
+        return (
+            f"<EmployeeRelationsAIAdvice {self.id} "
+            f"case={self.case_id} model={self.model_name}>"
+        )
 
 
 class EmployeeRelationsDocument(db.Model):
@@ -766,7 +808,7 @@ class EmployeeRelationsDocument(db.Model):
         nullable=False,
         default="plain",
         index=True,
-    )
+    )  # plain | ai | ai_fallback_plain
 
     html_content = db.Column(db.Text, nullable=True)
     finalised_at = db.Column(db.DateTime, nullable=True)
@@ -798,13 +840,12 @@ class EmployeeRelationsDocument(db.Model):
             f"status={self.status} origin={self.draft_origin}>"
         )
 
-
 class AIConsentLog(db.Model):
     __tablename__ = "ai_consent_logs"
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
-    context = db.Column(db.String(100), nullable=False)
+    context = db.Column(db.String(100), nullable=False)  # e.g. "pip_advice", "er_advice"
     accepted = db.Column(db.Boolean, default=False, nullable=False)
     accepted_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     request_ip = db.Column(db.String(100), nullable=True)
@@ -814,7 +855,6 @@ class AIConsentLog(db.Model):
 
     def __repr__(self):
         return f"<AIConsentLog user_id={self.user_id} context={self.context} accepted={self.accepted}>"
-
 
 class APIKey(db.Model):
     __tablename__ = "api_keys"
@@ -828,7 +868,7 @@ class APIKey(db.Model):
     created_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
 
     is_active = db.Column(db.Boolean, default=True, nullable=False)
-    scopes = db.Column(db.Text, nullable=True)
+    scopes = db.Column(db.Text, nullable=True)  # comma-separated initially
     last_used_at = db.Column(db.DateTime, nullable=True)
     expires_at = db.Column(db.DateTime, nullable=True)
 
@@ -850,6 +890,7 @@ class APIKey(db.Model):
     def __repr__(self):
         return f"<APIKey id={self.id} name={self.name} active={self.is_active}>"
 
+    # --- New Models: Organisation & Module Settings ---
 
 class Organisation(db.Model):
     __tablename__ = "organisations"

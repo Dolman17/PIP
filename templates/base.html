@@ -46,6 +46,7 @@
 {% set is_logged_in = current_user.is_authenticated if current_user is defined else False %}
 {% set current_endpoint = request.endpoint or '' %}
 {% set active_module = (active_module|default(None)) or session.get('active_module') %}
+{% set enabled_modules = enabled_modules|default({}) %}
 {% set layout = (layout|default('')) %}
 {% set hide_sidebar = ((hide_sidebar if hide_sidebar is defined else False) or (not is_logged_in) or (layout == 'fullscreen')) %}
 
@@ -73,6 +74,7 @@
 
       <div class="px-3 pt-3 pb-2 border-b border-white/10">
         <div class="grid grid-cols-2 gap-2">
+          {% if enabled_modules.get('pip', True) %}
           <a href="{{ url_for('dashboard') }}"
              class="inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold
                     {% if active_module == 'PIP' %}
@@ -82,7 +84,9 @@
                     {% endif %}">
             <span class="text-xs">PIP</span>
           </a>
+          {% endif %}
 
+          {% if enabled_modules.get('probation', True) %}
           <a href="{{ url_for('probation_dashboard') }}"
              class="inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold
                     {% if active_module == 'Probation' %}
@@ -92,7 +96,9 @@
                     {% endif %}">
             <span class="text-xs">Probation</span>
           </a>
+          {% endif %}
 
+          {% if enabled_modules.get('sickness', True) %}
           <a href="{{ url_for('sickness_dashboard') }}"
              class="inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold
                     {% if active_module == 'Sickness' %}
@@ -102,8 +108,9 @@
                     {% endif %}">
             <span class="text-xs">Sickness</span>
           </a>
+          {% endif %}
 
-          {% if current_user.is_superuser() %}
+          {% if current_user.is_superuser() and enabled_modules.get('employee_relations', True) %}
           <a href="{{ url_for('employee_relations.dashboard') }}"
              class="inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold
                     {% if active_module == 'Employee Relations' %}
@@ -119,7 +126,7 @@
 
       <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-6 text-sm">
 
-        {% if active_module == 'PIP' %}
+        {% if active_module == 'PIP' and enabled_modules.get('pip', True) %}
           <div>
             <div class="px-1 text-[11px] font-semibold uppercase tracking-wide text-white/60 mb-1">
               PIP
@@ -203,7 +210,7 @@
           </div>
         {% endif %}
 
-        {% if active_module == 'Probation' %}
+        {% if active_module == 'Probation' and enabled_modules.get('probation', True) %}
           <div>
             <div class="px-1 text-[11px] font-semibold uppercase tracking-wide text-white/60 mb-1">
               Probation
@@ -274,7 +281,7 @@
           </div>
         {% endif %}
 
-        {% if active_module == 'Sickness' %}
+        {% if active_module == 'Sickness' and enabled_modules.get('sickness', True) %}
           <div>
             <div class="px-1 text-[11px] font-semibold uppercase tracking-wide text-white/60 mb-1">
               Sickness
@@ -332,7 +339,7 @@
           </div>
         {% endif %}
 
-        {% if active_module == 'Employee Relations' and current_user.is_superuser() %}
+        {% if active_module == 'Employee Relations' and current_user.is_superuser() and enabled_modules.get('employee_relations', True) %}
           <div>
             <div class="px-1 text-[11px] font-semibold uppercase tracking-wide text-white/60 mb-1">
               Employee Relations
@@ -432,6 +439,19 @@
                           {% endif %}">
                   <span class="text-base">⚙</span>
                   <span class="text-sm font-medium">Admin Dashboard</span>
+                </a>
+              </li>
+
+              <li>
+                <a href="{{ url_for('admin.admin_module_settings') }}"
+                   class="flex items-center gap-2 rounded-xl px-3 py-2
+                          {% if current_endpoint == 'admin.admin_module_settings' %}
+                            bg-white text-[#0a4d4c]
+                          {% else %}
+                            text-white/80 hover:bg-white/10
+                          {% endif %}">
+                  <span class="text-base">🧩</span>
+                  <span class="text-sm font-medium">Module Settings</span>
                 </a>
               </li>
 

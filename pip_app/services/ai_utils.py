@@ -2,9 +2,17 @@ import os
 import json
 from openai import OpenAI
 
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-
 DEFAULT_OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+
+
+def get_openai_client():
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError(
+            "OPENAI_API_KEY is not configured. "
+            "Set a valid API key before using AI-powered features."
+        )
+    return OpenAI(api_key=api_key)
 
 
 def _safe_text(value):
@@ -170,6 +178,8 @@ def generate_employee_relations_advice(er_case, active_policy_text=None):
         er_case=er_case,
         active_policy_text=active_policy_text,
     )
+
+    client = get_openai_client()
 
     response = client.chat.completions.create(
         model=DEFAULT_OPENAI_MODEL,

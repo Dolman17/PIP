@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Module Settings{% endblock %}
+{% block page_title %}🧩 Module Settings{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 py-6">
+  {% set enabled_list = [] %}
+  {% for module_key, label in module_labels %}
+    {% if settings.get(module_key, True) %}
+      {% set _ = enabled_list.append(label) %}
+    {% endif %}
+  {% endfor %}
+
+  <div class="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4">
+    <div class="flex items-start justify-between gap-4 flex-col sm:flex-row sm:items-center">
+      <div>
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-emerald-800">
+          Active module summary
+        </h2>
+        <p class="mt-1 text-sm text-emerald-900">
+          {{ enabled_list|length }} module{{ '' if enabled_list|length == 1 else 's' }} currently enabled
+          for <strong>{{ organisation.name }}</strong>.
+        </p>
+      </div>
+      <div class="text-xs text-emerald-700 rounded-full bg-white/70 border border-emerald-200 px-3 py-1.5 whitespace-nowrap">
+        UI visibility only
+      </div>
+    </div>
+
+    <div class="mt-3 flex flex-wrap gap-2">
+      {% if enabled_list %}
+        {% for label in enabled_list %}
+          <span class="inline-flex items-center rounded-full bg-white border border-emerald-200 px-3 py-1 text-xs font-semibold text-emerald-800">
+            {{ label }}
+          </span>
+        {% endfor %}
+      {% else %}
+        <span class="inline-flex items-center rounded-full bg-white border border-red-200 px-3 py-1 text-xs font-semibold text-red-700">
+          No modules enabled
+        </span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="bg-white rounded-2xl shadow border border-slate-200 overflow-hidden">
+    <div class="px-6 py-5 border-b border-slate-200 bg-slate-50">
+      <h2 class="text-xl font-semibold text-slate-900">Organisation Module Settings</h2>
+      <p class="mt-1 text-sm text-slate-600">
+        Control which modules appear in the platform UI for <strong>{{ organisation.name }}</strong>.
+      </p>
+      <p class="mt-2 text-xs text-slate-500">
+        This phase only affects visibility in the interface. It does not disable routes directly.
+      </p>
+    </div>
+
+    <form method="POST" class="p-6 space-y-6">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="space-y-4">
+        {% for module_key, label in module_labels %}
+        <div class="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+          <div>
+            <div class="text-sm font-semibold text-slate-900">{{ label }}</div>
+            <div class="text-xs text-slate-500 mt-1">Module key: {{ module_key }}</div>
+          </div>
+
+          <label class="inline-flex items-center gap-3 cursor-pointer">
+            <span class="text-sm text-slate-700">Enabled</span>
+            <input
+              type="checkbox"
+              name="{{ module_key }}"
+              class="h-5 w-5 rounded border-slate-300 text-[#0a4d4c] focus:ring-[#0a4d4c]"
+              {% if settings.get(module_key, True) %}checked{% endif %}
+            >
+          </label>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="flex items-center justify-between pt-4 border-t border-slate-200">
+        <a href="{{ url_for('admin.admin_dashboard') }}"
+           class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          ← Back to Admin Dashboard
+        </a>
+
+        <button
+          type="submit"
+          class="inline-flex items-center rounded-lg bg-[#0a4d4c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0f6b69]">
+          Save Module Settings
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

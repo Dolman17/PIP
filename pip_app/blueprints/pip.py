@@ -27,7 +27,7 @@ from pip_app.security import (
     require_pip_access,
     scoped_employee_query,
 )
-from pip_app.services.ai_utils import client
+from pip_app.services.ai_utils import get_openai_client
 from pip_app.services.document_utils import (
     BASE_DIR,
     build_doc_rel_dir,
@@ -43,6 +43,37 @@ from pip_app.services.time_utils import auto_review_date
 from pip_app.services.timeline_utils import log_timeline_event
 
 pip_bp = Blueprint("pip", __name__)
+
+
+def _friendly_ai_error_message(exc):
+    message = str(exc).strip()
+
+    if "OPENAI_API_KEY is not configured" in message:
+        return (
+            "AI guidance is not available because the OpenAI API key has not been configured. "
+            "Please add a valid API key in the environment settings."
+        )
+
+    if "Incorrect API key" in message or "invalid_api_key" in message:
+        return (
+            "AI guidance could not be generated because the configured OpenAI API key appears to be invalid."
+        )
+
+    if "Rate limit" in message or "rate_limit" in message:
+        return (
+            "AI guidance is temporarily unavailable because the OpenAI rate limit has been reached. "
+            "Please try again shortly."
+        )
+
+    if "insufficient_quota" in message:
+        return (
+            "AI guidance could not be generated because the OpenAI account has insufficient quota."
+        )
+
+    return (
+        "AI guidance could not be generated at the moment. "
+        "Please try again later or check the AI configuration."
+    )
 
 
 def _max_wizard_step(data: dict) -> int:
@@ -358,12 +389,17 @@ def edit_pip(id):
         prompt += f"Meeting Notes: {form.meeting_notes.data or '[none]'}\n"
         prompt += "Provide 3 bulleted actionable tips for the manager to support this employee."
 
-        resp = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
-        )
-        advice_text = resp.choices[0].message.content.strip()
+        try:
+            client = get_openai_client()
+            resp = client.chat.completions.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+            )
+            advice_text = resp.choices[0].message.content.strip()
+        except Exception as exc:
+            flash(_friendly_ai_error_message(exc), "error")
+            return redirect(url_for('pip.edit_pip', id=pip.id))
 
         try:
             log_security_event(
@@ -440,6 +476,7 @@ def generate_ai_advice(id):
     prompt += "Provide your advice as a bullet-pointed list."
 
     try:
+        client = get_openai_client()
         resp = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
@@ -472,7 +509,7 @@ def generate_ai_advice(id):
     except Exception as e:
         db.session.rollback()
         print(f"[AI ERROR] Failed to generate AI advice for PIP #{pip.id}: {e}")
-        flash("AI advice could not be generated. Please try again.", "error")
+        flash(_friendly_ai_error_message(e), "error")
         return redirect(url_for('pip.pip_detail', id=pip.id))
 
     try:
@@ -939,6 +976,7 @@ Rules:
         return str(content or "")
 
     try:
+        client = get_openai_client()
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -958,10 +996,14 @@ Rules:
 
         actions_llm = payload.get("actions", []) or []
         next_up_llm = payload.get("next_up", []) or []
-    except Exception:
-        lines = [ln.strip("-•* 0123456789.\t") for ln in (raw.splitlines() if raw else [])]
-        actions_llm = [ln for ln in lines if ln][:5]
-        next_up_llm = []
+    except Exception as exc:
+        message = _friendly_ai_error_message(exc)
+        return jsonify({
+            "success": False,
+            "message": message,
+            "actions": [],
+            "next_up": [],
+        }), 500
 
     merged_actions = _dedupe_clean(actions_llm, cap=None)
     if prior_actions:

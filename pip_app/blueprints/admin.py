@@ -21,8 +21,14 @@ from models import (
     ProbationReview,
     TimelineEvent,
     User,
+    OrganisationModuleSetting,
 )
 from pip_app.decorators import superuser_required
+from pip_app.services.module_settings import (
+    DEFAULT_MODULE_LABELS,
+    ensure_default_module_settings,
+    get_module_settings_for_org,
+)
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -34,6 +40,45 @@ def admin_dashboard():
         flash("You do not have permission to access the admin dashboard.", "danger")
         return redirect(url_for("main.home"))
     return render_template("admin_dashboard.html")
+
+
+@admin_bp.route("/admin/modules", methods=["GET", "POST"])
+@login_required
+@superuser_required
+def admin_module_settings():
+    ensure_default_module_settings()
+    org, existing_settings = get_module_settings_for_org()
+
+    if request.method == "POST":
+        for module_key, _label in DEFAULT_MODULE_LABELS:
+            should_enable = request.form.get(module_key) == "on"
+            setting = existing_settings.get(module_key)
+
+            if setting is None:
+                setting = OrganisationModuleSetting(
+                    organisation_id=org.id,
+                    module_key=module_key,
+                    is_enabled=should_enable,
+                )
+                db.session.add(setting)
+            else:
+                setting.is_enabled = should_enable
+
+        db.session.commit()
+        flash("Module settings updated successfully.", "success")
+        return redirect(url_for("admin.admin_module_settings"))
+
+    settings = {
+        module_key: bool(existing_settings.get(module_key).is_enabled) if existing_settings.get(module_key) else True
+        for module_key, _label in DEFAULT_MODULE_LABELS
+    }
+
+    return render_template(
+        "admin_module_settings.html",
+        settings=settings,
+        module_labels=DEFAULT_MODULE_LABELS,
+        organisation=org,
+    )
 
 
 @admin_bp.route("/admin/export")
