@@ -1,4 +1,4 @@
-{% extends "base.html" %} 
+{% extends "base.html" %}
 {% block title %}Create New User{% endblock %}
 
 {% block content %}
@@ -29,6 +29,16 @@
         <option value="0">Line Manager</option>
         <option value="1">Admin</option>
         <option value="2">Superuser</option>
+      </select>
+    </div>
+
+    <div class="mb-4">
+      <label for="organisation_id" class="block text-sm font-medium text-gray-700">Organisation (optional)</label>
+      <select name="organisation_id" id="organisation_id" class="mt-1 block w-full rounded border-gray-300 shadow-sm">
+        <option value="">No organisation assigned</option>
+        {% for organisation in organisations %}
+          <option value="{{ organisation.id }}">{{ organisation.name }}</option>
+        {% endfor %}
       </select>
     </div>
 

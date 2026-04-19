@@ -6,6 +6,11 @@ from sqlalchemy import or_
 
 from forms import ProbationPlanForm, ProbationRecordForm, ProbationReviewForm
 from models import db, DraftProbation, Employee, ProbationPlan, ProbationRecord, ProbationReview, TimelineEvent
+from pip_app.security import (
+    require_employee_access,
+    require_probation_access,
+    scoped_employee_query,
+)
 from pip_app.services.time_utils import today_local
 
 probation_bp = Blueprint("probation", __name__)
@@ -16,12 +21,21 @@ def get_active_probation_draft_for_user(user_id: int):
 
 
 def _scoped_employee_query():
-    q = Employee.query
+    return scoped_employee_query(Employee.query, Employee)
+
+
+def _scoped_probation_query():
+    q = ProbationRecord.query.join(Employee)
+
+    if getattr(current_user, "organisation_id", None):
+        q = q.filter(Employee.organisation_id == current_user.organisation_id)
+
     if current_user.admin_level == 0:
         if current_user.team_id:
             q = q.filter(Employee.team_id == current_user.team_id)
         else:
             q = q.filter(Employee.id == -1)
+
     return q
 
 
@@ -74,6 +88,17 @@ def probation_save_draft():
     payload = request.json or {}
     step = payload.get("step", 1)
 
+    employee_id = payload.get("employee_id")
+    if employee_id:
+        try:
+            employee_id_int = int(employee_id)
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "message": "Invalid employee selection"}), 400
+
+        employee = _active_employee_query(include_employee_id=employee_id_int).filter(Employee.id == employee_id_int).first()
+        if not employee:
+            return jsonify({"success": False, "message": "Invalid employee selection"}), 403
+
     draft = DraftProbation.query.filter_by(user_id=current_user.id, is_dismissed=False).first()
     if not draft:
         draft = DraftProbation(user_id=current_user.id, step=step, payload=payload)
@@ -92,6 +117,19 @@ def probation_resume_draft():
     session["active_module"] = "Probation"
     draft = DraftProbation.query.filter_by(user_id=current_user.id, is_dismissed=False).first()
     if draft:
+        employee_id = (draft.payload or {}).get("employee_id")
+        if employee_id:
+            try:
+                employee_id_int = int(employee_id)
+            except (TypeError, ValueError):
+                flash("The saved probation draft contains an invalid employee reference.", "warning")
+                return redirect(url_for("probation.probation_dashboard"))
+
+            employee = _active_employee_query(include_employee_id=employee_id_int).filter(Employee.id == employee_id_int).first()
+            if not employee:
+                flash("You no longer have access to the employee on this probation draft.", "warning")
+                return redirect(url_for("probation.probation_dashboard"))
+
         return redirect(url_for("probation.probation_create_wizard"))
     flash("No probation draft available.", "info")
     return redirect(url_for("probation.probation_dashboard"))
@@ -113,7 +151,8 @@ def dismiss_probation_draft():
 @login_required
 def view_probation(id):
     session["active_module"] = "Probation"
-    probation = ProbationRecord.query.get_or_404(id)
+    probation = _scoped_probation_query().filter(ProbationRecord.id == id).first_or_404()
+    require_probation_access(probation)
     employee = probation.employee
     return render_template("view_probation.html", probation=probation, employee=employee)
 
@@ -122,16 +161,18 @@ def view_probation(id):
 @login_required
 def add_probation_review(id):
     session["active_module"] = "Probation"
-    probation = ProbationRecord.query.get_or_404(id)
+    probation = _scoped_probation_query().filter(ProbationRecord.id == id).first_or_404()
+    require_probation_access(probation)
     form = ProbationReviewForm()
 
     if form.validate_on_submit():
+        concerns_flag_raw = (form.concerns_flag.data or "").strip().lower()
         review = ProbationReview(
             probation_id=probation.id,
             review_date=form.review_date.data,
             reviewer=form.reviewer.data,
             summary=form.summary.data,
-            concerns_flag=(form.concerns_flag.data.lower() == "yes"),
+            concerns_flag=(concerns_flag_raw == "yes"),
         )
         db.session.add(review)
 
@@ -154,7 +195,8 @@ def add_probation_review(id):
 @login_required
 def add_probation_plan(id):
     session["active_module"] = "Probation"
-    probation = ProbationRecord.query.get_or_404(id)
+    probation = _scoped_probation_query().filter(ProbationRecord.id == id).first_or_404()
+    require_probation_access(probation)
     form = ProbationPlanForm()
 
     if form.validate_on_submit():
@@ -185,7 +227,8 @@ def add_probation_plan(id):
 @login_required
 def edit_probation(id):
     session["active_module"] = "Probation"
-    probation = ProbationRecord.query.get_or_404(id)
+    probation = _scoped_probation_query().filter(ProbationRecord.id == id).first_or_404()
+    require_probation_access(probation)
     form = ProbationRecordForm(obj=probation)
 
     if form.validate_on_submit():
@@ -203,7 +246,8 @@ def edit_probation(id):
 @login_required
 def update_probation_status(id, new_status):
     session["active_module"] = "Probation"
-    probation = ProbationRecord.query.get_or_404(id)
+    probation = _scoped_probation_query().filter(ProbationRecord.id == id).first_or_404()
+    require_probation_access(probation)
     valid_statuses = ["Completed", "Extended", "Failed"]
 
     if new_status not in valid_statuses:
@@ -231,6 +275,7 @@ def update_probation_status(id, new_status):
 def create_probation(employee_id):
     session["active_module"] = "Probation"
     employee = _scoped_employee_query().filter(Employee.id == employee_id).first_or_404()
+    require_employee_access(employee)
 
     if employee.is_leaver:
         flash("You cannot start a new probation record for an employee who is marked as a leaver.", "warning")
@@ -261,21 +306,28 @@ def probation_dashboard():
 
     from datetime import timedelta
 
-    global_active = ProbationRecord.query.filter_by(status="Active").count()
-    global_completed = ProbationRecord.query.filter_by(status="Completed").count()
-    global_extended = ProbationRecord.query.filter_by(status="Extended").count()
-
     today = today_local()
     soon = today + timedelta(days=14)
 
-    q_records = ProbationRecord.query.join(Employee)
-    q_reviews = ProbationReview.query.join(
-        ProbationRecord, ProbationReview.probation_id == ProbationRecord.id
-    ).join(Employee)
+    q_records = _scoped_probation_query()
+    q_reviews = (
+        ProbationReview.query
+        .join(ProbationRecord, ProbationReview.probation_id == ProbationRecord.id)
+        .join(Employee)
+    )
+
+    if getattr(current_user, "organisation_id", None):
+        q_reviews = q_reviews.filter(Employee.organisation_id == current_user.organisation_id)
 
     if current_user.admin_level == 0:
-        q_records = q_records.filter(Employee.team_id == current_user.team_id)
-        q_reviews = q_reviews.filter(Employee.team_id == current_user.team_id)
+        if current_user.team_id:
+            q_reviews = q_reviews.filter(Employee.team_id == current_user.team_id)
+        else:
+            q_reviews = q_reviews.filter(Employee.id == -1)
+
+    global_active = q_records.filter(ProbationRecord.status == "Active").count()
+    global_completed = q_records.filter(ProbationRecord.status == "Completed").count()
+    global_extended = q_records.filter(ProbationRecord.status == "Extended").count()
 
     active_probations = (
         q_records.filter(ProbationRecord.status == "Active")

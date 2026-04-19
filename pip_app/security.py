@@ -27,7 +27,6 @@ def init_security(app):
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
         response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
 
-        # Keep this pragmatic for current Jinja/Tailwind setup.
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "img-src 'self' data: https:; "
@@ -64,6 +63,12 @@ def is_line_manager_user() -> bool:
     )
 
 
+def current_user_organisation_id() -> Optional[int]:
+    if not current_user.is_authenticated:
+        return None
+    return getattr(current_user, "organisation_id", None)
+
+
 def can_access_team(team_id: Optional[int]) -> bool:
     if not current_user.is_authenticated:
         return False
@@ -76,6 +81,10 @@ def scoped_employee_query(query, employee_model):
     if not current_user.is_authenticated:
         return query.filter(False)
 
+    user_org_id = current_user_organisation_id()
+    if user_org_id:
+        query = query.filter(employee_model.organisation_id == user_org_id)
+
     if is_admin_user():
         return query
 
@@ -86,11 +95,17 @@ def scoped_employee_query(query, employee_model):
 
 
 def require_employee_access(employee):
-    if is_admin_user():
-        return
-
     if not current_user.is_authenticated:
         abort(401)
+
+    user_org_id = current_user_organisation_id()
+    employee_org_id = getattr(employee, "organisation_id", None)
+
+    if user_org_id and employee_org_id and user_org_id != employee_org_id:
+        abort(403)
+
+    if is_admin_user():
+        return
 
     if getattr(employee, "team_id", None) != getattr(current_user, "team_id", None):
         abort(403)

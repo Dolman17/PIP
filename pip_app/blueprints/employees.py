@@ -59,12 +59,16 @@ def _suggest_mapping(headers, normalize_func, target_fields):
 @login_required
 def employee_detail(employee_id):
     employee = (
-        Employee.query.options(
-            joinedload(Employee.pips),
-            joinedload(Employee.probation_records),
-            joinedload(Employee.sickness_cases).joinedload(SicknessCase.meetings),
+        scoped_employee_query(
+            Employee.query.options(
+                joinedload(Employee.pips),
+                joinedload(Employee.probation_records),
+                joinedload(Employee.sickness_cases).joinedload(SicknessCase.meetings),
+            ),
+            Employee,
         )
-        .get_or_404(employee_id)
+        .filter(Employee.id == employee_id)
+        .first_or_404()
     )
 
     require_employee_access(employee)
@@ -95,7 +99,11 @@ def employee_detail(employee_id):
 @employees_bp.route('/employee/edit/<int:employee_id>', methods=['GET', 'POST'])
 @login_required
 def edit_employee(employee_id):
-    employee = Employee.query.get_or_404(employee_id)
+    employee = (
+        scoped_employee_query(Employee.query, Employee)
+        .filter(Employee.id == employee_id)
+        .first_or_404()
+    )
     require_employee_access(employee)
 
     form = EmployeeForm(obj=employee)
@@ -134,6 +142,7 @@ def add_employee():
     form = EmployeeForm()
     if form.validate_on_submit():
         emp = Employee(
+            organisation_id=getattr(current_user, "organisation_id", None),
             first_name=form.first_name.data,
             last_name=form.last_name.data,
             job_title=form.job_title.data,
@@ -175,6 +184,7 @@ def quick_add_employee():
         return jsonify({"success": False, "error": "First and last name are required"}), 400
 
     emp = Employee(
+        organisation_id=getattr(current_user, "organisation_id", None),
         first_name=first,
         last_name=last,
         job_title=job_title or None,
@@ -418,7 +428,10 @@ def employee_import_commit():
             continue
 
         try:
-            emp = Employee(**{k: v for k, v in payload.items() if k in EMPLOYEE_FIELDS})
+            emp = Employee(
+                organisation_id=getattr(current_user, "organisation_id", None),
+                **{k: v for k, v in payload.items() if k in EMPLOYEE_FIELDS}
+            )
             db.session.add(emp)
             created += 1
         except Exception as e:

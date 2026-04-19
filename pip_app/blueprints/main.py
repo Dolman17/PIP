@@ -17,7 +17,7 @@ main_bp = Blueprint("main", __name__)
 @main_bp.route("/")
 @login_required
 def home():
-    enabled_modules = get_enabled_modules()
+    enabled_modules = get_enabled_modules(user=current_user)
 
     active_employees = Employee.query.filter(Employee.is_leaver.is_(False)).count()
     leavers = Employee.query.filter(Employee.is_leaver.is_(True)).count()

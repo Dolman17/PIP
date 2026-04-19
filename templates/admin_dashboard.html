@@ -5,68 +5,95 @@
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
 
-  <div class="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-    <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-      <div>
-        <h2 class="text-lg font-semibold text-slate-900">Module Status</h2>
-        <p class="mt-1 text-sm text-slate-500">
-          Current platform visibility settings for this organisation.
+  <div class="mb-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-900">Module Status</h2>
+          <p class="mt-1 text-sm text-slate-500">
+            Current platform visibility settings for this organisation.
+          </p>
+        </div>
+
+        <a href="{{ url_for('admin.admin_module_settings') }}"
+           class="inline-flex items-center rounded-lg bg-[#0a4d4c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0f6b69]">
+          Manage Module Settings
+        </a>
+      </div>
+
+      <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="rounded-xl border {% if enabled_modules.get('pip', True) %}border-emerald-200 bg-emerald-50{% else %}border-slate-200 bg-slate-50{% endif %} p-4">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="text-sm font-semibold text-slate-900">Performance Improvement Plans</p>
+              <p class="mt-1 text-xs text-slate-500">pip</p>
+            </div>
+            <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold {% if enabled_modules.get('pip', True) %}bg-emerald-100 text-emerald-800{% else %}bg-slate-200 text-slate-700{% endif %}">
+              {% if enabled_modules.get('pip', True) %}Enabled{% else %}Disabled{% endif %}
+            </span>
+          </div>
+        </div>
+
+        <div class="rounded-xl border {% if enabled_modules.get('probation', True) %}border-emerald-200 bg-emerald-50{% else %}border-slate-200 bg-slate-50{% endif %} p-4">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="text-sm font-semibold text-slate-900">Probation</p>
+              <p class="mt-1 text-xs text-slate-500">probation</p>
+            </div>
+            <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold {% if enabled_modules.get('probation', True) %}bg-emerald-100 text-emerald-800{% else %}bg-slate-200 text-slate-700{% endif %}">
+              {% if enabled_modules.get('probation', True) %}Enabled{% else %}Disabled{% endif %}
+            </span>
+          </div>
+        </div>
+
+        <div class="rounded-xl border {% if enabled_modules.get('sickness', True) %}border-emerald-200 bg-emerald-50{% else %}border-slate-200 bg-slate-50{% endif %} p-4">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="text-sm font-semibold text-slate-900">Sickness</p>
+              <p class="mt-1 text-xs text-slate-500">sickness</p>
+            </div>
+            <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold {% if enabled_modules.get('sickness', True) %}bg-emerald-100 text-emerald-800{% else %}bg-slate-200 text-slate-700{% endif %}">
+              {% if enabled_modules.get('sickness', True) %}Enabled{% else %}Disabled{% endif %}
+            </span>
+          </div>
+        </div>
+
+        <div class="rounded-xl border {% if enabled_modules.get('employee_relations', True) %}border-emerald-200 bg-emerald-50{% else %}border-slate-200 bg-slate-50{% endif %} p-4">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="text-sm font-semibold text-slate-900">Employee Relations</p>
+              <p class="mt-1 text-xs text-slate-500">employee_relations</p>
+            </div>
+            <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold {% if enabled_modules.get('employee_relations', True) %}bg-emerald-100 text-emerald-800{% else %}bg-slate-200 text-slate-700{% endif %}">
+              {% if enabled_modules.get('employee_relations', True) %}Enabled{% else %}Disabled{% endif %}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 class="text-lg font-semibold text-slate-900">Current Organisation</h2>
+      <p class="mt-1 text-sm text-slate-500">
+        Admin settings and module visibility are currently resolving for this organisation.
+      </p>
+
+      <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Organisation</p>
+        <p class="mt-2 text-base font-semibold text-slate-900">
+          {% if current_user.organisation %}
+            {{ current_user.organisation.name }}
+          {% else %}
+            No organisation assigned
+          {% endif %}
         </p>
       </div>
 
-      <a href="{{ url_for('admin.admin_module_settings') }}"
-         class="inline-flex items-center rounded-lg bg-[#0a4d4c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0f6b69]">
-        Manage Module Settings
-      </a>
-    </div>
-
-    <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <div class="rounded-xl border {% if enabled_modules.get('pip', True) %}border-emerald-200 bg-emerald-50{% else %}border-slate-200 bg-slate-50{% endif %} p-4">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <p class="text-sm font-semibold text-slate-900">Performance Improvement Plans</p>
-            <p class="mt-1 text-xs text-slate-500">pip</p>
-          </div>
-          <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold {% if enabled_modules.get('pip', True) %}bg-emerald-100 text-emerald-800{% else %}bg-slate-200 text-slate-700{% endif %}">
-            {% if enabled_modules.get('pip', True) %}Enabled{% else %}Disabled{% endif %}
-          </span>
-        </div>
-      </div>
-
-      <div class="rounded-xl border {% if enabled_modules.get('probation', True) %}border-emerald-200 bg-emerald-50{% else %}border-slate-200 bg-slate-50{% endif %} p-4">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <p class="text-sm font-semibold text-slate-900">Probation</p>
-            <p class="mt-1 text-xs text-slate-500">probation</p>
-          </div>
-          <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold {% if enabled_modules.get('probation', True) %}bg-emerald-100 text-emerald-800{% else %}bg-slate-200 text-slate-700{% endif %}">
-            {% if enabled_modules.get('probation', True) %}Enabled{% else %}Disabled{% endif %}
-          </span>
-        </div>
-      </div>
-
-      <div class="rounded-xl border {% if enabled_modules.get('sickness', True) %}border-emerald-200 bg-emerald-50{% else %}border-slate-200 bg-slate-50{% endif %} p-4">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <p class="text-sm font-semibold text-slate-900">Sickness</p>
-            <p class="mt-1 text-xs text-slate-500">sickness</p>
-          </div>
-          <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold {% if enabled_modules.get('sickness', True) %}bg-emerald-100 text-emerald-800{% else %}bg-slate-200 text-slate-700{% endif %}">
-            {% if enabled_modules.get('sickness', True) %}Enabled{% else %}Disabled{% endif %}
-          </span>
-        </div>
-      </div>
-
-      <div class="rounded-xl border {% if enabled_modules.get('employee_relations', True) %}border-emerald-200 bg-emerald-50{% else %}border-slate-200 bg-slate-50{% endif %} p-4">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <p class="text-sm font-semibold text-slate-900">Employee Relations</p>
-            <p class="mt-1 text-xs text-slate-500">employee_relations</p>
-          </div>
-          <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold {% if enabled_modules.get('employee_relations', True) %}bg-emerald-100 text-emerald-800{% else %}bg-slate-200 text-slate-700{% endif %}">
-            {% if enabled_modules.get('employee_relations', True) %}Enabled{% else %}Disabled{% endif %}
-          </span>
-        </div>
+      <div class="mt-4">
+        <a href="{{ url_for('admin.manage_organisations') }}"
+           class="inline-flex items-center rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900">
+          Manage Organisations
+        </a>
       </div>
     </div>
   </div>
@@ -83,6 +110,19 @@
       <a href="{{ url_for('manage_users') }}"
          class="inline-block text-sm bg-ellipse-teal hover:bg-ellipse-hover text-white px-4 py-2 rounded">
         Go to User Manager →
+      </a>
+    </div>
+
+    <!-- Manage Organisations -->
+    <div class="bg-[#e6f3f3] p-6 rounded-xl shadow border border-gray-200 hover:shadow-lg transition">
+      <div class="flex items-center mb-4">
+        <div class="bg-slate-700 text-white rounded-full h-10 w-10 flex items-center justify-center text-lg">🏢</div>
+        <h3 class="ml-3 text-lg font-semibold text-slate-800">Manage Organisations</h3>
+      </div>
+      <p class="text-sm text-gray-600 mb-4">Create organisations, rename them, and support clean user assignment.</p>
+      <a href="{{ url_for('admin.manage_organisations') }}"
+         class="inline-block text-sm bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded">
+        Manage Organisations →
       </a>
     </div>
 

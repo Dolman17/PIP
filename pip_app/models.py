@@ -14,6 +14,18 @@ class User(db.Model, UserMixin):
     admin_level = db.Column(db.Integer, default=0)  # 0 = line mgr, 1 = admin, 2 = superuser
     team_id = db.Column(db.Integer, nullable=True)
 
+    organisation_id = db.Column(
+        db.Integer,
+        db.ForeignKey("organisations.id"),
+        nullable=True,
+        index=True,
+    )
+
+    organisation = db.relationship(
+        "Organisation",
+        backref=db.backref("users", lazy=True),
+    )
+
     def is_admin(self):
         return self.admin_level >= 1
 
@@ -31,6 +43,14 @@ class User(db.Model, UserMixin):
 
 class Employee(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+
+    organisation_id = db.Column(
+        db.Integer,
+        db.ForeignKey("organisations.id"),
+        nullable=True,
+        index=True,
+    )
+
     first_name = db.Column(db.String(100))
     last_name = db.Column(db.String(100))
     job_title = db.Column(db.String(100))
@@ -55,6 +75,11 @@ class Employee(db.Model):
     reactivated_at = db.Column(db.DateTime, nullable=True)
     reactivated_by = db.Column(db.String(120), nullable=True)
     # --- end lifecycle fields ---
+
+    organisation = db.relationship(
+        "Organisation",
+        backref=db.backref("employees", lazy=True),
+    )
 
     pips = db.relationship("PIPRecord", back_populates="employee", lazy=True)
 
@@ -824,7 +849,12 @@ class APIKey(db.Model):
     key_prefix = db.Column(db.String(20), nullable=False, index=True)
     key_hash = db.Column(db.String(64), nullable=False, unique=True, index=True)
 
-    organisation_id = db.Column(db.Integer, nullable=True, index=True)
+    organisation_id = db.Column(
+        db.Integer,
+        db.ForeignKey("organisations.id"),
+        nullable=True,
+        index=True,
+    )
     created_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
 
     is_active = db.Column(db.Boolean, default=True, nullable=False)
@@ -836,6 +866,10 @@ class APIKey(db.Model):
     revoked_at = db.Column(db.DateTime, nullable=True)
 
     created_by = db.relationship("User", backref=db.backref("created_api_keys", lazy=True))
+    organisation = db.relationship(
+        "Organisation",
+        backref=db.backref("api_keys", lazy=True),
+    )
 
     def has_scope(self, scope: str) -> bool:
         if not self.scopes:

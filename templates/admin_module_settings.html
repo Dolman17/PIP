@@ -44,17 +44,48 @@
 
   <div class="bg-white rounded-2xl shadow border border-slate-200 overflow-hidden">
     <div class="px-6 py-5 border-b border-slate-200 bg-slate-50">
-      <h2 class="text-xl font-semibold text-slate-900">Organisation Module Settings</h2>
-      <p class="mt-1 text-sm text-slate-600">
-        Control which modules appear in the platform UI for <strong>{{ organisation.name }}</strong>.
-      </p>
-      <p class="mt-2 text-xs text-slate-500">
-        This phase only affects visibility in the interface. It does not disable routes directly.
-      </p>
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h2 class="text-xl font-semibold text-slate-900">Organisation Module Settings</h2>
+          <p class="mt-1 text-sm text-slate-600">
+            Control which modules appear in the platform UI for <strong>{{ organisation.name }}</strong>.
+          </p>
+          <p class="mt-2 text-xs text-slate-500">
+            This phase only affects visibility in the interface. It does not disable routes directly.
+          </p>
+        </div>
+
+        <form method="GET" class="w-full lg:w-auto">
+          <label for="organisation_id" class="block text-sm font-medium text-slate-700 mb-1">
+            Managing organisation
+          </label>
+          <div class="flex gap-2">
+            <select
+              id="organisation_id"
+              name="organisation_id"
+              class="min-w-[240px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#0a4d4c] focus:outline-none focus:ring-2 focus:ring-[#0a4d4c]/20"
+            >
+              {% for org in organisations %}
+                <option value="{{ org.id }}" {% if selected_organisation_id == org.id %}selected{% endif %}>
+                  {{ org.name }}
+                </option>
+              {% endfor %}
+            </select>
+
+            <button
+              type="submit"
+              class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Load
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
 
     <form method="POST" class="p-6 space-y-6">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="organisation_id" value="{{ organisation.id }}">
 
       <div class="space-y-4">
         {% for module_key, label in module_labels %}

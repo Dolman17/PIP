@@ -11,26 +11,54 @@ from flask import Blueprint, flash, redirect, render_template, request, send_fil
 from flask_login import current_user, login_required
 from werkzeug.security import generate_password_hash
 
-from forms import UserForm
+from forms import OrganisationForm, UserForm
 from models import (
     db,
     Employee,
+    Organisation,
+    OrganisationModuleSetting,
     PIPRecord,
     ProbationPlan,
     ProbationRecord,
     ProbationReview,
     TimelineEvent,
     User,
-    OrganisationModuleSetting,
 )
 from pip_app.decorators import superuser_required
 from pip_app.services.module_settings import (
     DEFAULT_MODULE_LABELS,
-    ensure_default_module_settings,
     get_module_settings_for_org,
 )
 
 admin_bp = Blueprint("admin", __name__)
+
+
+def _organisation_choices():
+    organisations = Organisation.query.order_by(Organisation.name.asc()).all()
+    return [(0, "No organisation assigned")] + [
+        (org.id, org.name) for org in organisations
+    ]
+
+
+def _get_selected_organisation_from_request():
+    organisation_id_raw = (
+        request.form.get("organisation_id")
+        if request.method == "POST"
+        else request.args.get("organisation_id")
+    )
+
+    if not organisation_id_raw:
+        return None
+
+    try:
+        organisation_id = int(organisation_id_raw)
+    except (TypeError, ValueError):
+        return None
+
+    if organisation_id <= 0:
+        return None
+
+    return db.session.get(Organisation, organisation_id)
 
 
 @admin_bp.route("/admin/dashboard")
@@ -42,12 +70,93 @@ def admin_dashboard():
     return render_template("admin_dashboard.html")
 
 
+@admin_bp.route("/admin/organisations", methods=["GET", "POST"])
+@login_required
+@superuser_required
+def manage_organisations():
+    form = OrganisationForm()
+    organisations = Organisation.query.order_by(Organisation.name.asc()).all()
+
+    if form.validate_on_submit():
+        name = (form.name.data or "").strip()
+
+        existing = Organisation.query.filter(
+            db.func.lower(Organisation.name) == name.lower()
+        ).first()
+        if existing:
+            flash("An organisation with that name already exists.", "danger")
+            return redirect(url_for("admin.manage_organisations"))
+
+        org = Organisation(name=name)
+        db.session.add(org)
+        db.session.commit()
+
+        flash("Organisation created successfully.", "success")
+        return redirect(url_for("admin.manage_organisations"))
+
+    organisation_user_counts = {
+        org.id: User.query.filter_by(organisation_id=org.id).count()
+        for org in organisations
+    }
+
+    return render_template(
+        "admin_organisations.html",
+        form=form,
+        organisations=organisations,
+        organisation_user_counts=organisation_user_counts,
+    )
+
+
+@admin_bp.route("/admin/organisations/<int:organisation_id>/edit", methods=["GET", "POST"])
+@login_required
+@superuser_required
+def edit_organisation(organisation_id):
+    organisation = Organisation.query.get_or_404(organisation_id)
+    form = OrganisationForm(obj=organisation)
+
+    if form.validate_on_submit():
+        new_name = (form.name.data or "").strip()
+
+        existing = Organisation.query.filter(
+            db.func.lower(Organisation.name) == new_name.lower(),
+            Organisation.id != organisation.id,
+        ).first()
+        if existing:
+            flash("Another organisation already uses that name.", "danger")
+            return redirect(url_for("admin.edit_organisation", organisation_id=organisation.id))
+
+        organisation.name = new_name
+        db.session.commit()
+
+        flash("Organisation updated successfully.", "success")
+        return redirect(url_for("admin.manage_organisations"))
+
+    return render_template(
+        "admin_edit_organisation.html",
+        form=form,
+        organisation=organisation,
+    )
+
+
 @admin_bp.route("/admin/modules", methods=["GET", "POST"])
 @login_required
 @superuser_required
 def admin_module_settings():
-    ensure_default_module_settings()
-    org, existing_settings = get_module_settings_for_org()
+    organisations = Organisation.query.order_by(Organisation.name.asc()).all()
+    selected_org = _get_selected_organisation_from_request()
+
+    if request.method == "POST" and request.form.get("organisation_id") and selected_org is None:
+        flash("Selected organisation could not be found.", "danger")
+        return redirect(url_for("admin.admin_module_settings"))
+
+    if request.method == "GET" and request.args.get("organisation_id") and selected_org is None:
+        flash("Selected organisation could not be found.", "danger")
+        return redirect(url_for("admin.admin_module_settings"))
+
+    if selected_org is not None:
+        org, existing_settings = get_module_settings_for_org(organisation=selected_org)
+    else:
+        org, existing_settings = get_module_settings_for_org(user=current_user)
 
     if request.method == "POST":
         for module_key, _label in DEFAULT_MODULE_LABELS:
@@ -66,7 +175,7 @@ def admin_module_settings():
 
         db.session.commit()
         flash("Module settings updated successfully.", "success")
-        return redirect(url_for("admin.admin_module_settings"))
+        return redirect(url_for("admin.admin_module_settings", organisation_id=org.id))
 
     settings = {
         module_key: bool(existing_settings.get(module_key).is_enabled) if existing_settings.get(module_key) else True
@@ -78,6 +187,8 @@ def admin_module_settings():
         settings=settings,
         module_labels=DEFAULT_MODULE_LABELS,
         organisation=org,
+        organisations=organisations,
+        selected_organisation_id=org.id if org else None,
     )
 
 
@@ -185,7 +296,7 @@ def export_data():
             users = User.query.all()
             write_csv(
                 "users.csv",
-                ["id", "username", "email", "admin_level", "team_id"],
+                ["id", "username", "email", "admin_level", "team_id", "organisation_id"],
                 [
                     {
                         "id": user.id,
@@ -193,6 +304,7 @@ def export_data():
                         "email": user.email,
                         "admin_level": user.admin_level,
                         "team_id": user.team_id,
+                        "organisation_id": user.organisation_id,
                     }
                     for user in users
                 ],
@@ -281,12 +393,17 @@ def edit_user(user_id):
 
     user = User.query.get_or_404(user_id)
     form = UserForm(obj=user)
+    form.organisation_id.choices = _organisation_choices()
+
+    if request.method == "GET":
+        form.organisation_id.data = user.organisation_id or 0
 
     if form.validate_on_submit():
         user.username = form.username.data
         user.email = form.email.data
         user.admin_level = form.admin_level.data
         user.team_id = form.team_id.data
+        user.organisation_id = form.organisation_id.data or None
         db.session.commit()
         flash("User updated successfully.", "success")
         return redirect(url_for("admin.manage_users"))
@@ -301,17 +418,28 @@ def create_user():
         flash("Access denied: Superuser only.", "danger")
         return redirect(url_for("dashboard"))
 
+    organisations = Organisation.query.order_by(Organisation.name.asc()).all()
+
     if request.method == "POST":
         username = (request.form.get("username") or "").strip()
         email = (request.form.get("email") or "").strip()
         password = request.form.get("password")
         admin_level = int(request.form.get("admin_level", 0))
         team_id_raw = (request.form.get("team_id") or "").strip()
+        organisation_id_raw = (request.form.get("organisation_id") or "").strip()
+
         team_id = int(team_id_raw) if team_id_raw else None
+        organisation_id = int(organisation_id_raw) if organisation_id_raw else None
 
         if not username or not email or not password:
-            flash("All fields except team ID are required.", "danger")
+            flash("All fields except team ID and organisation are required.", "danger")
             return redirect(request.url)
+
+        if organisation_id is not None:
+            organisation = db.session.get(Organisation, organisation_id)
+            if organisation is None:
+                flash("Selected organisation could not be found.", "danger")
+                return redirect(request.url)
 
         if User.query.filter_by(username=username).first():
             flash("Username already exists.", "danger")
@@ -328,6 +456,7 @@ def create_user():
             password_hash=hashed_pw,
             admin_level=admin_level,
             team_id=team_id,
+            organisation_id=organisation_id,
         )
         db.session.add(new_user)
         db.session.commit()
@@ -335,7 +464,7 @@ def create_user():
         flash("User created successfully.", "success")
         return redirect(url_for("admin.manage_users"))
 
-    return render_template("admin_create_user.html")
+    return render_template("admin_create_user.html", organisations=organisations)
 
 
 @admin_bp.route("/admin/users/delete/<int:user_id>", methods=["POST"])

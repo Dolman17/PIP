@@ -119,11 +119,16 @@ def _active_employee_query(include_employee_id=None):
 
 def _scoped_pip_query():
     q = PIPRecord.query.join(Employee)
+
+    if getattr(current_user, "organisation_id", None):
+        q = q.filter(Employee.organisation_id == current_user.organisation_id)
+
     if current_user.admin_level == 0:
         if current_user.team_id:
             q = q.filter(Employee.team_id == current_user.team_id)
         else:
             q = q.filter(Employee.id == -1)
+
     return q
 
 
@@ -148,7 +153,7 @@ def _has_recent_ai_consent(context_name: str, minutes: int = 120) -> bool:
 @pip_bp.route('/pip/<int:id>')
 @login_required
 def pip_detail(id):
-    pip = PIPRecord.query.get_or_404(id)
+    pip = _scoped_pip_query().filter(PIPRecord.id == id).first_or_404()
     require_pip_access(pip)
     employee = pip.employee
     return render_template('pip_detail.html', pip=pip, employee=employee)
@@ -157,7 +162,7 @@ def pip_detail(id):
 @pip_bp.route("/pip/<int:pip_id>/documents", methods=["GET"])
 @login_required
 def pip_documents(pip_id):
-    pip_rec = PIPRecord.query.get_or_404(pip_id)
+    pip_rec = _scoped_pip_query().filter(PIPRecord.id == pip_id).first_or_404()
     require_pip_access(pip_rec)
 
     docs = (
@@ -172,7 +177,7 @@ def pip_documents(pip_id):
 @pip_bp.route("/pip/<int:pip_id>/doc/create/<string:doc_type>", methods=["POST"])
 @login_required
 def create_pip_doc_draft(pip_id, doc_type):
-    pip_rec = PIPRecord.query.get_or_404(pip_id)
+    pip_rec = _scoped_pip_query().filter(PIPRecord.id == pip_id).first_or_404()
     require_pip_access(pip_rec)
 
     mapping = build_placeholder_mapping(pip_rec)
@@ -231,7 +236,7 @@ def create_pip_doc_draft(pip_id, doc_type):
 @pip_bp.route("/pip/<int:pip_id>/doc/<int:doc_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit_pip_doc(pip_id, doc_id):
-    pip_rec = PIPRecord.query.get_or_404(pip_id)
+    pip_rec = _scoped_pip_query().filter(PIPRecord.id == pip_id).first_or_404()
     require_pip_access(pip_rec)
 
     doc = DocumentFile.query.filter_by(id=doc_id, pip_id=pip_id).first_or_404()
@@ -290,7 +295,7 @@ def edit_pip_doc(pip_id, doc_id):
 @pip_bp.route("/pip/<int:pip_id>/doc/<int:doc_id>/finalise", methods=["POST"])
 @login_required
 def finalise_pip_doc(pip_id, doc_id):
-    pip_rec = PIPRecord.query.get_or_404(pip_id)
+    pip_rec = _scoped_pip_query().filter(PIPRecord.id == pip_id).first_or_404()
     require_pip_access(pip_rec)
 
     doc = DocumentFile.query.filter_by(id=doc_id, pip_id=pip_id).first_or_404()
@@ -325,7 +330,7 @@ def finalise_pip_doc(pip_id, doc_id):
 @login_required
 def download_doc(doc_id):
     doc = DocumentFile.query.get_or_404(doc_id)
-    pip_rec = PIPRecord.query.get_or_404(doc.pip_id)
+    pip_rec = _scoped_pip_query().filter(PIPRecord.id == doc.pip_id).first_or_404()
     require_pip_access(pip_rec)
 
     abs_path = os.path.join(current_app.config['UPLOAD_FOLDER'], doc.docx_path)
@@ -353,7 +358,7 @@ def download_doc(doc_id):
 @pip_bp.route('/pip/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
 def edit_pip(id):
-    pip = PIPRecord.query.get_or_404(id)
+    pip = _scoped_pip_query().filter(PIPRecord.id == id).first_or_404()
     require_pip_access(pip)
     employee = pip.employee
 
@@ -453,7 +458,7 @@ def edit_pip(id):
 @pip_bp.route('/pip/<int:id>/generate/advice', methods=['POST'])
 @login_required
 def generate_ai_advice(id):
-    pip = PIPRecord.query.get_or_404(id)
+    pip = _scoped_pip_query().filter(PIPRecord.id == id).first_or_404()
     require_pip_access(pip)
     employee = pip.employee
 

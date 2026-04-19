@@ -30,11 +30,16 @@ LEAVING_REASON_CHOICES = [
 
 def _scoped_employee_query():
     q = Employee.query
+
+    if getattr(current_user, "organisation_id", None):
+        q = q.filter(Employee.organisation_id == current_user.organisation_id)
+
     if current_user.admin_level == 0:
         if current_user.team_id:
             q = q.filter(Employee.team_id == current_user.team_id)
         else:
             q = q.filter(False)
+
     return q
 
 

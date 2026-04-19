@@ -20,6 +20,7 @@
             <th class="py-2 pr-4">Name</th>
             <th class="py-2 pr-4">Job Title</th>
             <th class="py-2 pr-4">Service</th>
+            <th class="py-2 pr-4">Organisation</th>
             <th class="py-2 pr-4">Email</th>
             <th class="py-2 pr-4">Actions</th>
           </tr>
@@ -30,6 +31,13 @@
               <td class="py-2 pr-4">{{ emp.last_name }}, {{ emp.first_name }}</td>
               <td class="py-2 pr-4">{{ emp.job_title or '—' }}</td>
               <td class="py-2 pr-4">{{ emp.service or '—' }}</td>
+              <td class="py-2 pr-4">
+                {% if emp.organisation %}
+                  {{ emp.organisation.name }}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
               <td class="py-2 pr-4">{{ emp.email or '—' }}</td>
               <td class="py-2 pr-4">
                 <a href="{{ url_for('employee_detail', employee_id=emp.id) }}"
@@ -38,7 +46,6 @@
                 <a href="{{ url_for('edit_employee', employee_id=emp.id) }}"
                    class="text-[#005b5a] hover:underline">Edit</a>
                 <span class="mx-1 text-gray-400">|</span>
-                <!-- Start PIP via Wizard, preselect this employee -->
                 <a href="{{ url_for('create_pip_wizard') }}?employee_id={{ emp.id }}&goto=2"
                    class="text-[#005b5a] hover:underline">Start PIP</a>
               </td>

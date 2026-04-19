@@ -26,8 +26,38 @@ def get_default_organisation():
     return org
 
 
-def ensure_default_module_settings():
-    org = get_default_organisation()
+def get_organisation_for_user(user=None, allow_default_fallback=True):
+    if user is None:
+        return get_default_organisation() if allow_default_fallback else None
+
+    organisation = getattr(user, "organisation", None)
+    if organisation is not None:
+        return organisation
+
+    organisation_id = getattr(user, "organisation_id", None)
+    if organisation_id:
+        organisation = db.session.get(Organisation, organisation_id)
+        if organisation is not None:
+            return organisation
+
+    return get_default_organisation() if allow_default_fallback else None
+
+
+def resolve_organisation(organisation=None, user=None, allow_default_fallback=True):
+    if organisation is not None:
+        return organisation
+    return get_organisation_for_user(
+        user=user,
+        allow_default_fallback=allow_default_fallback,
+    )
+
+
+def ensure_module_settings_for_org(organisation=None, user=None):
+    org = resolve_organisation(
+        organisation=organisation,
+        user=user,
+        allow_default_fallback=True,
+    )
 
     existing_settings = {
         row.module_key: row
@@ -52,8 +82,12 @@ def ensure_default_module_settings():
     return org
 
 
-def get_enabled_modules():
-    org = ensure_default_module_settings()
+def ensure_default_module_settings():
+    return ensure_module_settings_for_org()
+
+
+def get_enabled_modules(organisation=None, user=None):
+    org = ensure_module_settings_for_org(organisation=organisation, user=user)
 
     settings = {
         row.module_key: bool(row.is_enabled)
@@ -66,8 +100,8 @@ def get_enabled_modules():
     return settings
 
 
-def get_module_settings_for_org():
-    org = ensure_default_module_settings()
+def get_module_settings_for_org(organisation=None, user=None):
+    org = ensure_module_settings_for_org(organisation=organisation, user=user)
     settings = {
         row.module_key: row
         for row in OrganisationModuleSetting.query.filter_by(organisation_id=org.id).all()

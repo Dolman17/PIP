@@ -155,6 +155,8 @@ def inject_module():
 @app.context_processor
 def inject_enabled_modules():
     try:
+        if getattr(current_user, "is_authenticated", False):
+            return dict(enabled_modules=get_enabled_modules(user=current_user))
         return dict(enabled_modules=get_enabled_modules())
     except Exception:
         return dict(enabled_modules={module_key: True for module_key in DEFAULT_MODULE_KEYS})

@@ -9,10 +9,10 @@ from wtforms import (
     FieldList,
     FormField,
     PasswordField,
-    HiddenField,
     BooleanField,
 )
 from wtforms.validators import DataRequired, Optional, Email, Length
+
 
 # ---------------------- PIP Action Subform ----------------------
 
@@ -65,7 +65,7 @@ class EmployeeForm(FlaskForm):
     start_date = DateField("Start Date", validators=[DataRequired()])
     team_id = IntegerField("Team ID")
     submit = SubmitField("Add Employee")
-    email = StringField("Email", validators=[Optional(), Email()])  # 👈 New field
+    email = StringField("Email", validators=[Optional(), Email()])
 
 
 # ---------------------- Login Form ----------------------
@@ -92,7 +92,6 @@ class ProbationReviewForm(FlaskForm):
     review_date = DateField("Review Date", validators=[DataRequired()])
     reviewer = StringField("Reviewer", validators=[DataRequired()])
     summary = TextAreaField("Review Summary", validators=[DataRequired()])
-    # can convert to Boolean later
     concerns_flag = StringField("Concerns (Yes/No)", validators=[Optional()])
     submit = SubmitField("Submit Review")
 
@@ -117,7 +116,24 @@ class UserForm(FlaskForm):
         validators=[DataRequired()],
     )
     team_id = IntegerField("Team ID (optional)")
+    organisation_id = SelectField(
+        "Organisation",
+        choices=[],
+        coerce=int,
+        validators=[Optional()],
+    )
     submit = SubmitField("Save Changes")
+
+
+# ---------------------- Organisation Admin Form ----------------------
+
+
+class OrganisationForm(FlaskForm):
+    name = StringField(
+        "Organisation Name",
+        validators=[DataRequired(), Length(max=255)],
+    )
+    submit = SubmitField("Save Organisation")
 
 
 # ---------------------- Sickness Forms ----------------------
@@ -198,4 +214,3 @@ class SicknessMeetingForm(FlaskForm):
     )
 
     submit = SubmitField("Save meeting")
-

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Manage Organisations{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto p-6 space-y-6">
+  <div class="bg-white shadow rounded p-6">
+    <h1 class="text-2xl font-bold mb-4">Manage Organisations</h1>
+    <p class="text-sm text-gray-600 mb-6">
+      Create and manage organisations for multi-organisation access control and module settings.
+    </p>
+
+    <form method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+      {{ form.hidden_tag() }}
+
+      <div class="md:col-span-3">
+        {{ form.name.label(class="block text-sm font-medium text-gray-700 mb-1") }}
+        {{ form.name(class="w-full rounded border border-gray-300 p-2") }}
+        {% for error in form.name.errors %}
+          <p class="text-sm text-red-600 mt-1">{{ error }}</p>
+        {% endfor %}
+      </div>
+
+      <div>
+        {{ form.submit(class="w-full bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700") }}
+      </div>
+    </form>
+  </div>
+
+  <div class="bg-white shadow rounded p-6">
+    <h2 class="text-xl font-semibold mb-4">Existing Organisations</h2>
+
+    {% if organisations %}
+      <div class="overflow-x-auto">
+        <table class="min-w-full border border-gray-200 rounded">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Organisation</th>
+              <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Users</th>
+              <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Created</th>
+              <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200">
+            {% for organisation in organisations %}
+              <tr>
+                <td class="px-4 py-3">{{ organisation.name }}</td>
+                <td class="px-4 py-3">{{ organisation_user_counts.get(organisation.id, 0) }}</td>
+                <td class="px-4 py-3">
+                  {% if organisation.created_at %}
+                    {{ organisation.created_at.strftime('%d %b %Y %H:%M') }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td class="px-4 py-3">
+                  <a href="{{ url_for('admin.edit_organisation', organisation_id=organisation.id) }}"
+                     class="inline-flex items-center px-3 py-1.5 rounded bg-gray-100 text-gray-800 hover:bg-gray-200">
+                    Edit
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="text-sm text-gray-600">No organisations created yet.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
