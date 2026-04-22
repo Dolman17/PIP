@@ -890,7 +890,28 @@ class Organisation(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False, default="Default Organisation")
+    slug = db.Column(
+        db.String(255),
+        nullable=False,
+        unique=True,
+        index=True,
+        default="default-organisation",
+    )
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+
+    primary_colour = db.Column(db.String(20), nullable=True)
+    secondary_colour = db.Column(db.String(20), nullable=True)
+    logo_url = db.Column(db.String(500), nullable=True)
+    font_family = db.Column(db.String(100), nullable=True)
+    sector_pack = db.Column(db.String(100), nullable=True)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
 
     def __repr__(self):
         return f"<Organisation {self.name}>"
@@ -910,6 +931,8 @@ class OrganisationModuleSetting(db.Model):
 
     module_key = db.Column(db.String(50), nullable=False)
     is_enabled = db.Column(db.Boolean, default=True, nullable=False)
+    ai_enabled = db.Column(db.Boolean, default=True, nullable=False)
+    escalation_enabled = db.Column(db.Boolean, default=True, nullable=False)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(
@@ -929,4 +952,9 @@ class OrganisationModuleSetting(db.Model):
     )
 
     def __repr__(self):
-        return f"<OrgModule {self.module_key} enabled={self.is_enabled}>"
+        return (
+            f"<OrgModule {self.module_key} "
+            f"enabled={self.is_enabled} "
+            f"ai={self.ai_enabled} "
+            f"escalation={self.escalation_enabled}>"
+        )

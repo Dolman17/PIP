@@ -27,6 +27,7 @@ from models import (
 from pip_app.decorators import superuser_required
 from pip_app.services.module_settings import (
     DEFAULT_MODULE_LABELS,
+    DEFAULT_MODULE_SETTINGS,
     get_module_settings_for_org,
 )
 
@@ -160,27 +161,60 @@ def admin_module_settings():
 
     if request.method == "POST":
         for module_key, _label in DEFAULT_MODULE_LABELS:
-            should_enable = request.form.get(module_key) == "on"
+            module_defaults = DEFAULT_MODULE_SETTINGS.get(
+                module_key,
+                {
+                    "is_enabled": True,
+                    "ai_enabled": True,
+                    "escalation_enabled": True,
+                },
+            )
+
+            should_enable = request.form.get(f"{module_key}__enabled") == "on"
+            should_enable_ai = request.form.get(f"{module_key}__ai_enabled") == "on"
+            should_enable_escalation = request.form.get(f"{module_key}__escalation_enabled") == "on"
+
             setting = existing_settings.get(module_key)
 
             if setting is None:
                 setting = OrganisationModuleSetting(
                     organisation_id=org.id,
                     module_key=module_key,
-                    is_enabled=should_enable,
+                    is_enabled=should_enable if request.form.get(f"{module_key}__enabled") is not None else module_defaults["is_enabled"],
+                    ai_enabled=should_enable_ai if request.form.get(f"{module_key}__ai_enabled") is not None else module_defaults["ai_enabled"],
+                    escalation_enabled=should_enable_escalation if request.form.get(f"{module_key}__escalation_enabled") is not None else module_defaults["escalation_enabled"],
                 )
                 db.session.add(setting)
             else:
                 setting.is_enabled = should_enable
+                setting.ai_enabled = should_enable_ai
+                setting.escalation_enabled = should_enable_escalation
 
         db.session.commit()
         flash("Module settings updated successfully.", "success")
         return redirect(url_for("admin.admin_module_settings", organisation_id=org.id))
 
-    settings = {
-        module_key: bool(existing_settings.get(module_key).is_enabled) if existing_settings.get(module_key) else True
-        for module_key, _label in DEFAULT_MODULE_LABELS
-    }
+    settings = {}
+    for module_key, _label in DEFAULT_MODULE_LABELS:
+        module_defaults = DEFAULT_MODULE_SETTINGS.get(
+            module_key,
+            {
+                "is_enabled": True,
+                "ai_enabled": True,
+                "escalation_enabled": True,
+            },
+        )
+        setting = existing_settings.get(module_key)
+
+        settings[module_key] = {
+            "is_enabled": bool(setting.is_enabled) if setting else bool(module_defaults["is_enabled"]),
+            "ai_enabled": bool(getattr(setting, "ai_enabled", module_defaults["ai_enabled"])) if setting else bool(module_defaults["ai_enabled"]),
+            "escalation_enabled": bool(getattr(setting, "escalation_enabled", module_defaults["escalation_enabled"])) if setting else bool(module_defaults["escalation_enabled"]),
+        }
+
+    enabled_count = sum(1 for module_key, _label in DEFAULT_MODULE_LABELS if settings[module_key]["is_enabled"])
+    ai_enabled_count = sum(1 for module_key, _label in DEFAULT_MODULE_LABELS if settings[module_key]["ai_enabled"])
+    escalation_enabled_count = sum(1 for module_key, _label in DEFAULT_MODULE_LABELS if settings[module_key]["escalation_enabled"])
 
     return render_template(
         "admin_module_settings.html",
@@ -189,6 +223,9 @@ def admin_module_settings():
         organisation=org,
         organisations=organisations,
         selected_organisation_id=org.id if org else None,
+        enabled_count=enabled_count,
+        ai_enabled_count=ai_enabled_count,
+        escalation_enabled_count=escalation_enabled_count,
     )
 
 

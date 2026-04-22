@@ -37,6 +37,7 @@ from pip_app.services.document_utils import (
     html_to_docx_bytes,
     sanitize_html,
 )
+from pip_app.services.module_settings import DEFAULT_MODULE_SETTINGS, get_module_settings_for_org
 from pip_app.services.storage_utils import next_version_for, save_file
 from pip_app.services.taxonomy import pick_actions_from_templates as _pick_actions_from_templates
 from pip_app.services.time_utils import auto_review_date
@@ -148,6 +149,17 @@ def _has_recent_ai_consent(context_name: str, minutes: int = 120) -> bool:
 
     age_seconds = (datetime.utcnow() - accepted_at).total_seconds()
     return age_seconds <= minutes * 60
+
+
+def _is_pip_ai_enabled():
+    _org, settings = get_module_settings_for_org(user=current_user)
+    setting = settings.get("pip")
+    defaults = DEFAULT_MODULE_SETTINGS.get("pip", {"ai_enabled": True})
+
+    if setting is None:
+        return bool(defaults.get("ai_enabled", True))
+
+    return bool(getattr(setting, "ai_enabled", defaults.get("ai_enabled", True)))
 
 
 @pip_bp.route('/pip/<int:id>')
@@ -376,6 +388,10 @@ def edit_pip(id):
     advice_text = None
 
     if request.method == 'POST' and 'generate_advice' in request.form:
+        if not _is_pip_ai_enabled():
+            flash("AI guidance is disabled for the PIP module for your organisation.", "warning")
+            return redirect(url_for('pip.edit_pip', id=pip.id))
+
         if not _has_recent_ai_consent("pip_advice"):
             flash("Please accept the AI guidance notice before generating advice.", "warning")
             return redirect(url_for('pip.edit_pip', id=pip.id))
@@ -461,6 +477,10 @@ def generate_ai_advice(id):
     pip = _scoped_pip_query().filter(PIPRecord.id == id).first_or_404()
     require_pip_access(pip)
     employee = pip.employee
+
+    if not _is_pip_ai_enabled():
+        flash("AI guidance is disabled for the PIP module for your organisation.", "warning")
+        return redirect(url_for('pip.pip_detail', id=pip.id))
 
     if not _has_recent_ai_consent("pip_advice"):
         flash("Please accept the AI guidance notice before generating advice.", "warning")
@@ -897,6 +917,12 @@ def validate_wizard_step():
 @pip_bp.route('/suggest_actions_ai', methods=['POST'])
 @login_required
 def suggest_actions_ai():
+    if not _is_pip_ai_enabled():
+        return jsonify({
+            "success": False,
+            "message": "AI is disabled for the PIP module for your organisation."
+        }), 403
+
     if not _has_recent_ai_consent("pip_advice"):
         return jsonify({
             "success": False,

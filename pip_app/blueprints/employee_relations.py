@@ -50,6 +50,7 @@ from pip_app.services.employee_relations_constants import (
     MEETING_TYPES,
     PRIORITY_LEVELS,
 )
+from pip_app.services.module_settings import DEFAULT_MODULE_SETTINGS, get_module_settings_for_org
 
 employee_relations_bp = Blueprint(
     "employee_relations",
@@ -185,8 +186,19 @@ def _latest_er_ai_advice(er_case):
     )
 
 
+def _is_employee_relations_ai_enabled():
+    _org, settings = get_module_settings_for_org(user=current_user)
+    setting = settings.get("employee_relations")
+    defaults = DEFAULT_MODULE_SETTINGS.get("employee_relations", {"ai_enabled": True})
+
+    if setting is None:
+        return bool(defaults.get("ai_enabled", True))
+
+    return bool(getattr(setting, "ai_enabled", defaults.get("ai_enabled", True)))
+
+
 def _default_er_document_mode(er_case):
-    return "ai" if _latest_er_ai_advice(er_case) else "plain"
+    return "ai" if _is_employee_relations_ai_enabled() and _latest_er_ai_advice(er_case) else "plain"
 
 
 def _normalise_er_document_mode(mode_value):
@@ -788,6 +800,7 @@ def create_case():
 def view_case(case_id):
     er_case = EmployeeRelationsCase.query.get_or_404(case_id)
     latest_ai = _latest_er_ai_advice(er_case)
+    er_ai_enabled = _is_employee_relations_ai_enabled()
 
     return render_template(
         "employee_relations/detail.html",
@@ -798,8 +811,9 @@ def view_case(case_id):
         attachment_categories=ATTACHMENT_CATEGORIES,
         er_document_types=ER_DOCUMENT_TYPES,
         er_document_draft_modes=ER_DOCUMENT_DRAFT_MODES,
-        default_er_document_mode="ai" if latest_ai else "plain",
+        default_er_document_mode=_default_er_document_mode(er_case),
         has_er_ai_advice=bool(latest_ai),
+        er_ai_enabled=er_ai_enabled,
     )
 
 
@@ -1135,6 +1149,10 @@ def add_policy_text(case_id):
 def generate_ai_advice(case_id):
     er_case = EmployeeRelationsCase.query.get_or_404(case_id)
 
+    if not _is_employee_relations_ai_enabled():
+        flash("AI is disabled for the Employee Relations module for your organisation.", "warning")
+        return redirect(url_for("employee_relations.view_case", case_id=case_id))
+
     active_policy, active_policy_text = _get_active_policy_text(er_case)
 
     try:
@@ -1203,9 +1221,16 @@ def create_document(case_id):
 
     requested_mode = _normalise_er_document_mode(request.form.get("draft_mode"))
     latest_ai = _latest_er_ai_advice(er_case)
+    ai_enabled = _is_employee_relations_ai_enabled()
 
     effective_mode = requested_mode
-    if requested_mode == "ai" and not latest_ai:
+    if requested_mode == "ai" and not ai_enabled:
+        effective_mode = "plain"
+        flash(
+            "AI-prefilled draft was requested, but AI is disabled for Employee Relations for this organisation. A plain draft was created instead.",
+            "warning",
+        )
+    elif requested_mode == "ai" and not latest_ai:
         effective_mode = "plain"
         flash(
             "AI-prefilled draft was requested, but no AI advice exists for this case yet. A plain draft was created instead.",
@@ -1240,7 +1265,7 @@ def create_document(case_id):
         timeline_note = (
             f"{document_type} draft created (v{doc.version}) "
             f"with requested mode '{_draft_mode_label(requested_mode)}', "
-            f"but no AI advice was available so '{_draft_origin_label(draft_origin)}' was used."
+            f"but no AI-prefilled draft could be used so '{_draft_origin_label(draft_origin)}' was used."
         )
     else:
         timeline_note = (
