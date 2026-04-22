@@ -20,7 +20,17 @@ from flask_login import current_user, login_required
 from sqlalchemy import or_
 
 from forms import PIPForm
-from models import AIConsentLog, DraftPIP, DocumentFile, Employee, PIPActionItem, PIPRecord, TimelineEvent, db
+from models import (
+    AIConsentLog,
+    AdvisorEscalation,
+    DraftPIP,
+    DocumentFile,
+    Employee,
+    PIPActionItem,
+    PIPRecord,
+    TimelineEvent,
+    db,
+)
 from pip_app.security import (
     log_security_event,
     require_employee_access,
@@ -162,13 +172,163 @@ def _is_pip_ai_enabled():
     return bool(getattr(setting, "ai_enabled", defaults.get("ai_enabled", True)))
 
 
+def _is_pip_escalation_enabled():
+    _org, settings = get_module_settings_for_org(user=current_user)
+    setting = settings.get("pip")
+    defaults = DEFAULT_MODULE_SETTINGS.get("pip", {"escalation_enabled": True})
+
+    if setting is None:
+        return bool(defaults.get("escalation_enabled", True))
+
+    return bool(getattr(setting, "escalation_enabled", defaults.get("escalation_enabled", True)))
+
+
+def _get_pip_escalations(pip_id):
+    return (
+        AdvisorEscalation.query.filter_by(
+            module_key="pip",
+            source_record_type="pip",
+            source_record_id=pip_id,
+        )
+        .order_by(AdvisorEscalation.created_at.desc())
+        .all()
+    )
+
+
+def _get_latest_pip_escalation(pip_id):
+    return (
+        AdvisorEscalation.query.filter_by(
+            module_key="pip",
+            source_record_type="pip",
+            source_record_id=pip_id,
+        )
+        .order_by(AdvisorEscalation.created_at.desc())
+        .first()
+    )
+
+
+def _pip_escalation_is_active(escalation):
+    if escalation is None:
+        return False
+    return escalation.status in {"draft", "submitted", "acknowledged", "in_review"}
+
+
+def _build_pip_escalation_summary(pip, employee):
+    lines = [
+        f"Employee: {employee.full_name}",
+        f"Job Title: {employee.job_title or '—'}",
+        f"Line Manager: {employee.line_manager or '—'}",
+        f"Service: {employee.service or '—'}",
+        f"PIP Status: {pip.status or '—'}",
+        f"Start Date: {pip.start_date.strftime('%d %b %Y') if pip.start_date else '—'}",
+        f"Review Date: {pip.review_date.strftime('%d %b %Y') if pip.review_date else '—'}",
+        f"Concern Category: {pip.concern_category or '—'}",
+        f"Severity: {pip.severity or '—'}",
+        f"Frequency: {pip.frequency or '—'}",
+        "",
+        "Concerns:",
+        pip.concerns or "—",
+        "",
+        "Meeting Notes:",
+        pip.meeting_notes or "—",
+        "",
+        "Action Plan:",
+    ]
+
+    if pip.action_items:
+        for item in pip.action_items:
+            desc = item.description or "—"
+            status = item.status or "—"
+            lines.append(f"- {desc} [{status}]")
+    else:
+        lines.append("- No action items recorded")
+
+    if pip.ai_advice:
+        lines.extend([
+            "",
+            "Existing AI Advice:",
+            pip.ai_advice,
+        ])
+
+    return "\n".join(lines).strip()
+
+
 @pip_bp.route('/pip/<int:id>')
 @login_required
 def pip_detail(id):
     pip = _scoped_pip_query().filter(PIPRecord.id == id).first_or_404()
     require_pip_access(pip)
     employee = pip.employee
-    return render_template('pip_detail.html', pip=pip, employee=employee)
+
+    escalation_enabled = _is_pip_escalation_enabled()
+    escalations = _get_pip_escalations(pip.id)
+    latest_escalation = escalations[0] if escalations else None
+    can_submit_escalation = escalation_enabled and not _pip_escalation_is_active(latest_escalation)
+
+    return render_template(
+        'pip_detail.html',
+        pip=pip,
+        employee=employee,
+        escalation_enabled=escalation_enabled,
+        escalations=escalations,
+        latest_escalation=latest_escalation,
+        can_submit_escalation=can_submit_escalation,
+    )
+
+
+@pip_bp.route('/pip/<int:id>/escalate', methods=['POST'])
+@login_required
+def submit_pip_escalation(id):
+    pip = _scoped_pip_query().filter(PIPRecord.id == id).first_or_404()
+    require_pip_access(pip)
+    employee = pip.employee
+
+    if not _is_pip_escalation_enabled():
+        flash("Advisor escalation is disabled for the PIP module for your organisation.", "warning")
+        return redirect(url_for('pip.pip_detail', id=pip.id))
+
+    latest_escalation = _get_latest_pip_escalation(pip.id)
+    if _pip_escalation_is_active(latest_escalation):
+        flash("This PIP already has an active advisor escalation.", "warning")
+        return redirect(url_for('pip.pip_detail', id=pip.id))
+
+    submitted_summary = (request.form.get("summary") or "").strip()
+    summary = submitted_summary or _build_pip_escalation_summary(pip, employee)
+
+    escalation = AdvisorEscalation(
+        organisation_id=employee.organisation_id or getattr(current_user, "organisation_id", None),
+        module_key="pip",
+        source_record_type="pip",
+        source_record_id=pip.id,
+        submitted_by_user_id=current_user.id,
+        assigned_to_user_id=None,
+        status="submitted",
+        summary=summary,
+        submitted_at=datetime.utcnow(),
+    )
+
+    db.session.add(escalation)
+
+    log_timeline_event(
+        pip_id=pip.id,
+        event_type="Advisor Escalation Submitted",
+        notes="PIP submitted for advisor escalation.",
+    )
+
+    try:
+        log_security_event(
+            event_type="PIP Advisor Escalation Submitted",
+            notes=f"PIP #{pip.id} submitted for advisor escalation",
+            pip_record_id=pip.id,
+            updated_by=current_user.username,
+        )
+    except Exception:
+        pass
+
+    db.session.commit()
+
+    flash("PIP submitted for advisor escalation.", "success")
+    return redirect(url_for('pip.pip_detail', id=pip.id))
 
 
 @pip_bp.route("/pip/<int:pip_id>/documents", methods=["GET"])

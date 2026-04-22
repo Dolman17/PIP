@@ -98,6 +98,26 @@
     </div>
   </div>
 
+  <div class="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-amber-700">Open escalations</p>
+      <p class="mt-2 text-3xl font-bold text-amber-900">{{ open_escalations_count or 0 }}</p>
+      <p class="mt-1 text-sm text-amber-800">Submitted, acknowledged, or in review.</p>
+    </div>
+
+    <div class="rounded-2xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-blue-700">Unassigned</p>
+      <p class="mt-2 text-3xl font-bold text-blue-900">{{ unassigned_escalations_count or 0 }}</p>
+      <p class="mt-1 text-sm text-blue-800">Waiting for an advisor/admin owner.</p>
+    </div>
+
+    <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Closed escalations</p>
+      <p class="mt-2 text-3xl font-bold text-emerald-900">{{ closed_escalations_count or 0 }}</p>
+      <p class="mt-1 text-sm text-emerald-800">Completed escalation cases.</p>
+    </div>
+  </div>
+
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
 
     <!-- Manage Users -->
@@ -107,7 +127,7 @@
         <h3 class="ml-3 text-lg font-semibold text-ellipse-teal">Manage Users</h3>
       </div>
       <p class="text-sm text-gray-600 mb-4">Add, edit, or remove users and assign admin roles.</p>
-      <a href="{{ url_for('manage_users') }}"
+      <a href="{{ url_for('admin.manage_users') }}"
          class="inline-block text-sm bg-ellipse-teal hover:bg-ellipse-hover text-white px-4 py-2 rounded">
         Go to User Manager →
       </a>
@@ -126,6 +146,19 @@
       </a>
     </div>
 
+    <!-- Advisor Queue -->
+    <div class="bg-[#e6f3f3] p-6 rounded-xl shadow border border-gray-200 hover:shadow-lg transition">
+      <div class="flex items-center mb-4">
+        <div class="bg-amber-600 text-white rounded-full h-10 w-10 flex items-center justify-center text-lg">🧑‍💼</div>
+        <h3 class="ml-3 text-lg font-semibold text-amber-700">Advisor Queue</h3>
+      </div>
+      <p class="text-sm text-gray-600 mb-4">Review, acknowledge, assign, and close escalations raised from platform modules.</p>
+      <a href="{{ url_for('admin.advisor_escalation_queue') }}"
+         class="inline-block text-sm bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded">
+        Open Queue →
+      </a>
+    </div>
+
     <!-- Backup Database -->
     <div class="bg-[#e6f3f3] p-6 rounded-xl shadow border border-gray-200 hover:shadow-lg transition">
       <div class="flex items-center mb-4">
@@ -133,7 +166,7 @@
         <h3 class="ml-3 text-lg font-semibold text-yellow-700">Backup Database</h3>
       </div>
       <p class="text-sm text-gray-600 mb-4">Download a full backup of the current database.</p>
-      <a href="{{ url_for('backup_database') }}"
+      <a href="{{ url_for('admin.backup_database') }}"
          class="inline-block text-sm bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded">
         Run Backup →
       </a>
@@ -146,7 +179,7 @@
         <h3 class="ml-3 text-lg font-semibold text-green-700">Export Data</h3>
       </div>
       <p class="text-sm text-gray-600 mb-4">Export employees, PIPs, timeline activity, and probation data.</p>
-      <a href="{{ url_for('export_data') }}"
+      <a href="{{ url_for('admin.export_data') }}"
          class="inline-block text-sm bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
         Export Now →
       </a>

@@ -25,6 +25,8 @@ from pip_app.models import (
     APIKey,
     Organisation,
     OrganisationModuleSetting,
+    AdvisorEscalation,
+    AdvisorEscalationDocument,
 )
 
 __all__ = [
@@ -54,4 +56,6 @@ __all__ = [
     "APIKey",
     "Organisation",
     "OrganisationModuleSetting",
+    "AdvisorEscalation",
+    "AdvisorEscalationDocument",
 ]

@@ -47,6 +47,7 @@
 {% set current_endpoint = request.endpoint or '' %}
 {% set active_module = (active_module|default(None)) or session.get('active_module') %}
 {% set enabled_modules = enabled_modules|default({}) %}
+{% set advisor_queue_counts = advisor_queue_counts|default({'open': 0, 'unassigned': 0}) %}
 {% set layout = (layout|default('')) %}
 {% set hide_sidebar = ((hide_sidebar if hide_sidebar is defined else False) or (not is_logged_in) or (layout == 'fullscreen')) %}
 
@@ -417,6 +418,39 @@
                                {% endif %}">
                     Reporting
                   </span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        {% endif %}
+
+        {% if current_user.is_admin() %}
+          <div>
+            <div class="px-1 text-[11px] font-semibold uppercase tracking-wide text-white/60 mb-1">
+              Advisor
+            </div>
+            <ul class="space-y-1">
+              <li>
+                <a href="{{ url_for('admin.advisor_escalation_queue') }}"
+                   class="flex items-center justify-between gap-2 rounded-xl px-3 py-2
+                          {% if current_endpoint == 'admin.advisor_escalation_queue' %}
+                            bg-white text-[#0a4d4c]
+                          {% else %}
+                            text-white/80 hover:bg-white/10
+                          {% endif %}">
+                  <span class="flex items-center gap-2 min-w-0">
+                    <span class="text-base">🧑‍💼</span>
+                    <span class="text-sm font-medium">Advisor Queue</span>
+                  </span>
+                  {% if advisor_queue_counts.open > 0 %}
+                    <span class="inline-flex items-center rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-bold text-slate-900">
+                      {{ advisor_queue_counts.open }}
+                    </span>
+                  {% else %}
+                    <span class="inline-flex items-center rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold text-inherit">
+                      0
+                    </span>
+                  {% endif %}
                 </a>
               </li>
             </ul>

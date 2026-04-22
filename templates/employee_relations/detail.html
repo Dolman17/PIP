@@ -39,6 +39,68 @@
     </div>
   </div>
 
+  <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div>
+        <h3 class="text-lg font-semibold text-slate-900">Advisor Escalation</h3>
+        <p class="mt-1 text-sm text-slate-600">
+          Submit this case for advisor review where additional HR oversight is needed.
+        </p>
+      </div>
+
+      {% if escalation_enabled and can_submit_escalation %}
+      <form method="post"
+            action="{{ url_for('employee_relations.submit_escalation', case_id=er_case.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit"
+                class="inline-flex items-center rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">
+          Submit Escalation
+        </button>
+      </form>
+      {% endif %}
+    </div>
+
+    {% if not escalation_enabled %}
+      <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        Advisor escalation is disabled for Employee Relations for your organisation.
+      </div>
+    {% elif latest_escalation %}
+      <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p class="text-sm font-semibold text-slate-900">Latest escalation</p>
+            <p class="mt-1 text-xs text-slate-500">
+              Submitted by {{ latest_escalation.submitted_by.username if latest_escalation.submitted_by else 'Unknown' }}
+              on {{ latest_escalation.created_at.strftime('%d/%m/%Y %H:%M') if latest_escalation.created_at else '—' }}
+            </p>
+          </div>
+
+          <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+            {{ latest_escalation.status.replace('_', ' ').title() }}
+          </span>
+        </div>
+
+        {% if latest_escalation.summary %}
+        <div class="mt-4">
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Submission summary</p>
+          <pre class="mt-2 whitespace-pre-wrap text-sm text-slate-800 rounded-lg border border-slate-200 bg-white p-3">{{ latest_escalation.summary }}</pre>
+        </div>
+        {% endif %}
+
+        {% if latest_escalation.advisor_notes %}
+        <div class="mt-4">
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Advisor notes</p>
+          <pre class="mt-2 whitespace-pre-wrap text-sm text-slate-800 rounded-lg border border-slate-200 bg-white p-3">{{ latest_escalation.advisor_notes }}</pre>
+        </div>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200">
+        No advisor escalation has been submitted for this case yet.
+      </div>
+    {% endif %}
+  </div>
+
   <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
     <div class="xl:col-span-2 space-y-6">
 

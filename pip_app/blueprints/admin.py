@@ -14,6 +14,7 @@ from werkzeug.security import generate_password_hash
 from forms import OrganisationForm, UserForm
 from models import (
     db,
+    AdvisorEscalation,
     Employee,
     Organisation,
     OrganisationModuleSetting,
@@ -23,15 +24,32 @@ from models import (
     ProbationReview,
     TimelineEvent,
     User,
+    EmployeeRelationsCase,
+    EmployeeRelationsTimelineEvent,
 )
 from pip_app.decorators import superuser_required
+from pip_app.security import log_security_event
 from pip_app.services.module_settings import (
     DEFAULT_MODULE_LABELS,
     DEFAULT_MODULE_SETTINGS,
     get_module_settings_for_org,
 )
+from pip_app.services.timeline_utils import log_timeline_event
 
 admin_bp = Blueprint("admin", __name__)
+
+ESCALATION_STATUS_LABELS = {
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "acknowledged": "Acknowledged",
+    "in_review": "In Review",
+    "closed": "Closed",
+    "cancelled": "Cancelled",
+}
+
+ACTIVE_ESCALATION_STATUSES = {"draft", "submitted", "acknowledged", "in_review"}
+QUEUE_ESCALATION_STATUSES = {"submitted", "acknowledged", "in_review"}
+ALL_ESCALATION_STATUSES = set(ESCALATION_STATUS_LABELS.keys())
 
 
 def _organisation_choices():
@@ -62,13 +80,169 @@ def _get_selected_organisation_from_request():
     return db.session.get(Organisation, organisation_id)
 
 
+def _admin_queue_access_required():
+    if not current_user.is_authenticated:
+        return redirect(url_for("login"))
+    if not current_user.is_admin():
+        flash("You do not have permission to access the advisor queue.", "danger")
+        return redirect(url_for("main.home"))
+    return None
+
+
+def _scoped_escalation_query():
+    query = AdvisorEscalation.query
+
+    if getattr(current_user, "organisation_id", None):
+        query = query.filter(AdvisorEscalation.organisation_id == current_user.organisation_id)
+
+    return query
+
+
+def _get_escalation_or_404(escalation_id):
+    escalation = _scoped_escalation_query().filter(
+        AdvisorEscalation.id == escalation_id
+    ).first_or_404()
+    return escalation
+
+
+def _build_escalation_source_context(escalation):
+    context = {
+        "source_title": f"{escalation.source_record_type.title()} #{escalation.source_record_id}",
+        "source_url": None,
+        "employee_name": None,
+        "secondary": None,
+    }
+
+    if escalation.source_record_type == "pip":
+        pip_record = PIPRecord.query.get(escalation.source_record_id)
+        if pip_record:
+            employee = pip_record.employee
+            employee_name = employee.full_name if employee else None
+            context.update(
+                {
+                    "source_title": f"PIP #{pip_record.id}",
+                    "source_url": url_for("pip.pip_detail", id=pip_record.id),
+                    "employee_name": employee_name,
+                    "secondary": employee.job_title if employee else None,
+                }
+            )
+
+    elif escalation.source_record_type == "employee_relations":
+        er_case = EmployeeRelationsCase.query.get(escalation.source_record_id)
+        if er_case:
+            employee = er_case.employee
+            employee_name = (
+                f"{employee.first_name} {employee.last_name}".strip()
+                if employee else None
+            )
+            context.update(
+                {
+                    "source_title": f"ER Case #{er_case.id}: {er_case.title}",
+                    "source_url": url_for("employee_relations.view_case", case_id=er_case.id),
+                    "employee_name": employee_name,
+                    "secondary": er_case.case_type,
+                }
+            )
+
+    return context
+
+
+def _apply_escalation_status_change(escalation, new_status, advisor_notes=None):
+    old_status = escalation.status
+    now = datetime.utcnow()
+
+    escalation.status = new_status
+
+    if advisor_notes is not None:
+        cleaned_notes = advisor_notes.strip()
+        escalation.advisor_notes = cleaned_notes or None
+
+    if new_status in {"acknowledged", "in_review"} and escalation.assigned_to_user_id is None:
+        escalation.assigned_to_user_id = current_user.id
+
+    if new_status == "acknowledged" and escalation.acknowledged_at is None:
+        escalation.acknowledged_at = now
+
+    if new_status == "submitted":
+        escalation.closed_at = None
+        escalation.cancelled_at = None
+
+    if new_status == "in_review":
+        escalation.closed_at = None
+        escalation.cancelled_at = None
+
+    if new_status == "closed":
+        escalation.closed_at = now
+        escalation.cancelled_at = None
+
+    if new_status == "cancelled":
+        escalation.cancelled_at = now
+
+    if escalation.source_record_type == "pip":
+        status_label = ESCALATION_STATUS_LABELS.get(new_status, new_status.replace("_", " ").title())
+        note = f"Advisor escalation status changed from {old_status} to {new_status} by {current_user.username}."
+        if escalation.advisor_notes:
+            note += f" Notes: {escalation.advisor_notes}"
+
+        log_timeline_event(
+            pip_id=escalation.source_record_id,
+            event_type=f"Advisor Escalation {status_label}",
+            notes=note,
+        )
+
+        try:
+            log_security_event(
+                event_type="PIP Advisor Escalation Updated",
+                notes=(
+                    f"PIP #{escalation.source_record_id} escalation #{escalation.id} "
+                    f"changed from {old_status} to {new_status}"
+                ),
+                pip_record_id=escalation.source_record_id,
+                updated_by=current_user.username,
+            )
+        except Exception:
+            pass
+
+    elif escalation.source_record_type == "employee_relations":
+        status_label = ESCALATION_STATUS_LABELS.get(new_status, new_status.replace("_", " ").title())
+        note = f"Advisor escalation status changed from {old_status} to {new_status} by {current_user.username}."
+        if escalation.advisor_notes:
+            note += f" Notes: {escalation.advisor_notes}"
+
+        event = EmployeeRelationsTimelineEvent(
+            case_id=escalation.source_record_id,
+            event_type=f"Advisor Escalation {status_label}",
+            notes=note,
+            updated_by=current_user.username,
+        )
+        db.session.add(event)
+
+
 @admin_bp.route("/admin/dashboard")
 @login_required
 def admin_dashboard():
     if not current_user.is_superuser():
         flash("You do not have permission to access the admin dashboard.", "danger")
         return redirect(url_for("main.home"))
-    return render_template("admin_dashboard.html")
+
+    escalation_query = _scoped_escalation_query()
+    open_escalations_count = escalation_query.filter(
+        AdvisorEscalation.status.in_(list(QUEUE_ESCALATION_STATUSES))
+    ).count()
+    unassigned_escalations_count = escalation_query.filter(
+        AdvisorEscalation.status.in_(list(QUEUE_ESCALATION_STATUSES)),
+        AdvisorEscalation.assigned_to_user_id.is_(None),
+    ).count()
+    closed_escalations_count = escalation_query.filter(
+        AdvisorEscalation.status == "closed"
+    ).count()
+
+    return render_template(
+        "admin_dashboard.html",
+        open_escalations_count=open_escalations_count,
+        unassigned_escalations_count=unassigned_escalations_count,
+        closed_escalations_count=closed_escalations_count,
+    )
 
 
 @admin_bp.route("/admin/organisations", methods=["GET", "POST"])
@@ -227,6 +401,111 @@ def admin_module_settings():
         ai_enabled_count=ai_enabled_count,
         escalation_enabled_count=escalation_enabled_count,
     )
+
+
+@admin_bp.route("/admin/escalations")
+@login_required
+def advisor_escalation_queue():
+    access_check = _admin_queue_access_required()
+    if access_check:
+        return access_check
+
+    status_filter = (request.args.get("status") or "").strip().lower()
+    module_filter = (request.args.get("module_key") or "").strip().lower()
+    assigned_filter = (request.args.get("assigned") or "").strip().lower()
+
+    query = _scoped_escalation_query().order_by(
+        AdvisorEscalation.created_at.desc()
+    )
+
+    if status_filter:
+        query = query.filter(AdvisorEscalation.status == status_filter)
+
+    if module_filter:
+        query = query.filter(AdvisorEscalation.module_key == module_filter)
+
+    if assigned_filter == "me":
+        query = query.filter(AdvisorEscalation.assigned_to_user_id == current_user.id)
+    elif assigned_filter == "unassigned":
+        query = query.filter(AdvisorEscalation.assigned_to_user_id.is_(None))
+
+    escalations = query.all()
+
+    escalation_rows = []
+    for escalation in escalations:
+        source = _build_escalation_source_context(escalation)
+        escalation_rows.append(
+            {
+                "escalation": escalation,
+                "source": source,
+                "is_active": escalation.status in ACTIVE_ESCALATION_STATUSES,
+            }
+        )
+
+    open_count = _scoped_escalation_query().filter(
+        AdvisorEscalation.status.in_(list(QUEUE_ESCALATION_STATUSES))
+    ).count()
+    unassigned_count = _scoped_escalation_query().filter(
+        AdvisorEscalation.status.in_(list(QUEUE_ESCALATION_STATUSES)),
+        AdvisorEscalation.assigned_to_user_id.is_(None),
+    ).count()
+    my_queue_count = _scoped_escalation_query().filter(
+        AdvisorEscalation.status.in_(list(QUEUE_ESCALATION_STATUSES)),
+        AdvisorEscalation.assigned_to_user_id == current_user.id,
+    ).count()
+
+    return render_template(
+        "admin_escalations.html",
+        escalation_rows=escalation_rows,
+        status_filter=status_filter,
+        module_filter=module_filter,
+        assigned_filter=assigned_filter,
+        escalation_status_labels=ESCALATION_STATUS_LABELS,
+        open_count=open_count,
+        unassigned_count=unassigned_count,
+        my_queue_count=my_queue_count,
+    )
+
+
+@admin_bp.route("/admin/escalations/<int:escalation_id>/update", methods=["POST"])
+@login_required
+def update_advisor_escalation(escalation_id):
+    access_check = _admin_queue_access_required()
+    if access_check:
+        return access_check
+
+    escalation = _get_escalation_or_404(escalation_id)
+    new_status = (request.form.get("status") or "").strip().lower()
+    advisor_notes = request.form.get("advisor_notes") or ""
+
+    if new_status not in ALL_ESCALATION_STATUSES:
+        flash("Invalid escalation status selected.", "danger")
+        return redirect(url_for("admin.advisor_escalation_queue"))
+
+    current_status = escalation.status
+
+    allowed_transitions = {
+        "draft": {"submitted", "acknowledged", "in_review", "closed", "cancelled"},
+        "submitted": {"acknowledged", "in_review", "closed", "cancelled"},
+        "acknowledged": {"in_review", "closed", "cancelled"},
+        "in_review": {"closed", "cancelled"},
+        "closed": set(),
+        "cancelled": set(),
+    }
+
+    if new_status != current_status and new_status not in allowed_transitions.get(current_status, set()):
+        flash("That escalation status change is not allowed from the current state.", "danger")
+        return redirect(url_for("admin.advisor_escalation_queue"))
+
+    _apply_escalation_status_change(
+        escalation,
+        new_status=new_status,
+        advisor_notes=advisor_notes,
+    )
+
+    db.session.commit()
+    flash("Escalation updated successfully.", "success")
+    return redirect(url_for("admin.advisor_escalation_queue"))
 
 
 @admin_bp.route("/admin/export")

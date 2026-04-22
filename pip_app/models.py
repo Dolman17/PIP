@@ -154,6 +154,14 @@ class PIPRecord(db.Model):
         cascade="all, delete-orphan",
         lazy=True,
     )
+    advisor_escalations = db.relationship(
+        "AdvisorEscalation",
+        primaryjoin="and_(foreign(AdvisorEscalation.source_record_id) == PIPRecord.id, "
+        "AdvisorEscalation.source_record_type == 'pip')",
+        viewonly=True,
+        lazy=True,
+        order_by="desc(AdvisorEscalation.created_at)",
+    )
 
 
 class PIPActionItem(db.Model):
@@ -558,6 +566,15 @@ class EmployeeRelationsCase(db.Model):
         order_by="desc(EmployeeRelationsAIAdvice.created_at)",
     )
 
+    advisor_escalations = db.relationship(
+        "AdvisorEscalation",
+        primaryjoin="and_(foreign(AdvisorEscalation.source_record_id) == EmployeeRelationsCase.id, "
+        "AdvisorEscalation.source_record_type == 'employee_relations')",
+        viewonly=True,
+        lazy=True,
+        order_by="desc(AdvisorEscalation.created_at)",
+    )
+
     def __repr__(self):
         return f"<EmployeeRelationsCase {self.id} type={self.case_type} status={self.status}>"
 
@@ -957,4 +974,128 @@ class OrganisationModuleSetting(db.Model):
             f"enabled={self.is_enabled} "
             f"ai={self.ai_enabled} "
             f"escalation={self.escalation_enabled}>"
+        )
+
+
+class AdvisorEscalation(db.Model):
+    __tablename__ = "advisor_escalations"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    organisation_id = db.Column(
+        db.Integer,
+        db.ForeignKey("organisations.id"),
+        nullable=True,
+        index=True,
+    )
+
+    module_key = db.Column(db.String(50), nullable=False, index=True)
+    source_record_type = db.Column(db.String(50), nullable=False, index=True)
+    source_record_id = db.Column(db.Integer, nullable=False, index=True)
+
+    submitted_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        index=True,
+    )
+    assigned_to_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=True,
+        index=True,
+    )
+
+    status = db.Column(db.String(50), nullable=False, default="draft", index=True)
+    summary = db.Column(db.Text, nullable=True)
+    advisor_notes = db.Column(db.Text, nullable=True)
+
+    submitted_at = db.Column(db.DateTime, nullable=True)
+    acknowledged_at = db.Column(db.DateTime, nullable=True)
+    closed_at = db.Column(db.DateTime, nullable=True)
+    cancelled_at = db.Column(db.DateTime, nullable=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+
+    organisation = db.relationship(
+        "Organisation",
+        backref=db.backref("advisor_escalations", lazy=True),
+    )
+
+    submitted_by = db.relationship(
+        "User",
+        foreign_keys=[submitted_by_user_id],
+        backref=db.backref("submitted_advisor_escalations", lazy=True),
+    )
+
+    assigned_to = db.relationship(
+        "User",
+        foreign_keys=[assigned_to_user_id],
+        backref=db.backref("assigned_advisor_escalations", lazy=True),
+    )
+
+    documents = db.relationship(
+        "AdvisorEscalationDocument",
+        back_populates="escalation",
+        cascade="all, delete-orphan",
+        lazy=True,
+        order_by="desc(AdvisorEscalationDocument.created_at)",
+    )
+
+    __table_args__ = (
+        db.Index(
+            "ix_advisor_escalation_source_lookup",
+            "source_record_type",
+            "source_record_id",
+        ),
+    )
+
+    def __repr__(self):
+        return (
+            f"<AdvisorEscalation id={self.id} module={self.module_key} "
+            f"source={self.source_record_type}:{self.source_record_id} status={self.status}>"
+        )
+
+
+class AdvisorEscalationDocument(db.Model):
+    __tablename__ = "advisor_escalation_documents"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    escalation_id = db.Column(
+        db.Integer,
+        db.ForeignKey("advisor_escalations.id"),
+        nullable=False,
+        index=True,
+    )
+
+    document_type = db.Column(db.String(100), nullable=True)
+    file_name = db.Column(db.String(255), nullable=False)
+    file_path = db.Column(db.String(500), nullable=False)
+    metadata_json = db.Column(db.Text, nullable=True)
+
+    created_by = db.Column(db.String(120), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    escalation = db.relationship(
+        "AdvisorEscalation",
+        back_populates="documents",
+    )
+
+    def metadata_dict(self):
+        try:
+            return json.loads(self.metadata_json or "{}")
+        except Exception:
+            return {}
+
+    def __repr__(self):
+        return (
+            f"<AdvisorEscalationDocument id={self.id} "
+            f"escalation_id={self.escalation_id} file_name={self.file_name}>"
         )

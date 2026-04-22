@@ -31,6 +31,7 @@ from models import (
     ImportJob,
     DocumentFile,
     SicknessCase,
+    AdvisorEscalation,
 )
 
 from pip_app.services.auth_utils import superuser_required
@@ -161,6 +162,33 @@ def inject_enabled_modules():
     except Exception:
         return dict(enabled_modules={module_key: True for module_key in DEFAULT_MODULE_KEYS})
 
+@app.context_processor
+def inject_advisor_queue_counts():
+    try:
+        if not getattr(current_user, "is_authenticated", False):
+            return dict(advisor_queue_counts={"open": 0, "unassigned": 0})
+
+        if not current_user.is_admin():
+            return dict(advisor_queue_counts={"open": 0, "unassigned": 0})
+
+        query = AdvisorEscalation.query.filter(
+            AdvisorEscalation.status.in_(["submitted", "acknowledged", "in_review"])
+        )
+
+        if getattr(current_user, "organisation_id", None):
+            query = query.filter(AdvisorEscalation.organisation_id == current_user.organisation_id)
+
+        open_count = query.count()
+        unassigned_count = query.filter(AdvisorEscalation.assigned_to_user_id.is_(None)).count()
+
+        return dict(
+            advisor_queue_counts={
+                "open": open_count,
+                "unassigned": unassigned_count,
+            }
+        )
+    except Exception:
+        return dict(advisor_queue_counts={"open": 0, "unassigned": 0})
 
 @app.context_processor
 def inject_csrf_token():

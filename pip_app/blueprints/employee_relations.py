@@ -19,6 +19,7 @@ from sqlalchemy import or_
 
 from pip_app.extensions import db
 from pip_app.models import (
+    AdvisorEscalation,
     Employee,
     EmployeeRelationsCase,
     EmployeeRelationsTimelineEvent,
@@ -195,6 +196,93 @@ def _is_employee_relations_ai_enabled():
         return bool(defaults.get("ai_enabled", True))
 
     return bool(getattr(setting, "ai_enabled", defaults.get("ai_enabled", True)))
+
+
+def _is_employee_relations_escalation_enabled():
+    _org, settings = get_module_settings_for_org(user=current_user)
+    setting = settings.get("employee_relations")
+    defaults = DEFAULT_MODULE_SETTINGS.get(
+        "employee_relations",
+        {"escalation_enabled": True},
+    )
+
+    if setting is None:
+        return bool(defaults.get("escalation_enabled", True))
+
+    return bool(
+        getattr(setting, "escalation_enabled", defaults.get("escalation_enabled", True))
+    )
+
+
+def _get_er_escalations(case_id):
+    return (
+        AdvisorEscalation.query.filter_by(
+            module_key="employee_relations",
+            source_record_type="employee_relations",
+            source_record_id=case_id,
+        )
+        .order_by(AdvisorEscalation.created_at.desc())
+        .all()
+    )
+
+
+def _get_latest_er_escalation(case_id):
+    return (
+        AdvisorEscalation.query.filter_by(
+            module_key="employee_relations",
+            source_record_type="employee_relations",
+            source_record_id=case_id,
+        )
+        .order_by(AdvisorEscalation.created_at.desc())
+        .first()
+    )
+
+
+def _er_escalation_is_active(escalation):
+    if escalation is None:
+        return False
+    return escalation.status in {"draft", "submitted", "acknowledged", "in_review"}
+
+
+def _build_er_escalation_summary(er_case):
+    employee_name = f"{er_case.employee.first_name} {er_case.employee.last_name}"
+    lines = [
+        f"Employee: {employee_name}",
+        f"Job Title: {er_case.employee.job_title or '—'}",
+        f"Case Type: {er_case.case_type or '—'}",
+        f"Case Title: {er_case.title or '—'}",
+        f"Case Status: {er_case.status or '—'}",
+        f"Stage: {er_case.stage or '—'}",
+        f"Priority: {er_case.priority_level or '—'}",
+        f"Date Raised: {er_case.date_raised.strftime('%d %b %Y') if er_case.date_raised else '—'}",
+        "",
+        "Summary:",
+        er_case.summary or "—",
+        "",
+        "Allegation / Grievance Details:",
+        er_case.allegation_or_grievance or "—",
+    ]
+
+    if er_case.investigation_findings:
+        lines.extend(["", "Investigation Findings:", er_case.investigation_findings])
+
+    if er_case.recommended_next_step:
+        lines.extend(["", "Recommended Next Step:", er_case.recommended_next_step])
+
+    if er_case.confidential_notes:
+        lines.extend(["", "Confidential Notes:", er_case.confidential_notes])
+
+    latest_ai = _latest_er_ai_advice(er_case)
+    if latest_ai:
+        lines.extend(
+            [
+                "",
+                "Latest AI Advice Snapshot:",
+                latest_ai.immediate_next_steps or latest_ai.overall_risk_view or "—",
+            ]
+        )
+
+    return "\n".join(lines).strip()
 
 
 def _default_er_document_mode(er_case):
@@ -802,6 +890,11 @@ def view_case(case_id):
     latest_ai = _latest_er_ai_advice(er_case)
     er_ai_enabled = _is_employee_relations_ai_enabled()
 
+    escalation_enabled = _is_employee_relations_escalation_enabled()
+    escalations = _get_er_escalations(er_case.id)
+    latest_escalation = escalations[0] if escalations else None
+    can_submit_escalation = escalation_enabled and not _er_escalation_is_active(latest_escalation)
+
     return render_template(
         "employee_relations/detail.html",
         er_case=er_case,
@@ -814,7 +907,52 @@ def view_case(case_id):
         default_er_document_mode=_default_er_document_mode(er_case),
         has_er_ai_advice=bool(latest_ai),
         er_ai_enabled=er_ai_enabled,
+        escalation_enabled=escalation_enabled,
+        escalations=escalations,
+        latest_escalation=latest_escalation,
+        can_submit_escalation=can_submit_escalation,
     )
+
+
+@employee_relations_bp.route("/cases/<int:case_id>/escalate", methods=["POST"])
+def submit_escalation(case_id):
+    er_case = EmployeeRelationsCase.query.get_or_404(case_id)
+
+    if not _is_employee_relations_escalation_enabled():
+        flash("Advisor escalation is disabled for Employee Relations for your organisation.", "warning")
+        return redirect(url_for("employee_relations.view_case", case_id=case_id))
+
+    latest_escalation = _get_latest_er_escalation(er_case.id)
+    if _er_escalation_is_active(latest_escalation):
+        flash("This case already has an active advisor escalation.", "warning")
+        return redirect(url_for("employee_relations.view_case", case_id=case_id))
+
+    submitted_summary = (request.form.get("summary") or "").strip()
+    summary = submitted_summary or _build_er_escalation_summary(er_case)
+
+    escalation = AdvisorEscalation(
+        organisation_id=er_case.employee.organisation_id or getattr(current_user, "organisation_id", None),
+        module_key="employee_relations",
+        source_record_type="employee_relations",
+        source_record_id=er_case.id,
+        submitted_by_user_id=current_user.id,
+        assigned_to_user_id=None,
+        status="submitted",
+        summary=summary,
+        submitted_at=datetime.utcnow(),
+    )
+
+    db.session.add(escalation)
+
+    _log_case_event(
+        er_case.id,
+        "Advisor Escalation Submitted",
+        "Employee Relations case submitted for advisor escalation.",
+    )
+
+    db.session.commit()
+    flash("Case submitted for advisor escalation.", "success")
+    return redirect(url_for("employee_relations.view_case", case_id=case_id))
 
 
 @employee_relations_bp.route("/cases/<int:case_id>/edit", methods=["GET", "POST"])
