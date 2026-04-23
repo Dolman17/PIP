@@ -10,7 +10,6 @@
      ---------------------------- #}
   {% set s_ns = namespace(total=0, open=0, last_case=None, long_term_open=0, next_meeting=None) %}
 
-  {# Find last_case + counts (no date maths requiring now_local/today_local) #}
   {% for sc in employee.sickness_cases %}
     {% set s_ns.total = s_ns.total + 1 %}
 
@@ -23,10 +22,6 @@
     {% endif %}
   {% endfor %}
 
-  {# Next sickness meeting (earliest upcoming-ish).
-     We can't safely compare to today without a Jinja global,
-     so we pick the earliest meeting_date overall. That's still useful UX.
-  #}
   {% set m_ns = namespace(best=None) %}
   {% for sc in employee.sickness_cases %}
     {% set meetings_list = [] %}
@@ -46,10 +41,6 @@
   {% endfor %}
   {% set s_ns.next_meeting = m_ns.best %}
 
-  {# Long-term open count: prefer Phase 3 computed metric if supplied (has_long_term),
-     otherwise fall back to counting open cases with trigger_type == 'long_term'.
-     This avoids date maths in-template.
-  #}
   {% if sickness_trigger and sickness_trigger.get('has_long_term') %}
     {% set s_ns.long_term_open = 1 %}
   {% else %}
@@ -59,6 +50,30 @@
       {% endif %}
     {% endfor %}
   {% endif %}
+
+  {% macro collapse_section(section_id, title, default_open=false) %}
+    <section class="rounded-2xl bg-white shadow border border-gray-100 overflow-hidden">
+      <button
+        type="button"
+        class="employee-collapse-toggle flex w-full items-center justify-between px-5 py-4 text-left hover:bg-slate-50"
+        data-target="{{ section_id }}"
+        aria-expanded="{{ 'true' if default_open else 'false' }}">
+        <span class="text-lg font-semibold text-ellipse-teal">{{ title }}</span>
+        <svg class="employee-collapse-icon h-5 w-5 text-slate-500 transition-transform duration-200 {{ 'rotate-180' if default_open else '' }}"
+             data-icon-for="{{ section_id }}"
+             xmlns="http://www.w3.org/2000/svg"
+             fill="none"
+             viewBox="0 0 24 24"
+             stroke-width="2"
+             stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25 12 15.75 4.5 8.25" />
+        </svg>
+      </button>
+      <div id="{{ section_id }}" class="{% if not default_open %}hidden{% endif %} border-t border-slate-200 px-5 py-5">
+        {{ caller() }}
+      </div>
+    </section>
+  {% endmacro %}
 
   <!-- Header + Actions -->
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -124,7 +139,7 @@
   </div>
   {% endif %}
 
-    <!-- Top Summary Cards -->
+  <!-- Top Summary Cards -->
   <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
     <div class="bg-white p-4 rounded-2xl shadow border border-gray-100">
       <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Organisation</p>
@@ -174,16 +189,15 @@
     </div>
   </div>
 
-  <!-- Main layout: left = records, right = summary -->
+  <!-- Main layout -->
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-    <!-- Left: PIP, Probation & Sickness (span 2) -->
+    <!-- Left -->
     <div class="space-y-6 lg:col-span-2">
 
-      <!-- PIP Records -->
-      <div class="bg-white p-6 rounded-2xl shadow border border-gray-100">
+      {% call collapse_section('pip-records', '📋 PIP Records', true) %}
         <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-semibold text-ellipse-teal">📋 PIP Records</h2>
+          <div></div>
           <span class="text-xs text-gray-500">
             {{ employee.pips|length }} record{{ employee.pips|length == 1 and '' or 's' }}
           </span>
@@ -235,12 +249,11 @@
             <li class="py-3 text-gray-400 text-sm">No PIPs for this employee.</li>
           {% endfor %}
         </ul>
-      </div>
+      {% endcall %}
 
-      <!-- Probation Records -->
-      <div class="bg-white p-6 rounded-2xl shadow border border-gray-100">
+      {% call collapse_section('probation-records', '📆 Probation Records', true) %}
         <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-semibold text-ellipse-teal">📆 Probation Records</h2>
+          <div></div>
           <span class="text-xs text-gray-500">
             {{ employee.probation_records|length }} record{{ employee.probation_records|length == 1 and '' or 's' }}
           </span>
@@ -270,12 +283,11 @@
         {% else %}
           <p class="text-gray-400 text-sm">No probation records found.</p>
         {% endif %}
-      </div>
+      {% endcall %}
 
-      <!-- Sickness Cases -->
-      <div class="bg-white p-6 rounded-2xl shadow border border-gray-100">
+      {% call collapse_section('sickness-cases', '🤒 Sickness Cases', true) %}
         <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-semibold text-ellipse-teal">🤒 Sickness Cases</h2>
+          <div></div>
           <span class="text-xs text-gray-500">
             {{ s_ns.total }} case{{ s_ns.total == 1 and '' or 's' }}
           </span>
@@ -321,18 +333,16 @@
         {% else %}
           <p class="text-gray-400 text-sm">No sickness cases recorded for this employee yet.</p>
         {% endif %}
-      </div>
+      {% endcall %}
 
     </div>
 
-    <!-- Right: Summary -->
-    <aside class="space-y-4">
+    <!-- Right -->
+    <aside class="space-y-6">
 
-      <!-- Employee Lifecycle -->
-      <div class="bg-white p-5 rounded-2xl shadow border border-gray-100">
+      {% call collapse_section('employee-lifecycle', '🗂️ Employee lifecycle', true) %}
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h3 class="text-sm font-semibold text-gray-900">🗂️ Employee lifecycle</h3>
             <p class="text-xs text-gray-500 mt-0.5">Manage active/leaver status and historic employee info.</p>
           </div>
           <a href="{{ url_for('manage_employee.detail', employee_id=employee.id) }}"
@@ -379,13 +389,11 @@
           </a>
           {% endif %}
         </div>
-      </div>
+      {% endcall %}
 
-      <!-- Phase 3: Trigger status (employee-level) -->
-      <div class="bg-white p-5 rounded-2xl shadow border border-gray-100">
+      {% call collapse_section('trigger-status', '🚦 Trigger status') %}
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h3 class="text-sm font-semibold text-gray-900">🚦 Trigger status</h3>
             <p class="text-xs text-gray-500 mt-0.5">Rolling 12 months (episodes / days / Bradford).</p>
           </div>
 
@@ -468,13 +476,11 @@
             ➕ New case
           </a>
         </div>
-      </div>
+      {% endcall %}
 
-      <!-- Sickness Summary -->
-      <div class="bg-white p-5 rounded-2xl shadow border border-gray-100">
+      {% call collapse_section('sickness-summary', '🤒 Sickness summary') %}
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h3 class="text-sm font-semibold text-gray-900">🤒 Sickness summary</h3>
             <p class="text-xs text-gray-500 mt-0.5">Quick view across cases & meetings.</p>
           </div>
           <a href="{{ url_for('sickness_dashboard') }}"
@@ -541,11 +547,9 @@
             </div>
           </div>
         {% endif %}
-      </div>
+      {% endcall %}
 
-      <!-- At a glance -->
-      <div class="bg-white p-5 rounded-2xl shadow border border-gray-100">
-        <h3 class="text-sm font-semibold text-gray-900 mb-3">At a glance</h3>
+      {% call collapse_section('at-a-glance', 'At a glance') %}
         <dl class="space-y-2 text-sm">
           <div class="flex justify-between">
             <dt class="text-gray-500">PIP records</dt>
@@ -576,16 +580,17 @@
             </dd>
           </div>
         </dl>
-      </div>
+      {% endcall %}
 
-      <div class="bg-[#0f6b6a] text-white p-5 rounded-2xl shadow">
-        <h3 class="text-sm font-semibold mb-2">Next actions</h3>
-        <ul class="space-y-1 text-sm">
-          <li>• Start a new PIP, probation, or sickness case.</li>
-          <li>• Use the Sickness Dashboard to monitor patterns.</li>
-          <li>• Keep all documentation in one place.</li>
-        </ul>
-      </div>
+      {% call collapse_section('next-actions', 'Next actions') %}
+        <div class="rounded-2xl bg-[#0f6b6a] text-white p-5">
+          <ul class="space-y-1 text-sm">
+            <li>• Start a new PIP, probation, or sickness case.</li>
+            <li>• Use the Sickness Dashboard to monitor patterns.</li>
+            <li>• Keep all documentation in one place.</li>
+          </ul>
+        </div>
+      {% endcall %}
     </aside>
 
   </div>
@@ -613,14 +618,40 @@
     </div>
   </div>
 </div>
+{% endblock %}
 
+{% block extra_js %}
 <script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const toggles = document.querySelectorAll(".employee-collapse-toggle");
+
+    toggles.forEach((toggle) => {
+      toggle.addEventListener("click", function () {
+        const targetId = this.dataset.target;
+        const content = document.getElementById(targetId);
+        const icon = document.querySelector(`[data-icon-for="${targetId}"]`);
+        const isExpanded = this.getAttribute("aria-expanded") === "true";
+
+        if (isExpanded) {
+          content.classList.add("hidden");
+          this.setAttribute("aria-expanded", "false");
+          if (icon) icon.classList.remove("rotate-180");
+        } else {
+          content.classList.remove("hidden");
+          this.setAttribute("aria-expanded", "true");
+          if (icon) icon.classList.add("rotate-180");
+        }
+      });
+    });
+  });
+
   function openPipModal() {
     const m = document.getElementById('pipModal');
     if (!m) return;
     m.classList.remove('hidden');
     m.classList.add('flex');
   }
+
   function closePipModal() {
     const m = document.getElementById('pipModal');
     if (!m) return;

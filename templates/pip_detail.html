@@ -3,87 +3,173 @@
 {% block page_title %}📄 PIP Record{% endblock %}
 
 {% block content %}
-<div class="flex flex-col lg:flex-row gap-6 max-w-7xl mx-auto">
+<div class="max-w-7xl mx-auto space-y-6">
 
-  <div class="flex-1">
-    <div class="bg-[#e6f3f3] shadow rounded-2xl p-4 sm:p-6 border border-gray-200 space-y-5">
+  {% macro collapse_section(section_id, title, default_open=false) %}
+    <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 overflow-hidden">
+      <button
+        type="button"
+        class="pip-collapse-toggle flex w-full items-center justify-between px-5 py-4 text-left hover:bg-slate-50"
+        data-target="{{ section_id }}"
+        aria-expanded="{{ 'true' if default_open else 'false' }}">
+        <span class="text-lg font-semibold text-slate-900">{{ title }}</span>
+        <svg class="pip-collapse-icon h-5 w-5 text-slate-500 transition-transform duration-200 {{ 'rotate-180' if default_open else '' }}"
+             data-icon-for="{{ section_id }}"
+             xmlns="http://www.w3.org/2000/svg"
+             fill="none"
+             viewBox="0 0 24 24"
+             stroke-width="2"
+             stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25 12 15.75 4.5 8.25" />
+        </svg>
+      </button>
+      <div id="{{ section_id }}" class="{% if not default_open %}hidden{% endif %} border-t border-slate-200 px-5 py-5">
+        {{ caller() }}
+      </div>
+    </section>
+  {% endmacro %}
 
-      <h1 class="text-xl sm:text-2xl font-bold text-[#005b5a]">
+  <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <div>
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+          PIP
+        </span>
+
+        {% if pip.status == 'Open' %}
+          <span class="inline-flex rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-semibold text-yellow-800">Open</span>
+        {% elif pip.status == 'Completed' %}
+          <span class="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800">Completed</span>
+        {% elif pip.status == 'Overdue' %}
+          <span class="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800">Overdue</span>
+        {% else %}
+          <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{{ pip.status }}</span>
+        {% endif %}
+      </div>
+
+      <h1 class="mt-3 text-2xl font-bold text-slate-900">
         PIP for {{ employee.first_name }} {{ employee.last_name }}
       </h1>
+      <p class="mt-1 text-sm text-slate-600">
+        {{ employee.job_title or 'No job title' }}
+        {% if employee.service %} · {{ employee.service }}{% endif %}
+      </p>
+    </div>
 
-      <div class="text-sm text-gray-700 space-y-2">
-        <p><strong>Job Title:</strong> {{ employee.job_title }}</p>
-        <p><strong>Line Manager:</strong> {{ employee.line_manager }}</p>
-        <p><strong>Service:</strong> {{ employee.service }}</p>
-        <p><strong>Status:</strong>
-          {% if pip.status == 'Open' %}
-            <span class="inline-block px-3 py-1 text-xs font-semibold text-white bg-yellow-500 rounded-full">Open</span>
-          {% elif pip.status == 'Completed' %}
-            <span class="inline-block px-3 py-1 text-xs font-semibold text-white bg-green-600 rounded-full">Completed</span>
-          {% elif pip.status == 'Overdue' %}
-            <span class="inline-block px-3 py-1 text-xs font-semibold text-white bg-red-600 rounded-full">Overdue</span>
-          {% else %}
-            <span class="inline-block px-3 py-1 text-xs font-semibold text-white bg-gray-400 rounded-full">{{ pip.status }}</span>
-          {% endif %}
-        </p>
+    <div class="flex flex-wrap gap-2">
+      <a href="{{ url_for('edit_pip', id=pip.id) }}"
+         class="inline-flex items-center rounded-lg bg-[#005b5a] px-4 py-2 text-sm font-medium text-white hover:bg-[#007876]">
+        ✏️ Edit PIP
+      </a>
+      <a href="{{ url_for('employee_detail', employee_id=employee.id) }}"
+         class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        ← Back to Employee
+      </a>
+      <a href="{{ url_for('pip_documents', pip_id=pip.id) }}"
+         class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        🗂️ Document History
+      </a>
+    </div>
+  </div>
 
-        <p><strong>Start Date:</strong> {{ pip.start_date.strftime('%d %b %Y') }}</p>
-        <p><strong>Review Date:</strong> {{ pip.review_date.strftime('%d %b %Y') }}</p>
+  <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+    <div class="xl:col-span-2 space-y-6">
 
-        <p><strong>Concerns:</strong><br>{{ pip.concerns }}</p>
+      {% call collapse_section('pip-details', 'PIP Details', true) %}
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 text-sm text-slate-700">
+          <div>
+            <dt class="font-medium text-slate-500">Job Title</dt>
+            <dd class="mt-1 text-slate-900">{{ employee.job_title or '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Line Manager</dt>
+            <dd class="mt-1 text-slate-900">{{ employee.line_manager or '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Service</dt>
+            <dd class="mt-1 text-slate-900">{{ employee.service or '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Status</dt>
+            <dd class="mt-1 text-slate-900">{{ pip.status }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Start Date</dt>
+            <dd class="mt-1 text-slate-900">{{ pip.start_date.strftime('%d %b %Y') if pip.start_date else '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Review Date</dt>
+            <dd class="mt-1 text-slate-900">{{ pip.review_date.strftime('%d %b %Y') if pip.review_date else '—' }}</dd>
+          </div>
+        </div>
 
-        <div class="pt-1">
-          <p class="text-sm">
+        <div class="mt-5">
+          <h4 class="text-sm font-semibold text-slate-900">Concerns</h4>
+          <p class="mt-2 whitespace-pre-wrap text-sm text-slate-700">{{ pip.concerns or '—' }}</p>
+        </div>
+
+        <div class="mt-5">
+          <p class="text-sm text-slate-700">
             <strong>Category:</strong> {{ pip.concern_category or '—' }}
             &nbsp;·&nbsp; <strong>Severity:</strong> {{ pip.severity or '—' }}
             &nbsp;·&nbsp; <strong>Frequency:</strong> {{ pip.frequency or '—' }}
           </p>
+
           {% if pip.tags %}
-            <div class="mt-2 flex flex-wrap gap-2">
+            <div class="mt-3 flex flex-wrap gap-2">
               {% for t in pip.tags.split(',') %}
                 {% set tg = t.strip() %}
                 {% if tg %}
-                <span class="px-2 py-0.5 text-xs rounded-full border border-gray-300 bg-white text-gray-700">{{ tg }}</span>
+                <span class="px-2 py-0.5 text-xs rounded-full border border-slate-300 bg-white text-slate-700">{{ tg }}</span>
                 {% endif %}
               {% endfor %}
             </div>
           {% endif %}
         </div>
 
-        <p class="pt-2"><strong>Meeting Notes:</strong><br>{{ pip.meeting_notes or '—' }}</p>
-        <p><strong>Meeting Date:</strong> {{ pip.capability_meeting_date.strftime('%d %b %Y') if pip.capability_meeting_date else '—' }}</p>
-        <p><strong>Meeting Time:</strong> {{ pip.capability_meeting_time or '—' }}</p>
-        <p><strong>Meeting Venue:</strong> {{ pip.capability_meeting_venue or '—' }}</p>
-      </div>
+        <div class="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 text-sm text-slate-700">
+          <div class="md:col-span-2">
+            <dt class="font-medium text-slate-500">Meeting Notes</dt>
+            <dd class="mt-1 whitespace-pre-wrap text-slate-900">{{ pip.meeting_notes or '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Meeting Date</dt>
+            <dd class="mt-1 text-slate-900">{{ pip.capability_meeting_date.strftime('%d %b %Y') if pip.capability_meeting_date else '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Meeting Time</dt>
+            <dd class="mt-1 text-slate-900">{{ pip.capability_meeting_time or '—' }}</dd>
+          </div>
+          <div class="md:col-span-2">
+            <dt class="font-medium text-slate-500">Meeting Venue</dt>
+            <dd class="mt-1 text-slate-900">{{ pip.capability_meeting_venue or '—' }}</dd>
+          </div>
+        </div>
+      {% endcall %}
 
-      <div>
-        <strong class="block text-sm text-gray-700 mb-1">Action Plan:</strong>
+      {% call collapse_section('action-plan', 'Action Plan', true) %}
         {% if pip.action_items %}
-          <ul class="list-disc pl-4 sm:pl-6 mt-2 text-sm text-gray-800 space-y-1">
+          <ul class="list-disc pl-5 text-sm text-slate-800 space-y-2">
             {% for action in pip.action_items %}
               <li>
                 {{ action.description }}
                 {% if action.status %}
-                  <span class="text-xs text-gray-500">[{{ action.status }}]</span>
+                  <span class="text-xs text-slate-500">[{{ action.status }}]</span>
                 {% endif %}
               </li>
             {% endfor %}
           </ul>
         {% else %}
-          <p class="text-sm text-gray-500">No actions recorded.</p>
-        {% endif %}
-      </div>
-
-      <div class="mt-2 p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
-        <div class="flex items-start justify-between gap-3 flex-col sm:flex-row sm:items-center">
-          <div>
-            <h3 class="text-md font-semibold text-[#005b5a]">🧑‍💼 Advisor Escalation</h3>
-            <p class="text-sm text-gray-600 mt-1">
-              Submit this PIP for advisor review when additional HR support is needed.
-            </p>
+          <div class="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            No actions recorded.
           </div>
-        </div>
+        {% endif %}
+      {% endcall %}
+
+      {% call collapse_section('advisor-escalation', 'Advisor Escalation', true) %}
+        <p class="text-sm text-slate-600">
+          Submit this PIP for advisor review when additional HR support is needed.
+        </p>
 
         {% if escalation_enabled and can_submit_escalation %}
         <form action="{{ url_for('pip.submit_pip_escalation', id=pip.id) }}" method="post" class="mt-4 space-y-4">
@@ -126,7 +212,7 @@
         {% endif %}
 
         {% if not escalation_enabled %}
-          <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
             Advisor escalation is disabled for the PIP module for your organisation.
           </div>
         {% elif latest_escalation %}
@@ -178,34 +264,23 @@
             </div>
           </div>
         {% else %}
-          <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             No advisor escalation has been submitted for this PIP yet.
           </div>
         {% endif %}
-      </div>
+      {% endcall %}
 
-      <div class="pt-4 flex flex-col sm:flex-row gap-3 sm:items-center">
-        <a href="{{ url_for('edit_pip', id=pip.id) }}"
-           class="bg-[#005b5a] text-white px-4 py-2 rounded-lg hover:bg-[#007876] transition font-semibold text-sm text-center">
-          ✏️ Edit PIP
-        </a>
-        <a href="{{ url_for('employee_detail', employee_id=employee.id) }}"
-           class="text-sm text-[#005b5a] hover:underline text-center sm:text-left">
-          ← Back to Employee
-        </a>
-        <a href="{{ url_for('pip_documents', pip_id=pip.id) }}"
-           class="text-sm text-[#005b5a] hover:underline text-center sm:text-left">
-          🗂️ Document History
-        </a>
-      </div>
+      {% call collapse_section('ai-advice', 'AI Advice', true) %}
+        <form id="generateAiAdviceForm" action="{{ url_for('generate_ai_advice', id=pip.id) }}" method="post" class="hidden">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        </form>
 
-      <form id="generateAiAdviceForm" action="{{ url_for('generate_ai_advice', id=pip.id) }}" method="post" class="hidden">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      </form>
-
-      <div class="mt-2 p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
         <div class="flex items-center justify-between">
-          <h3 class="text-md font-semibold text-[#005b5a]">💬 AI Advice</h3>
+          <div>
+            <p class="text-sm text-slate-600">
+              Generate tailored guidance from the PIP details.
+            </p>
+          </div>
           <div class="flex items-center gap-2">
             {% if pip.ai_advice %}
             <button type="button"
@@ -228,49 +303,51 @@
             Generated on {{ pip.ai_advice_generated_at.strftime('%d %b %Y at %H:%M') if pip.ai_advice_generated_at }}
           </p>
         {% else %}
-          <p class="text-sm text-gray-600 mt-2">
-            No AI advice generated yet. Use <strong>Generate</strong> to create tailored guidance from the PIP details.
-          </p>
+          <div class="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            No AI advice generated yet.
+          </div>
         {% endif %}
-      </div>
+      {% endcall %}
 
     </div>
+
+    <aside class="space-y-6">
+      {% call collapse_section('document-generation', 'Generate Documents', true) %}
+        <div class="space-y-4">
+          <form action="{{ url_for('create_pip_doc_draft', pip_id=pip.id, doc_type='invite') }}" method="post" class="block">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="w-full text-center bg-[#005b5a] text-white py-2 rounded hover:bg-[#007876] transition text-sm font-medium">
+              📄 Create Invite Letter (Draft & Preview)
+            </button>
+          </form>
+
+          <form action="{{ url_for('create_pip_doc_draft', pip_id=pip.id, doc_type='plan') }}" method="post" class="block">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="w-full text-center bg-green-600 text-white py-2 rounded hover:bg-green-700 transition text-sm font-medium">
+              📝 Create Plan (Draft & Preview)
+            </button>
+          </form>
+
+          <form action="{{ url_for('create_pip_doc_draft', pip_id=pip.id, doc_type='outcome') }}" method="post" class="block">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="w-full text-center bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition text-sm font-medium">
+              ✅ Create Outcome Letter (Draft & Preview)
+            </button>
+          </form>
+
+          <a href="{{ url_for('pip_documents', pip_id=pip.id) }}"
+             class="block w-full text-center border border-gray-300 text-[#005b5a] py-2 rounded hover:bg-white transition text-sm font-medium">
+            🗂️ View Document History
+          </a>
+
+          <p class="text-xs text-gray-600">
+            These drafts open in a preview editor so you can review and make edits before finalising. The <strong>Plan</strong> also includes your
+            <em>Action Plan</em> and (if present) the <em>AI Advice</em> section.
+          </p>
+        </div>
+      {% endcall %}
+    </aside>
   </div>
-
-  <aside class="lg:w-1/3 bg-[#e6f3f3] border border-gray-200 shadow rounded-2xl p-4 sm:p-6 space-y-4">
-    <h2 class="text-lg font-semibold text-[#005b5a]">Generate Documents</h2>
-
-    <form action="{{ url_for('create_pip_doc_draft', pip_id=pip.id, doc_type='invite') }}" method="post" class="block">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="w-full text-center bg-[#005b5a] text-white py-2 rounded hover:bg-[#007876] transition text-sm font-medium">
-        📄 Create Invite Letter (Draft & Preview)
-      </button>
-    </form>
-
-    <form action="{{ url_for('create_pip_doc_draft', pip_id=pip.id, doc_type='plan') }}" method="post" class="block">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="w-full text-center bg-green-600 text-white py-2 rounded hover:bg-green-700 transition text-sm font-medium">
-        📝 Create Plan (Draft & Preview)
-      </button>
-    </form>
-
-    <form action="{{ url_for('create_pip_doc_draft', pip_id=pip.id, doc_type='outcome') }}" method="post" class="block">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="w-full text-center bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition text-sm font-medium">
-        ✅ Create Outcome Letter (Draft & Preview)
-      </button>
-    </form>
-
-    <a href="{{ url_for('pip_documents', pip_id=pip.id) }}"
-       class="block w-full text-center border border-gray-300 text-[#005b5a] py-2 rounded hover:bg-white transition text-sm font-medium">
-      🗂️ View Document History
-    </a>
-
-    <p class="text-xs text-gray-600">
-      These drafts open in a preview editor so you can review and make edits before finalising. The <strong>Plan</strong> also includes your
-      <em>Action Plan</em> and (if present) the <em>AI Advice</em> section.
-    </p>
-  </aside>
 </div>
 
 <div id="aiModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
@@ -303,6 +380,29 @@
 
 {% block extra_js %}
 <script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const toggles = document.querySelectorAll(".pip-collapse-toggle");
+
+    toggles.forEach((toggle) => {
+      toggle.addEventListener("click", function () {
+        const targetId = this.dataset.target;
+        const content = document.getElementById(targetId);
+        const icon = document.querySelector(`[data-icon-for="${targetId}"]`);
+        const isExpanded = this.getAttribute("aria-expanded") === "true";
+
+        if (isExpanded) {
+          content.classList.add("hidden");
+          this.setAttribute("aria-expanded", "false");
+          if (icon) icon.classList.remove("rotate-180");
+        } else {
+          content.classList.remove("hidden");
+          this.setAttribute("aria-expanded", "true");
+          if (icon) icon.classList.add("rotate-180");
+        }
+      });
+    });
+  });
+
   function openModal() {
     document.getElementById('aiModal').classList.remove('hidden');
     document.getElementById('aiModal').classList.add('flex');

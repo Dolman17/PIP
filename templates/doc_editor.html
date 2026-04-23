@@ -3,14 +3,14 @@
 {% block page_title %}✏️ Edit Document{% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto">
+<div class="max-w-5xl mx-auto space-y-6">
   <!-- Header -->
-  <div class="flex items-center justify-between mb-4 gap-4">
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
     <div>
       <h1 class="text-xl sm:text-2xl font-semibold text-slate-900">
         {{ doc.doc_type|replace('_', ' ')|title }} v{{ doc.version }}
       </h1>
-      <p class="text-xs sm:text-sm text-slate-500 mt-1">
+      <p class="mt-1 text-xs sm:text-sm text-slate-500">
         PIP #{{ pip_rec.id }}
         {% if pip_rec.employee %}
           · {{ pip_rec.employee.first_name }} {{ pip_rec.employee.last_name }}
@@ -18,59 +18,113 @@
       </p>
     </div>
 
-    <a href="{{ url_for('pip_documents', pip_id=pip_rec.id) }}"
-       class="inline-flex items-center text-sm font-medium text-[#005b5a] hover:text-[#004442]">
-      <span class="mr-1.5">←</span>
-      Back to History
-    </a>
+    <div class="flex flex-wrap gap-2">
+      <a href="{{ url_for('pip_documents', pip_id=pip_rec.id) }}"
+         class="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        ← Back to History
+      </a>
+      <a href="{{ url_for('pip_detail', id=pip_rec.id) }}"
+         class="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        Back to PIP
+      </a>
+    </div>
   </div>
 
-  <!-- Meta strip -->
-  <div class="flex flex-wrap items-center gap-3 text-xs text-slate-600 mb-4">
-    {# Status badge #}
-    {% set badge_classes = "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700" %}
-    {% if doc.status == 'final' %}
-      {% set badge_classes = "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800" %}
-    {% elif doc.status in ['draft', 'editing'] %}
-      {% set badge_classes = "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800" %}
-    {% endif %}
+  {% set badge_classes = "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700" %}
+  {% if doc.status == 'final' %}
+    {% set badge_classes = "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800" %}
+  {% elif doc.status in ['draft', 'editing'] %}
+    {% set badge_classes = "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800" %}
+  {% endif %}
 
-    <div class="{{ badge_classes }}">
-      Status: {{ doc.status|replace('_', ' ')|title }}
+  <!-- Meta cards -->
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Document Type</p>
+      <p class="mt-2 text-base font-semibold text-slate-900">
+        {{ doc.doc_type|replace('_', ' ')|title }}
+      </p>
     </div>
 
-    <div class="h-4 w-px bg-slate-300 hidden sm:block"></div>
-
-    <div>
-      Created:
-      {% if doc.created_at %}
-        <span class="font-medium">
-          {{ doc.created_at.strftime("%d %b %Y %H:%M") }}
-        </span>
-      {% else %}
-        <span class="font-medium">Just created</span>
-      {% endif %}
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Version</p>
+      <p class="mt-2 text-base font-semibold text-slate-900">v{{ doc.version }}</p>
     </div>
 
-    {% if doc.updated_at %}
-      <div class="hidden sm:block">·</div>
-      <div>
-        Last updated:
-        <span class="font-medium">
-          {{ doc.updated_at.strftime("%d %b %Y %H:%M") }}
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Status</p>
+      <div class="mt-2">
+        <span class="{{ badge_classes }}">
+          {{ doc.status|replace('_', ' ')|title }}
         </span>
       </div>
-    {% endif %}
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Created By</p>
+      <p class="mt-2 text-base font-semibold text-slate-900">{{ doc.created_by or 'system' }}</p>
+    </div>
+  </div>
+
+  <!-- Status summary -->
+  <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 class="text-sm font-semibold text-slate-900">Document timeline</h2>
+      <dl class="mt-4 space-y-3 text-sm">
+        <div>
+          <dt class="text-slate-500">Created</dt>
+          <dd class="mt-1 font-medium text-slate-900">
+            {% if doc.created_at %}
+              {{ doc.created_at.strftime("%d %b %Y %H:%M") }}
+            {% else %}
+              Just created
+            {% endif %}
+          </dd>
+        </div>
+
+        <div>
+          <dt class="text-slate-500">Last updated</dt>
+          <dd class="mt-1 font-medium text-slate-900">
+            {% if doc.updated_at %}
+              {{ doc.updated_at.strftime("%d %b %Y %H:%M") }}
+            {% else %}
+              Not updated yet
+            {% endif %}
+          </dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="rounded-2xl border {% if doc.status == 'final' %}border-emerald-200 bg-emerald-50{% else %}border-amber-200 bg-amber-50{% endif %} p-5 shadow-sm">
+      <h2 class="text-sm font-semibold {% if doc.status == 'final' %}text-emerald-900{% else %}text-amber-900{% endif %}">
+        {% if doc.status == 'final' %}Final document{% else %}Editable draft{% endif %}
+      </h2>
+
+      {% if doc.status == 'final' %}
+        <p class="mt-3 text-sm text-emerald-800">
+          This version has been finalised and is now locked for editing. You can still download it at any time.
+        </p>
+      {% else %}
+        <p class="mt-3 text-sm text-amber-800">
+          This version is still editable. Review the wording carefully, save any changes, and finalise it when ready.
+        </p>
+      {% endif %}
+    </div>
   </div>
 
   <!-- Editor card -->
-  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-    <div class="px-4 sm:px-6 py-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-      <div class="text-xs sm:text-sm text-slate-600">
-        Edit the body of the letter below. Formatting will be preserved when you download the DOCX.
-      </div>
-      <div class="text-[11px] text-slate-500 italic">
-        Changes are saved when you click <span class="font-semibold">Save Draft</span>. (Ctrl+S also saves.)
+  <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <div class="border-b border-slate-100 px-4 py-4 sm:px-6">
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 class="text-base font-semibold text-slate-900">Document editor</h2>
+          <p class="mt-1 text-sm text-slate-600">
+            Edit the body of the letter below. Formatting will be preserved when you download the DOCX.
+          </p>
+        </div>
+        <div class="text-[11px] text-slate-500 italic">
+          Save with <span class="font-semibold">Save Draft</span>. Shortcut: Ctrl+S / Cmd+S
+        </div>
       </div>
     </div>
 
@@ -78,19 +132,17 @@
       <form method="post" id="doc-editor-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-        <!-- TinyMCE attaches here -->
         <textarea
           id="editor"
           name="html"
           class="hidden"
         >{{ html_content|safe }}</textarea>
 
-        <!-- Button row -->
         <div class="mt-6 flex flex-wrap gap-3 justify-end">
           <button
             id="save-draft-btn"
             type="submit"
-            class="inline-flex items-center px-4 py-2 rounded-2xl bg-[#005b5a] text-white text-sm font-medium hover:bg-[#004544] transition-colors"
+            class="inline-flex items-center rounded-2xl bg-[#005b5a] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#004544]"
           >
             Save Draft
           </button>
@@ -99,8 +151,8 @@
             <button
               formaction="{{ url_for('finalise_pip_doc', pip_id=pip_rec.id, doc_id=doc.id) }}"
               formmethod="post"
-              class="inline-flex items-center px-4 py-2 rounded-2xl bg-slate-900 text-white text-sm font-medium hover:bg-black transition-colors"
-              onclick="return confirm('Finalise this document? This version will be locked (history preserved).')"
+              class="inline-flex items-center rounded-2xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-black"
+              onclick="return confirm('Finalise this document? This version will be locked and become read-only.')"
             >
               Finalise
             </button>
@@ -108,7 +160,7 @@
 
           <a
             href="{{ url_for('download_doc', doc_id=doc.id) }}"
-            class="inline-flex items-center px-4 py-2 rounded-2xl border border-slate-300 text-sm font-medium text-slate-800 hover:bg-slate-50 transition-colors"
+            class="inline-flex items-center rounded-2xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50"
           >
             Download DOCX
           </a>
@@ -116,26 +168,33 @@
       </form>
     </div>
   </div>
+
+  <!-- Guidance card -->
+  <div class="rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
+    <h2 class="text-sm font-semibold text-slate-900">Editing guidance</h2>
+    <ul class="mt-3 space-y-2 text-sm text-slate-700">
+      <li>• Keep the wording accurate to the PIP record and meeting notes.</li>
+      <li>• Review names, dates, and role details before finalising.</li>
+      <li>• Final documents are locked, so make any wording changes while still in draft.</li>
+      <li>• Download the DOCX after saving or finalising to review the formatted output.</li>
+    </ul>
+  </div>
 </div>
 
-{# Load TinyMCE (self-hosted) #}
 <script src="{{ url_for('static', filename='js/tinymce/tinymce.min.js') }}"></script>
 <script>
   document.addEventListener('DOMContentLoaded', function () {
     tinymce.init({
-      license_key: 'gpl',  // opt into GPL; required for TinyMCE 7/8 self-hosted
-
+      license_key: 'gpl',
       selector: '#editor',
       menubar: false,
       branding: false,
       height: 650,
-
       plugins: 'lists table link',
       toolbar: [
         'undo redo | styles | bold italic underline | alignleft aligncenter alignright | bullist numlist | table | link | removeformat'
       ].join(' '),
 
-      // Keep the letter looking like a proper letter
       content_style: `
         body {
           font-family: "Open Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -165,14 +224,12 @@
       `,
 
       setup: function (editor) {
-        // Keep the underlying textarea in sync
         editor.on('change keyup undo redo', function () {
-          editor.save();  // writes HTML back into the <textarea>
+          editor.save();
         });
       }
     });
 
-    // Simple guard against submitting an empty document
     const form = document.getElementById('doc-editor-form');
     const saveBtn = document.getElementById('save-draft-btn');
 
@@ -180,9 +237,8 @@
       form.addEventListener('submit', function (evt) {
         const editor = tinymce.get('editor');
         if (editor) {
-          editor.save(); // ensure textarea updated
+          editor.save();
           const html = editor.getContent({ format: 'html' }).trim();
-          // TinyMCE sometimes uses <p>&nbsp;</p> as "empty"
           const cleaned = html.replace(/&nbsp;|\s+/g, '');
           if (!cleaned) {
             evt.preventDefault();
@@ -191,7 +247,6 @@
         }
       });
 
-      // Ctrl+S / Cmd+S triggers Save Draft
       window.addEventListener('keydown', function (evt) {
         const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
         const modKey = isMac ? evt.metaKey : evt.ctrlKey;
