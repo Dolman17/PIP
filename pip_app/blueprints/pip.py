@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 from datetime import datetime, timezone
 
 from flask import (
@@ -23,6 +24,7 @@ from forms import PIPForm
 from models import (
     AIConsentLog,
     AdvisorEscalation,
+    AdvisorEscalationDocument,
     DraftPIP,
     DocumentFile,
     Employee,
@@ -252,6 +254,52 @@ def _build_pip_escalation_summary(pip, employee):
 
     return "\n".join(lines).strip()
 
+def _attach_selected_pip_documents_to_escalation(escalation, pip):
+    selected_ids = request.form.getlist("selected_document_ids")
+    if not selected_ids:
+        return 0
+
+    try:
+        selected_ids = [int(doc_id) for doc_id in selected_ids]
+    except (TypeError, ValueError):
+        return 0
+
+    docs = (
+        DocumentFile.query
+        .filter(
+            DocumentFile.pip_id == pip.id,
+            DocumentFile.id.in_(selected_ids),
+        )
+        .all()
+    )
+
+    attached_count = 0
+    for doc in docs:
+        metadata = {
+            "source_model": "DocumentFile",
+            "source_id": doc.id,
+            "pip_id": pip.id,
+            "status": doc.status,
+            "version": doc.version,
+        }
+
+        evidence_path = doc.docx_path or doc.pdf_path
+        if not evidence_path:
+            continue
+
+        evidence = AdvisorEscalationDocument(
+            escalation_id=escalation.id,
+            document_type=doc.doc_type,
+            file_name=os.path.basename(evidence_path),
+            file_path=evidence_path,
+            metadata_json=json.dumps(metadata),
+            created_by=current_user.username,
+        )
+        db.session.add(evidence)
+        attached_count += 1
+
+    return attached_count
+
 
 @pip_bp.route('/pip/<int:id>')
 @login_required
@@ -265,6 +313,13 @@ def pip_detail(id):
     latest_escalation = escalations[0] if escalations else None
     can_submit_escalation = escalation_enabled and not _pip_escalation_is_active(latest_escalation)
 
+    available_escalation_documents = (
+        DocumentFile.query
+        .filter_by(pip_id=pip.id)
+        .order_by(DocumentFile.created_at.desc())
+        .all()
+    )
+
     return render_template(
         'pip_detail.html',
         pip=pip,
@@ -273,8 +328,8 @@ def pip_detail(id):
         escalations=escalations,
         latest_escalation=latest_escalation,
         can_submit_escalation=can_submit_escalation,
+        available_escalation_documents=available_escalation_documents,
     )
-
 
 @pip_bp.route('/pip/<int:id>/escalate', methods=['POST'])
 @login_required
@@ -308,17 +363,24 @@ def submit_pip_escalation(id):
     )
 
     db.session.add(escalation)
+    db.session.flush()
+
+    attached_count = _attach_selected_pip_documents_to_escalation(escalation, pip)
+
+    timeline_note = "PIP submitted for advisor escalation."
+    if attached_count:
+        timeline_note += f" {attached_count} supporting document(s) attached."
 
     log_timeline_event(
         pip_id=pip.id,
         event_type="Advisor Escalation Submitted",
-        notes="PIP submitted for advisor escalation.",
+        notes=timeline_note,
     )
 
     try:
         log_security_event(
             event_type="PIP Advisor Escalation Submitted",
-            notes=f"PIP #{pip.id} submitted for advisor escalation",
+            notes=f"PIP #{pip.id} submitted for advisor escalation with {attached_count} document(s)",
             pip_record_id=pip.id,
             updated_by=current_user.username,
         )

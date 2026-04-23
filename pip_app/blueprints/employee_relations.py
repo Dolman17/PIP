@@ -1,5 +1,6 @@
 from datetime import datetime
 import os
+import json
 from uuid import uuid4
 
 from flask import (
@@ -20,6 +21,7 @@ from sqlalchemy import or_
 from pip_app.extensions import db
 from pip_app.models import (
     AdvisorEscalation,
+    AdvisorEscalationDocument,
     Employee,
     EmployeeRelationsCase,
     EmployeeRelationsTimelineEvent,
@@ -283,6 +285,84 @@ def _build_er_escalation_summary(er_case):
         )
 
     return "\n".join(lines).strip()
+
+def _attach_selected_er_evidence_to_escalation(escalation, er_case):
+    attached_count = 0
+
+    selected_document_ids = request.form.getlist("selected_document_ids")
+    if selected_document_ids:
+        try:
+            selected_document_ids = [int(doc_id) for doc_id in selected_document_ids]
+        except (TypeError, ValueError):
+            selected_document_ids = []
+
+        documents = (
+            EmployeeRelationsDocument.query
+            .filter(
+                EmployeeRelationsDocument.case_id == er_case.id,
+                EmployeeRelationsDocument.id.in_(selected_document_ids),
+            )
+            .all()
+        )
+
+        for doc in documents:
+            file_path = doc.file_path
+            if not file_path:
+                continue
+
+            evidence = AdvisorEscalationDocument(
+                escalation_id=escalation.id,
+                document_type=doc.document_type,
+                file_name=doc.file_name or os.path.basename(file_path),
+                file_path=file_path,
+                metadata_json=json.dumps({
+                    "source_model": "EmployeeRelationsDocument",
+                    "source_id": doc.id,
+                    "case_id": er_case.id,
+                    "status": doc.status,
+                    "version": doc.version,
+                }),
+                created_by=getattr(current_user, "username", None),
+            )
+            db.session.add(evidence)
+            attached_count += 1
+
+    selected_attachment_ids = request.form.getlist("selected_attachment_ids")
+    if selected_attachment_ids:
+        try:
+            selected_attachment_ids = [int(att_id) for att_id in selected_attachment_ids]
+        except (TypeError, ValueError):
+            selected_attachment_ids = []
+
+        attachments = (
+            EmployeeRelationsAttachment.query
+            .filter(
+                EmployeeRelationsAttachment.case_id == er_case.id,
+                EmployeeRelationsAttachment.id.in_(selected_attachment_ids),
+            )
+            .all()
+        )
+
+        for attachment in attachments:
+            evidence = AdvisorEscalationDocument(
+                escalation_id=escalation.id,
+                document_type=attachment.document_category,
+                file_name=attachment.original_filename,
+                file_path=attachment.stored_path,
+                metadata_json=json.dumps({
+                    "source_model": "EmployeeRelationsAttachment",
+                    "source_id": attachment.id,
+                    "case_id": er_case.id,
+                    "category": attachment.document_category,
+                }),
+                created_by=getattr(current_user, "username", None),
+            )
+            db.session.add(evidence)
+            attached_count += 1
+
+    return attached_count
+
+
 
 
 def _default_er_document_mode(er_case):
@@ -883,7 +963,6 @@ def create_case():
         form_data={},
     )
 
-
 @employee_relations_bp.route("/cases/<int:case_id>")
 def view_case(case_id):
     er_case = EmployeeRelationsCase.query.get_or_404(case_id)
@@ -894,6 +973,20 @@ def view_case(case_id):
     escalations = _get_er_escalations(er_case.id)
     latest_escalation = escalations[0] if escalations else None
     can_submit_escalation = escalation_enabled and not _er_escalation_is_active(latest_escalation)
+
+    available_escalation_documents = (
+        EmployeeRelationsDocument.query
+        .filter_by(case_id=er_case.id)
+        .order_by(EmployeeRelationsDocument.updated_at.desc())
+        .all()
+    )
+
+    available_escalation_attachments = (
+        EmployeeRelationsAttachment.query
+        .filter_by(case_id=er_case.id)
+        .order_by(EmployeeRelationsAttachment.uploaded_at.desc())
+        .all()
+    )
 
     return render_template(
         "employee_relations/detail.html",
@@ -911,6 +1004,8 @@ def view_case(case_id):
         escalations=escalations,
         latest_escalation=latest_escalation,
         can_submit_escalation=can_submit_escalation,
+        available_escalation_documents=available_escalation_documents,
+        available_escalation_attachments=available_escalation_attachments,
     )
 
 
@@ -943,11 +1038,18 @@ def submit_escalation(case_id):
     )
 
     db.session.add(escalation)
+    db.session.flush()
+
+    attached_count = _attach_selected_er_evidence_to_escalation(escalation, er_case)
+
+    timeline_note = "Employee Relations case submitted for advisor escalation."
+    if attached_count:
+        timeline_note += f" {attached_count} supporting item(s) attached."
 
     _log_case_event(
         er_case.id,
         "Advisor Escalation Submitted",
-        "Employee Relations case submitted for advisor escalation.",
+        timeline_note,
     )
 
     db.session.commit()

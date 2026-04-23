@@ -16,6 +16,8 @@ from models import (
     db,
     AdvisorEscalation,
     Employee,
+    EmployeeRelationsCase,
+    EmployeeRelationsTimelineEvent,
     Organisation,
     OrganisationModuleSetting,
     PIPRecord,
@@ -24,8 +26,6 @@ from models import (
     ProbationReview,
     TimelineEvent,
     User,
-    EmployeeRelationsCase,
-    EmployeeRelationsTimelineEvent,
 )
 from pip_app.decorators import superuser_required
 from pip_app.security import log_security_event
@@ -50,6 +50,16 @@ ESCALATION_STATUS_LABELS = {
 ACTIVE_ESCALATION_STATUSES = {"draft", "submitted", "acknowledged", "in_review"}
 QUEUE_ESCALATION_STATUSES = {"submitted", "acknowledged", "in_review"}
 ALL_ESCALATION_STATUSES = set(ESCALATION_STATUS_LABELS.keys())
+SLA_FILTER_OPTIONS = {
+    "green": "On Track",
+    "amber": "Watch",
+    "red": "Overdue",
+    "neutral": "Closed/Cancelled",
+}
+SORT_OPTIONS = {
+    "oldest": "Oldest first",
+    "newest": "Newest first",
+}
 
 
 def _organisation_choices():
@@ -96,6 +106,15 @@ def _scoped_escalation_query():
         query = query.filter(AdvisorEscalation.organisation_id == current_user.organisation_id)
 
     return query
+
+
+def _scoped_assignable_users():
+    query = User.query.filter(User.admin_level >= 1)
+
+    if getattr(current_user, "organisation_id", None):
+        query = query.filter(User.organisation_id == current_user.organisation_id)
+
+    return query.order_by(User.username.asc()).all()
 
 
 def _get_escalation_or_404(escalation_id):
@@ -145,6 +164,70 @@ def _build_escalation_source_context(escalation):
             )
 
     return context
+
+
+def _calculate_escalation_age_data(escalation):
+    now = datetime.utcnow()
+    anchor = escalation.submitted_at or escalation.created_at or now
+    delta = now - anchor
+    age_days = max(delta.days, 0)
+    age_hours = max(int(delta.total_seconds() // 3600), 0)
+
+    if escalation.status in {"closed", "cancelled"}:
+        sla_status = "neutral"
+        sla_label = "Closed"
+    elif age_days <= 2:
+        sla_status = "green"
+        sla_label = "On Track"
+    elif age_days <= 5:
+        sla_status = "amber"
+        sla_label = "Watch"
+    else:
+        sla_status = "red"
+        sla_label = "Overdue"
+
+    return {
+        "age_days": age_days,
+        "age_hours": age_hours,
+        "sla_status": sla_status,
+        "sla_label": sla_label,
+    }
+
+
+def _log_escalation_assignment_change(escalation, old_user, new_user):
+    old_name = old_user.username if old_user else "Unassigned"
+    new_name = new_user.username if new_user else "Unassigned"
+    note = f"Advisor escalation assignment changed from {old_name} to {new_name} by {current_user.username}."
+
+    if escalation.source_record_type == "pip":
+        log_timeline_event(
+            pip_id=escalation.source_record_id,
+            event_type="Advisor Escalation Reassigned",
+            notes=note,
+        )
+
+        try:
+            log_security_event(
+                event_type="PIP Advisor Escalation Reassigned",
+                notes=(
+                    f"PIP #{escalation.source_record_id} escalation #{escalation.id} "
+                    f"reassigned from {old_name} to {new_name}"
+                ),
+                pip_record_id=escalation.source_record_id,
+                updated_by=current_user.username,
+            )
+        except Exception:
+            pass
+
+    elif escalation.source_record_type == "employee_relations":
+        db.session.add(
+            EmployeeRelationsTimelineEvent(
+                case_id=escalation.source_record_id,
+                event_type="Advisor Escalation Reassigned",
+                notes=note,
+                updated_by=current_user.username,
+            )
+        )
 
 
 def _apply_escalation_status_change(escalation, new_status, advisor_notes=None):
@@ -209,13 +292,14 @@ def _apply_escalation_status_change(escalation, new_status, advisor_notes=None):
         if escalation.advisor_notes:
             note += f" Notes: {escalation.advisor_notes}"
 
-        event = EmployeeRelationsTimelineEvent(
-            case_id=escalation.source_record_id,
-            event_type=f"Advisor Escalation {status_label}",
-            notes=note,
-            updated_by=current_user.username,
+        db.session.add(
+            EmployeeRelationsTimelineEvent(
+                case_id=escalation.source_record_id,
+                event_type=f"Advisor Escalation {status_label}",
+                notes=note,
+                updated_by=current_user.username,
+            )
         )
-        db.session.add(event)
 
 
 @admin_bp.route("/admin/dashboard")
@@ -413,10 +497,18 @@ def advisor_escalation_queue():
     status_filter = (request.args.get("status") or "").strip().lower()
     module_filter = (request.args.get("module_key") or "").strip().lower()
     assigned_filter = (request.args.get("assigned") or "").strip().lower()
+    sla_filter = (request.args.get("sla") or "").strip().lower()
+    sort_by = (request.args.get("sort") or "oldest").strip().lower()
 
-    query = _scoped_escalation_query().order_by(
-        AdvisorEscalation.created_at.desc()
-    )
+    if sort_by not in SORT_OPTIONS:
+        sort_by = "oldest"
+
+    query = _scoped_escalation_query()
+
+    if sort_by == "newest":
+        query = query.order_by(AdvisorEscalation.created_at.desc())
+    else:
+        query = query.order_by(AdvisorEscalation.created_at.asc())
 
     if status_filter:
         query = query.filter(AdvisorEscalation.status == status_filter)
@@ -430,15 +522,22 @@ def advisor_escalation_queue():
         query = query.filter(AdvisorEscalation.assigned_to_user_id.is_(None))
 
     escalations = query.all()
+    assignable_users = _scoped_assignable_users()
 
     escalation_rows = []
     for escalation in escalations:
         source = _build_escalation_source_context(escalation)
+        age_data = _calculate_escalation_age_data(escalation)
+
+        if sla_filter and age_data["sla_status"] != sla_filter:
+            continue
+
         escalation_rows.append(
             {
                 "escalation": escalation,
                 "source": source,
                 "is_active": escalation.status in ACTIVE_ESCALATION_STATUSES,
+                "age_data": age_data,
             }
         )
 
@@ -460,11 +559,83 @@ def advisor_escalation_queue():
         status_filter=status_filter,
         module_filter=module_filter,
         assigned_filter=assigned_filter,
+        sla_filter=sla_filter,
+        sort_by=sort_by,
         escalation_status_labels=ESCALATION_STATUS_LABELS,
+        sla_filter_options=SLA_FILTER_OPTIONS,
+        sort_options=SORT_OPTIONS,
         open_count=open_count,
         unassigned_count=unassigned_count,
         my_queue_count=my_queue_count,
+        assignable_users=assignable_users,
     )
+
+
+@admin_bp.route("/admin/escalations/<int:escalation_id>")
+@login_required
+def advisor_escalation_detail(escalation_id):
+    access_check = _admin_queue_access_required()
+    if access_check:
+        return access_check
+
+    escalation = _get_escalation_or_404(escalation_id)
+    source = _build_escalation_source_context(escalation)
+    assignable_users = _scoped_assignable_users()
+    age_data = _calculate_escalation_age_data(escalation)
+
+    return render_template(
+        "admin_escalation_detail.html",
+        escalation=escalation,
+        source=source,
+        escalation_status_labels=ESCALATION_STATUS_LABELS,
+        assignable_users=assignable_users,
+        age_data=age_data,
+    )
+
+
+@admin_bp.route("/admin/escalations/<int:escalation_id>/assign", methods=["POST"])
+@login_required
+def assign_advisor_escalation(escalation_id):
+    access_check = _admin_queue_access_required()
+    if access_check:
+        return access_check
+
+    escalation = _get_escalation_or_404(escalation_id)
+
+    assigned_to_raw = (request.form.get("assigned_to_user_id") or "").strip()
+    if not assigned_to_raw:
+        new_user = None
+        new_user_id = None
+    else:
+        try:
+            new_user_id = int(assigned_to_raw)
+        except (TypeError, ValueError):
+            flash("Invalid assignee selected.", "danger")
+            return redirect(url_for("admin.advisor_escalation_detail", escalation_id=escalation.id))
+
+        assignable_user_ids = {user.id for user in _scoped_assignable_users()}
+        if new_user_id not in assignable_user_ids:
+            flash("Selected user cannot be assigned to this escalation.", "danger")
+            return redirect(url_for("admin.advisor_escalation_detail", escalation_id=escalation.id))
+
+        new_user = User.query.get(new_user_id)
+        if new_user is None:
+            flash("Selected user could not be found.", "danger")
+            return redirect(url_for("admin.advisor_escalation_detail", escalation_id=escalation.id))
+
+    old_user = escalation.assigned_to
+    old_user_id = escalation.assigned_to_user_id
+
+    if old_user_id == new_user_id:
+        flash("Escalation assignment is unchanged.", "info")
+        return redirect(url_for("admin.advisor_escalation_detail", escalation_id=escalation.id))
+
+    escalation.assigned_to_user_id = new_user_id
+    _log_escalation_assignment_change(escalation, old_user, new_user)
+
+    db.session.commit()
+    flash("Escalation assignment updated successfully.", "success")
+    return redirect(url_for("admin.advisor_escalation_detail", escalation_id=escalation.id))
 
 
 @admin_bp.route("/admin/escalations/<int:escalation_id>/update", methods=["POST"])
@@ -480,7 +651,7 @@ def update_advisor_escalation(escalation_id):
 
     if new_status not in ALL_ESCALATION_STATUSES:
         flash("Invalid escalation status selected.", "danger")
-        return redirect(url_for("admin.advisor_escalation_queue"))
+        return redirect(url_for("admin.advisor_escalation_detail", escalation_id=escalation.id))
 
     current_status = escalation.status
 
@@ -495,7 +666,7 @@ def update_advisor_escalation(escalation_id):
 
     if new_status != current_status and new_status not in allowed_transitions.get(current_status, set()):
         flash("That escalation status change is not allowed from the current state.", "danger")
-        return redirect(url_for("admin.advisor_escalation_queue"))
+        return redirect(url_for("admin.advisor_escalation_detail", escalation_id=escalation.id))
 
     _apply_escalation_status_change(
         escalation,
@@ -505,7 +676,7 @@ def update_advisor_escalation(escalation_id):
 
     db.session.commit()
     flash("Escalation updated successfully.", "success")
-    return redirect(url_for("admin.advisor_escalation_queue"))
+    return redirect(url_for("admin.advisor_escalation_detail", escalation_id=escalation.id))
 
 
 @admin_bp.route("/admin/export")

@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block title %}Escalation #{{ escalation.id }}{% endblock %}
+{% block page_title %}🧑‍💼 Escalation Detail{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+  <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <div>
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="inline-flex items-center rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">
+          {{ escalation.module_key|replace('_', ' ')|title }}
+        </span>
+        <span class="inline-flex items-center rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">
+          {{ escalation.status|replace('_', ' ')|title }}
+        </span>
+
+        {% if age_data.sla_status == 'green' %}
+          <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+            {{ age_data.sla_label }}
+          </span>
+        {% elif age_data.sla_status == 'amber' %}
+          <span class="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+            {{ age_data.sla_label }}
+          </span>
+        {% elif age_data.sla_status == 'red' %}
+          <span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800">
+            {{ age_data.sla_label }}
+          </span>
+        {% else %}
+          <span class="inline-flex items-center rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">
+            {{ age_data.sla_label }}
+          </span>
+        {% endif %}
+      </div>
+      <h2 class="mt-3 text-2xl font-bold text-slate-900">
+        {{ source.source_title }}
+      </h2>
+      <p class="mt-1 text-sm text-slate-600">
+        Escalation #{{ escalation.id }}
+        {% if source.employee_name %} · {{ source.employee_name }}{% endif %}
+        {% if source.secondary %} · {{ source.secondary }}{% endif %}
+      </p>
+    </div>
+
+    <div class="flex gap-2">
+      <a href="{{ url_for('admin.advisor_escalation_queue') }}"
+         class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        ← Back to Queue
+      </a>
+      {% if source.source_url %}
+      <a href="{{ source.source_url }}"
+         class="inline-flex items-center rounded-lg bg-[#0a4d4c] px-4 py-2 text-sm font-medium text-white hover:bg-[#0f6b69]">
+        Open Source Record
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+    <div class="xl:col-span-2 space-y-6">
+
+      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <h3 class="text-lg font-semibold text-slate-900">Submission Summary</h3>
+        {% if escalation.summary %}
+          <pre class="mt-4 whitespace-pre-wrap text-sm text-slate-800 rounded-xl border border-slate-200 bg-slate-50 p-4">{{ escalation.summary }}</pre>
+        {% else %}
+          <div class="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            No summary was provided for this escalation.
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <h3 class="text-lg font-semibold text-slate-900">Attached Evidence</h3>
+
+        {% if escalation.documents %}
+          <div class="mt-4 space-y-3">
+            {% for evidence in escalation.documents %}
+              {% set meta = evidence.metadata_dict() %}
+              <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div class="min-w-0">
+                    <div class="text-sm font-semibold text-slate-900 break-all">{{ evidence.file_name }}</div>
+                    <div class="mt-1 text-xs text-slate-500">
+                      {{ evidence.document_type or 'Evidence' }}
+                    </div>
+                    <div class="mt-1 text-xs text-slate-500 break-all">
+                      {{ evidence.file_path }}
+                    </div>
+                  </div>
+
+                  <div class="shrink-0">
+                    {% if meta.get('source_model') == 'DocumentFile' and meta.get('source_id') %}
+                      <a href="{{ url_for('download_doc', doc_id=meta.get('source_id')) }}"
+                         class="inline-flex items-center rounded-lg bg-[#0a4d4c] px-4 py-2 text-sm font-medium text-white hover:bg-[#0f6b69]">
+                        Download
+                      </a>
+                    {% elif meta.get('source_model') == 'EmployeeRelationsDocument' and meta.get('source_id') %}
+                      <a href="{{ url_for('employee_relations.download_document', document_id=meta.get('source_id')) }}"
+                         class="inline-flex items-center rounded-lg bg-[#0a4d4c] px-4 py-2 text-sm font-medium text-white hover:bg-[#0f6b69]">
+                        Download
+                      </a>
+                    {% elif meta.get('source_model') == 'EmployeeRelationsAttachment' and meta.get('source_id') %}
+                      <a href="{{ url_for('employee_relations.download_attachment', attachment_id=meta.get('source_id')) }}"
+                         class="inline-flex items-center rounded-lg bg-[#0a4d4c] px-4 py-2 text-sm font-medium text-white hover:bg-[#0f6b69]">
+                        Download
+                      </a>
+                    {% else %}
+                      <span class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-500">
+                        No link
+                      </span>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            No evidence is attached to this escalation.
+          </div>
+        {% endif %}
+      </div>
+
+    </div>
+
+    <div class="space-y-6">
+
+      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <h3 class="text-lg font-semibold text-slate-900">Ageing / SLA</h3>
+        <dl class="mt-4 space-y-3 text-sm">
+          <div>
+            <dt class="font-medium text-slate-500">Age</dt>
+            <dd class="mt-1 text-slate-900">{{ age_data.age_days }} day{% if age_data.age_days != 1 %}s{% endif %} ({{ age_data.age_hours }}h)</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">SLA Status</dt>
+            <dd class="mt-1 text-slate-900">{{ age_data.sla_label }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Created</dt>
+            <dd class="mt-1 text-slate-900">{{ escalation.created_at.strftime('%d/%m/%Y %H:%M') if escalation.created_at else '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Submitted At</dt>
+            <dd class="mt-1 text-slate-900">{{ escalation.submitted_at.strftime('%d/%m/%Y %H:%M') if escalation.submitted_at else '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Acknowledged At</dt>
+            <dd class="mt-1 text-slate-900">{{ escalation.acknowledged_at.strftime('%d/%m/%Y %H:%M') if escalation.acknowledged_at else '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Closed At</dt>
+            <dd class="mt-1 text-slate-900">{{ escalation.closed_at.strftime('%d/%m/%Y %H:%M') if escalation.closed_at else '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Cancelled At</dt>
+            <dd class="mt-1 text-slate-900">{{ escalation.cancelled_at.strftime('%d/%m/%Y %H:%M') if escalation.cancelled_at else '—' }}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <h3 class="text-lg font-semibold text-slate-900">Assign / Reassign Owner</h3>
+        <form method="POST"
+              action="{{ url_for('admin.assign_advisor_escalation', escalation_id=escalation.id) }}"
+              class="mt-4 space-y-4">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Owner</label>
+            <select name="assigned_to_user_id"
+                    class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
+              <option value="">Unassigned</option>
+              {% for user in assignable_users %}
+                <option value="{{ user.id }}" {% if escalation.assigned_to_user_id == user.id %}selected{% endif %}>
+                  {{ user.username }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <button type="submit"
+                  class="inline-flex items-center rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900">
+            Save Owner
+          </button>
+        </form>
+      </div>
+
+      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <h3 class="text-lg font-semibold text-slate-900">Status & Notes</h3>
+        <form method="POST"
+              action="{{ url_for('admin.update_advisor_escalation', escalation_id=escalation.id) }}"
+              class="mt-4 space-y-4">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Status</label>
+            <select name="status"
+                    class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
+              {% for key, label in escalation_status_labels.items() %}
+                <option value="{{ key }}" {% if escalation.status == key %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Advisor Notes</label>
+            <textarea name="advisor_notes"
+                      rows="8"
+                      class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                      placeholder="Add review notes, rationale, or next steps...">{{ escalation.advisor_notes or '' }}</textarea>
+          </div>
+
+          <button type="submit"
+                  class="inline-flex items-center rounded-lg bg-[#0a4d4c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0f6b69]">
+            Save Update
+          </button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
