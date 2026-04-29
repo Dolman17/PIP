@@ -78,9 +78,23 @@ app.jinja_env.globals["now_utc"] = now_utc
 app.jinja_env.globals["now_local"] = now_local
 app.jinja_env.globals["today_local"] = today_local
 
-DB_PATH = os.path.join(BASE_DIR, 'pip_crm.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + DB_PATH
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# ---------------------------------------------------------------------
+# Database configuration
+# ---------------------------------------------------------------------
+# Local development uses SQLite by default.
+# Railway production should provide DATABASE_URL for PostgreSQL.
+database_url = os.environ.get("DATABASE_URL")
+
+if database_url:
+    # Railway/Heroku-style URLs sometimes use postgres://, but SQLAlchemy
+    # expects postgresql://.
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+else:
+    DB_PATH = os.path.join(BASE_DIR, "pip_crm.db")
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + DB_PATH
 
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads', 'documents')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -116,6 +130,7 @@ from pip_app.blueprints.pip import pip_bp, get_active_draft_for_user
 from pip_app.blueprints.employee_relations import employee_relations_bp
 from pip_app.blueprints.manage_employee import manage_employee_bp
 from pip_app.blueprints.ai_consent import ai_consent_bp
+from pip_app.blueprints.supervision import supervision_bp
 
 login_manager = LoginManager()
 login_manager.login_view = 'auth.login'
@@ -136,6 +151,7 @@ app.register_blueprint(pip_bp)
 app.register_blueprint(employee_relations_bp)
 app.register_blueprint(manage_employee_bp)
 app.register_blueprint(ai_consent_bp)
+app.register_blueprint(supervision_bp)
 
 csrf.exempt(app.view_functions['employees.quick_add_employee'])
 csrf.exempt(app.view_functions['pip.suggest_actions_ai'])
@@ -267,6 +283,22 @@ LEGACY_ENDPOINT_ALIASES = {
     "add_sickness_meeting": "sickness.add_sickness_meeting",
     "update_sickness_status": "sickness.update_sickness_status",
 
+    "supervision_dashboard": "supervision.dashboard",
+    "supervision_list": "supervision.list_supervisions",
+    "supervision_create": "supervision.create_supervision",
+    "supervision_detail": "supervision.detail",
+    "supervision_edit": "supervision.edit",
+    "supervision_complete": "supervision.complete",
+    "supervision_cancel": "supervision.cancel",
+    "supervision_employee": "supervision.employee_supervisions",
+    "supervision_add_action": "supervision.add_action",
+    "supervision_edit_action": "supervision.edit_action",
+    "supervision_complete_action": "supervision.complete_action",
+    "supervision_carry_forward_action": "supervision.carry_forward_action",
+    "supervision_templates": "supervision.templates",
+    "supervision_create_template": "supervision.create_template",
+    "supervision_edit_template": "supervision.edit_template",
+
     "employee_relations_dashboard": "employee_relations.dashboard",
     "employee_relations_case_list": "employee_relations.case_list",
     "employee_relations_create_case": "employee_relations.create_case",
@@ -303,6 +335,8 @@ def set_active_module():
         session['active_module'] = 'Sickness'
     elif path.startswith('/employee-relations/'):
         session['active_module'] = 'Employee Relations'
+    elif path.startswith('/supervision/'):
+        session['active_module'] = 'Supervision'
     elif path == '/':
         session.pop('active_module', None)
 
