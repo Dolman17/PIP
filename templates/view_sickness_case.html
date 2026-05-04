@@ -1,12 +1,36 @@
 {% extends "base.html" %}
 {% block title %}Sickness Case #{{ case.id }}{% endblock %}
 {% block page_title %}🤒 Sickness Case{% endblock %}
-{% block content %}
 
-<div class="max-w-5xl mx-auto px-4 py-8">
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 py-8 space-y-6">
+
+  {% macro collapse_section(section_id, title, default_open=false) %}
+    <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 overflow-hidden">
+      <button
+        type="button"
+        class="sickness-collapse-toggle flex w-full items-center justify-between px-5 py-4 text-left hover:bg-slate-50"
+        data-target="{{ section_id }}"
+        aria-expanded="{{ 'true' if default_open else 'false' }}">
+        <span class="text-lg font-semibold text-slate-900">{{ title }}</span>
+        <svg class="sickness-collapse-icon h-5 w-5 text-slate-500 transition-transform duration-200 {{ 'rotate-180' if default_open else '' }}"
+             data-icon-for="{{ section_id }}"
+             xmlns="http://www.w3.org/2000/svg"
+             fill="none"
+             viewBox="0 0 24 24"
+             stroke-width="2"
+             stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25 12 15.75 4.5 8.25" />
+        </svg>
+      </button>
+      <div id="{{ section_id }}" class="{% if not default_open %}hidden{% endif %} border-t border-slate-200 px-5 py-5">
+        {{ caller() }}
+      </div>
+    </section>
+  {% endmacro %}
 
   <!-- Header -->
-  <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
+  <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
     <div>
       <h1 class="text-2xl font-semibold text-slate-900">
         Sickness Case #{{ case.id }}
@@ -38,8 +62,7 @@
     </div>
   </div>
 
-  <!-- Status / dates card -->
-  <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 mb-6">
+  {% call collapse_section('case-overview', 'Case Overview', true) %}
     <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
       <div class="space-y-1 text-sm text-slate-700">
         <div>
@@ -65,7 +88,6 @@
       </div>
 
       <div class="flex flex-col items-end gap-2">
-        <!-- Status pill -->
         {% set label = case.status or 'Open' %}
         {% if label == 'Open' %}
           {% set cls = "inline-flex items-center rounded-full border border-emerald-500/60 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700" %}
@@ -87,7 +109,6 @@
           {% endif %}
         {% endif %}
 
-        <!-- Status change buttons -->
         <div class="flex flex-wrap gap-2 justify-end mt-1">
           <form action="{{ url_for('update_sickness_status', case_id=case.id, new_status='Open') }}"
                 method="post">
@@ -120,14 +141,12 @@
         <p class="whitespace-pre-line">{{ case.notes }}</p>
       </div>
     {% endif %}
-  </div>
+  {% endcall %}
 
-  <!-- Meetings -->
-  <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
-    <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+  {% call collapse_section('meetings', 'Meetings', true) %}
+    <div class="flex items-center justify-between">
       <div>
-        <h2 class="text-base font-semibold text-slate-900">Meetings</h2>
-        <p class="text-xs text-slate-500 mt-0.5">RTW, absence reviews, welfare check-ins.</p>
+        <p class="text-xs text-slate-500">RTW, absence reviews, welfare check-ins.</p>
       </div>
       <a href="{{ url_for('add_sickness_meeting', case_id=case.id) }}"
          class="inline-flex items-center rounded-full bg-[#0f6b6a] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#0c5858]">
@@ -136,9 +155,9 @@
     </div>
 
     {% if meetings %}
-      <div class="divide-y divide-slate-100">
+      <div class="mt-4 divide-y divide-slate-100">
         {% for m in meetings %}
-          <div class="p-4 text-sm text-slate-700">
+          <div class="py-4 text-sm text-slate-700">
             <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
               <div class="font-semibold">
                 {{ m.meeting_type or 'Meeting' }} · {{ m.meeting_date.strftime('%d %b %Y') }}
@@ -160,12 +179,38 @@
         {% endfor %}
       </div>
     {% else %}
-      <div class="p-4 text-sm text-slate-500">
+      <div class="mt-4 text-sm text-slate-500">
         No meetings logged yet. Use “Add meeting” to capture RTW or absence review discussions.
       </div>
     {% endif %}
-  </div>
+  {% endcall %}
 
 </div>
+{% endblock %}
 
+{% block extra_js %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const toggles = document.querySelectorAll(".sickness-collapse-toggle");
+
+    toggles.forEach((toggle) => {
+      toggle.addEventListener("click", function () {
+        const targetId = this.dataset.target;
+        const content = document.getElementById(targetId);
+        const icon = document.querySelector(`[data-icon-for="${targetId}"]`);
+        const isExpanded = this.getAttribute("aria-expanded") === "true";
+
+        if (isExpanded) {
+          content.classList.add("hidden");
+          this.setAttribute("aria-expanded", "false");
+          if (icon) icon.classList.remove("rotate-180");
+        } else {
+          content.classList.remove("hidden");
+          this.setAttribute("aria-expanded", "true");
+          if (icon) icon.classList.add("rotate-180");
+        }
+      });
+    });
+  });
+</script>
 {% endblock %}

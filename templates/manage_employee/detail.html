@@ -5,6 +5,30 @@
 {% block content %}
 <div class="max-w-6xl mx-auto p-6 space-y-6">
 
+  {% macro collapse_section(section_id, title, default_open=false) %}
+    <section class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 overflow-hidden">
+      <button
+        type="button"
+        class="manage-employee-collapse-toggle flex w-full items-center justify-between px-5 py-4 text-left hover:bg-slate-50"
+        data-target="{{ section_id }}"
+        aria-expanded="{{ 'true' if default_open else 'false' }}">
+        <span class="text-lg font-semibold text-ellipse-teal">{{ title }}</span>
+        <svg class="manage-employee-collapse-icon h-5 w-5 text-slate-500 transition-transform duration-200 {{ 'rotate-180' if default_open else '' }}"
+             data-icon-for="{{ section_id }}"
+             xmlns="http://www.w3.org/2000/svg"
+             fill="none"
+             viewBox="0 0 24 24"
+             stroke-width="2"
+             stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25 12 15.75 4.5 8.25" />
+        </svg>
+      </button>
+      <div id="{{ section_id }}" class="{% if not default_open %}hidden{% endif %} border-t border-slate-200 px-5 py-5">
+        {{ caller() }}
+      </div>
+    </section>
+  {% endmacro %}
+
   <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
     <div>
       <div class="flex flex-wrap items-center gap-3">
@@ -90,9 +114,8 @@
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <div class="lg:col-span-2 space-y-6">
 
-      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 class="text-lg font-semibold text-ellipse-teal">Core Profile</h2>
-        <dl class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+      {% call collapse_section('core-profile', 'Core Profile', true) %}
+        <dl class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
           <div>
             <dt class="text-slate-500">First Name</dt>
             <dd class="mt-1 font-medium text-slate-900">{{ employee.first_name or '—' }}</dd>
@@ -126,11 +149,11 @@
             <dd class="mt-1 font-medium text-slate-900">{{ status_label }}</dd>
           </div>
         </dl>
-      </div>
+      {% endcall %}
 
-      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      {% call collapse_section('linked-records', 'Linked Records', true) %}
         <div class="flex items-center justify-between gap-4">
-          <h2 class="text-lg font-semibold text-ellipse-teal">Linked Records</h2>
+          <div></div>
           <a
             href="{{ url_for('manage_employee.index') }}"
             class="text-sm font-medium text-ellipse-teal hover:underline"
@@ -178,16 +201,14 @@
           </a>
           {% endif %}
         </div>
-      </div>
+      {% endcall %}
 
     </div>
 
     <div class="space-y-6">
 
-      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 class="text-lg font-semibold text-ellipse-teal">Lifecycle</h2>
-
-        <dl class="mt-4 space-y-4 text-sm">
+      {% call collapse_section('lifecycle', 'Lifecycle', true) %}
+        <dl class="space-y-4 text-sm">
           <div>
             <dt class="text-slate-500">Marked as Leaver</dt>
             <dd class="mt-1 font-medium text-slate-900">
@@ -260,10 +281,37 @@
           This employee is currently active.
         </div>
         {% endif %}
-      </div>
+      {% endcall %}
 
     </div>
   </div>
 
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const toggles = document.querySelectorAll(".manage-employee-collapse-toggle");
+
+    toggles.forEach((toggle) => {
+      toggle.addEventListener("click", function () {
+        const targetId = this.dataset.target;
+        const content = document.getElementById(targetId);
+        const icon = document.querySelector(`[data-icon-for="${targetId}"]`);
+        const isExpanded = this.getAttribute("aria-expanded") === "true";
+
+        if (isExpanded) {
+          content.classList.add("hidden");
+          this.setAttribute("aria-expanded", "false");
+          if (icon) icon.classList.remove("rotate-180");
+        } else {
+          content.classList.remove("hidden");
+          this.setAttribute("aria-expanded", "true");
+          if (icon) icon.classList.add("rotate-180");
+        }
+      });
+    });
+  });
+</script>
 {% endblock %}

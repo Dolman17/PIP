@@ -831,8 +831,94 @@ def create_pip(employee_id):
 @pip_bp.route('/pip/list')
 @login_required
 def pip_list():
-    pips = _scoped_pip_query().all()
-    return render_template('pip_list.html', pips=pips)
+    query = _scoped_pip_query()
+
+    search = (request.args.get('search') or '').strip()
+    status = (request.args.get('status') or '').strip()
+    category = (request.args.get('category') or '').strip()
+    severity = (request.args.get('severity') or '').strip()
+    overdue_only = (request.args.get('overdue_only') or '').strip()
+
+    if search:
+        like = f"%{search}%"
+        query = query.filter(
+            or_(
+                Employee.first_name.ilike(like),
+                Employee.last_name.ilike(like),
+                Employee.job_title.ilike(like),
+                PIPRecord.concerns.ilike(like),
+                PIPRecord.concern_category.ilike(like),
+            )
+        )
+
+    if status:
+        query = query.filter(PIPRecord.status == status)
+
+    if category:
+        query = query.filter(PIPRecord.concern_category == category)
+
+    if severity:
+        query = query.filter(PIPRecord.severity == severity)
+
+    if overdue_only == "1":
+        today = datetime.utcnow().date()
+        query = query.filter(
+            PIPRecord.status != "Closed",
+            PIPRecord.review_date.isnot(None),
+            PIPRecord.review_date < today,
+        )
+
+    pips = query.order_by(
+        PIPRecord.review_date.asc().nullslast(),
+        PIPRecord.start_date.desc().nullslast()
+    ).all()
+
+    status_options = [
+        row[0] for row in (
+            _scoped_pip_query()
+            .with_entities(PIPRecord.status)
+            .distinct()
+            .order_by(PIPRecord.status.asc())
+            .all()
+        ) if row[0]
+    ]
+
+    category_options = [
+        row[0] for row in (
+            _scoped_pip_query()
+            .with_entities(PIPRecord.concern_category)
+            .distinct()
+            .order_by(PIPRecord.concern_category.asc())
+            .all()
+        ) if row[0]
+    ]
+
+    severity_options = [
+        row[0] for row in (
+            _scoped_pip_query()
+            .with_entities(PIPRecord.severity)
+            .distinct()
+            .order_by(PIPRecord.severity.asc())
+            .all()
+        ) if row[0]
+    ]
+
+    filters = {
+        "search": search,
+        "status": status,
+        "category": category,
+        "severity": severity,
+        "overdue_only": overdue_only,
+    }
+
+    return render_template(
+        'pip_list.html',
+        pips=pips,
+        filters=filters,
+        status_options=status_options,
+        category_options=category_options,
+        severity_options=severity_options,
+    )
 
 
 @pip_bp.route('/pip/select-employee', methods=['GET', 'POST'])
