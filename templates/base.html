@@ -111,6 +111,18 @@
           </a>
           {% endif %}
 
+          {% if enabled_modules.get('supervision', True) %}
+          <a href="{{ url_for('supervision.dashboard') }}"
+             class="inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold
+                    {% if active_module == 'Supervision' %}
+                      bg-white text-[#0a4d4c]
+                    {% else %}
+                      bg-white/5 text-white/80 hover:bg-white/10
+                    {% endif %}">
+            <span class="text-xs">Supervision</span>
+          </a>
+          {% endif %}
+
           {% if current_user.is_superuser() and enabled_modules.get('employee_relations', True) %}
           <a href="{{ url_for('employee_relations.dashboard') }}"
              class="inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold
@@ -149,7 +161,7 @@
               <li>
                 <a href="{{ url_for('employee_list') }}"
                    class="flex items-center gap-2 rounded-xl px-3 py-2
-                          {% if current_endpoint == 'employee_list' %}
+                          {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}
                             bg-white text-[#0a4d4c]
                           {% else %}
                             text-white/80 hover:bg-white/10
@@ -185,7 +197,7 @@
               <li>
                 <a href="{{ url_for('pip_list') }}"
                    class="flex items-center gap-2 rounded-xl px-3 py-2
-                          {% if current_endpoint == 'pip_list' %}
+                          {% if current_endpoint in ['pip_list', 'pip.pip_list'] %}
                             bg-white text-[#0a4d4c]
                           {% else %}
                             text-white/80 hover:bg-white/10
@@ -233,7 +245,7 @@
               <li>
                 <a href="{{ url_for('employee_list') }}"
                    class="flex items-center gap-2 rounded-xl px-3 py-2
-                          {% if current_endpoint == 'employee_list' %}
+                          {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}
                             bg-white text-[#0a4d4c]
                           {% else %}
                             text-white/80 hover:bg-white/10
@@ -269,7 +281,7 @@
               <li>
                 <a href="{{ url_for('probation_dashboard') }}"
                    class="flex items-center gap-2 rounded-xl px-3 py-2
-                          {% if current_endpoint == 'probation_dashboard' %}
+                          {% if current_endpoint in ['probation_dashboard', 'probation.probation_dashboard'] %}
                             bg-white text-[#0a4d4c]
                           {% else %}
                             text-white/80 hover:bg-white/10
@@ -291,7 +303,7 @@
               <li>
                 <a href="{{ url_for('employee_list') }}"
                    class="flex items-center gap-2 rounded-xl px-3 py-2
-                          {% if current_endpoint == 'employee_list' %}
+                          {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}
                             bg-white text-[#0a4d4c]
                           {% else %}
                             text-white/80 hover:bg-white/10
@@ -327,7 +339,7 @@
               <li>
                 <a href="{{ url_for('sickness_dashboard') }}"
                    class="flex items-center gap-2 rounded-xl px-3 py-2
-                          {% if current_endpoint == 'sickness_dashboard' %}
+                          {% if current_endpoint in ['sickness_dashboard', 'sickness.sickness_dashboard'] %}
                             bg-white text-[#0a4d4c]
                           {% else %}
                             text-white/80 hover:bg-white/10
@@ -336,6 +348,97 @@
                   <span class="text-sm font-medium">Sickness Dashboard</span>
                 </a>
               </li>
+
+              <li>
+                <a href="{{ url_for('sickness_list') }}"
+                   class="flex items-center gap-2 rounded-xl px-3 py-2
+                          {% if current_endpoint in ['sickness_list', 'sickness.sickness_list'] %}
+                            bg-white text-[#0a4d4c]
+                          {% else %}
+                            text-white/80 hover:bg-white/10
+                          {% endif %}">
+                  <span class="text-base">📋</span>
+                  <span class="text-sm font-medium">All Sickness Cases</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        {% endif %}
+
+        {% if active_module == 'Supervision' and enabled_modules.get('supervision', True) %}
+          <div>
+            <div class="px-1 text-[11px] font-semibold uppercase tracking-wide text-white/60 mb-1">
+              Supervision
+            </div>
+            <ul class="space-y-1">
+              <li>
+                <a href="{{ url_for('supervision.dashboard') }}"
+                   class="flex items-center gap-2 rounded-xl px-3 py-2
+                          {% if current_endpoint == 'supervision.dashboard' %}
+                            bg-white text-[#0a4d4c]
+                          {% else %}
+                            text-white/80 hover:bg-white/10
+                          {% endif %}">
+                  <span class="text-base">📊</span>
+                  <span class="text-sm font-medium">Supervision Dashboard</span>
+                </a>
+              </li>
+
+              <li>
+                <a href="{{ url_for('supervision.list_supervisions') }}"
+                   class="flex items-center gap-2 rounded-xl px-3 py-2
+                          {% if current_endpoint == 'supervision.list_supervisions' %}
+                            bg-white text-[#0a4d4c]
+                          {% else %}
+                            text-white/80 hover:bg-white/10
+                          {% endif %}">
+                  <span class="text-base">📋</span>
+                  <span class="text-sm font-medium">All Supervisions</span>
+                </a>
+              </li>
+
+              <li>
+                <a href="{{ url_for('employee_list') }}"
+                   class="flex items-center gap-2 rounded-xl px-3 py-2
+                          {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}
+                            bg-white text-[#0a4d4c]
+                          {% else %}
+                            text-white/80 hover:bg-white/10
+                          {% endif %}">
+                  <span class="text-base">👥</span>
+                  <span class="text-sm font-medium">Start from Employee</span>
+                </a>
+              </li>
+
+              <li>
+                <a href="{{ url_for('manage_employee.index') }}"
+                   class="flex items-center justify-between gap-2 rounded-xl px-3 py-2
+                          {% if current_endpoint.startswith('manage_employee.') %}
+                            bg-white text-[#0a4d4c]
+                          {% else %}
+                            text-white/80 hover:bg-white/10
+                          {% endif %}">
+                  <span class="flex items-center gap-2 min-w-0">
+                    <span class="text-base">🗂️</span>
+                    <span class="text-sm font-medium">Manage Employees</span>
+                  </span>
+                </a>
+              </li>
+
+              {% if current_user.is_admin() %}
+              <li>
+                <a href="{{ url_for('supervision.templates') }}"
+                   class="flex items-center gap-2 rounded-xl px-3 py-2
+                          {% if current_endpoint in ['supervision.templates', 'supervision.create_template', 'supervision.edit_template'] %}
+                            bg-white text-[#0a4d4c]
+                          {% else %}
+                            text-white/80 hover:bg-white/10
+                          {% endif %}">
+                  <span class="text-base">🧾</span>
+                  <span class="text-sm font-medium">Templates</span>
+                </a>
+              </li>
+              {% endif %}
             </ul>
           </div>
         {% endif %}
@@ -388,7 +491,7 @@
               <li>
                 <a href="{{ url_for('employee_list') }}"
                    class="flex items-center gap-2 rounded-xl px-3 py-2
-                          {% if current_endpoint == 'employee_list' %}
+                          {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}
                             bg-white text-[#0a4d4c]
                           {% else %}
                             text-white/80 hover:bg-white/10
@@ -492,7 +595,7 @@
               <li>
                 <a href="{{ url_for('employee_import') }}"
                    class="flex items-center gap-2 rounded-xl px-3 py-2
-                          {% if current_endpoint == 'employee_import' %}
+                          {% if current_endpoint in ['employee_import', 'employees.employee_import'] %}
                             bg-white text-[#0a4d4c]
                           {% else %}
                             text-white/80 hover:bg-white/10

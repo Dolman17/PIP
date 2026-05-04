@@ -1,0 +1,333 @@
+{% extends "base.html" %}
+{% block title %}Supervision: {{ employee.full_name }}{% endblock %}
+{% block page_title %}Supervision / 1:1 Detail{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto p-6 space-y-6">
+
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-ellipse-teal">
+        {{ supervision.meeting_title or supervision.meeting_type }}
+      </h1>
+      <p class="mt-1 text-sm text-slate-500">
+        {{ employee.full_name }} · {{ supervision.meeting_date.strftime('%d %b %Y') if supervision.meeting_date else 'No date' }}
+      </p>
+    </div>
+
+    <div class="flex flex-wrap gap-3">
+      <a href="{{ url_for('supervision.edit', id=supervision.id) }}"
+         class="inline-flex items-center rounded-full border border-ellipse-teal bg-white px-4 py-2 text-sm font-medium text-ellipse-teal hover:bg-ellipse-light">
+        Edit
+      </a>
+      <a href="{{ url_for('supervision.list_supervisions') }}"
+         class="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        All Records
+      </a>
+      <a href="{{ url_for('employees.employee_detail', employee_id=employee.id) }}"
+         class="inline-flex items-center rounded-full bg-ellipse-teal px-4 py-2 text-sm font-semibold text-white hover:bg-ellipse-hover">
+        Employee
+      </a>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-5">
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Employee</p>
+      <p class="mt-2 text-sm font-semibold text-slate-900">{{ employee.full_name }}</p>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Type</p>
+      <p class="mt-2 text-sm font-semibold text-slate-900">{{ supervision.meeting_type }}</p>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Date</p>
+      <p class="mt-2 text-sm font-semibold text-slate-900">
+        {{ supervision.meeting_date.strftime('%d %b %Y') if supervision.meeting_date else '—' }}
+      </p>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Status</p>
+      <p class="mt-2">
+        {% if supervision.status == 'Completed' %}
+          <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Completed</span>
+        {% elif supervision.status == 'Overdue' %}
+          <span class="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700">Overdue</span>
+        {% elif supervision.status == 'Cancelled' %}
+          <span class="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">Cancelled</span>
+        {% elif supervision.status == 'Draft' %}
+          <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">Draft</span>
+        {% else %}
+          <span class="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700">Scheduled</span>
+        {% endif %}
+      </p>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Open Actions</p>
+      {% set open_actions = supervision.actions|selectattr('status', 'in', ['Open', 'Carried Forward'])|list %}
+      <p class="mt-2 text-sm font-semibold text-slate-900">{{ open_actions|length }}</p>
+    </div>
+  </div>
+
+  <div class="flex flex-wrap gap-3">
+    {% if supervision.status not in ['Completed', 'Cancelled'] %}
+    <form method="post" action="{{ url_for('supervision.complete', id=supervision.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit"
+              class="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
+        Mark Completed
+      </button>
+    </form>
+
+    <form method="post" action="{{ url_for('supervision.cancel', id=supervision.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit"
+              class="rounded-full bg-slate-600 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">
+        Cancel
+      </button>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+
+    <div class="space-y-6 lg:col-span-2">
+
+      <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-ellipse-teal">Meeting overview</h2>
+
+        <dl class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 text-sm">
+          <div>
+            <dt class="text-slate-500">Manager</dt>
+            <dd class="mt-1 font-medium text-slate-900">{{ supervision.manager.username if supervision.manager else '—' }}</dd>
+          </div>
+          <div>
+            <dt class="text-slate-500">Location</dt>
+            <dd class="mt-1 font-medium text-slate-900">{{ supervision.location or '—' }}</dd>
+          </div>
+          <div>
+            <dt class="text-slate-500">Period Start</dt>
+            <dd class="mt-1 font-medium text-slate-900">{{ supervision.supervision_period_start.strftime('%d %b %Y') if supervision.supervision_period_start else '—' }}</dd>
+          </div>
+          <div>
+            <dt class="text-slate-500">Period End</dt>
+            <dd class="mt-1 font-medium text-slate-900">{{ supervision.supervision_period_end.strftime('%d %b %Y') if supervision.supervision_period_end else '—' }}</dd>
+          </div>
+          <div>
+            <dt class="text-slate-500">Next Meeting</dt>
+            <dd class="mt-1 font-medium text-slate-900">{{ supervision.next_meeting_date.strftime('%d %b %Y') if supervision.next_meeting_date else '—' }}</dd>
+          </div>
+          <div>
+            <dt class="text-slate-500">Last Updated</dt>
+            <dd class="mt-1 font-medium text-slate-900">{{ supervision.updated_at.strftime('%d %b %Y %H:%M') if supervision.updated_at else '—' }}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-ellipse-teal">Discussion notes</h2>
+
+        <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+          {% set note_blocks = [
+            ('Wellbeing', supervision.wellbeing_summary),
+            ('Workload', supervision.workload_summary),
+            ('Performance', supervision.performance_summary),
+            ('Conduct / Standards', supervision.conduct_summary),
+            ('Training / Development', supervision.training_summary),
+            ('Achievements', supervision.achievements_summary),
+            ('Concerns / Barriers', supervision.concerns_summary),
+            ('Agreed Support', supervision.agreed_support),
+            ('Employee Comments', supervision.employee_comments),
+            ('Manager Comments', supervision.manager_comments),
+            ('Overall Summary', supervision.overall_summary)
+          ] %}
+
+          {% for label, value in note_blocks %}
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 {% if label in ['Concerns / Barriers', 'Overall Summary'] %}md:col-span-2{% endif %}">
+              <h3 class="text-sm font-semibold text-slate-900">{{ label }}</h3>
+              <p class="mt-2 whitespace-pre-line text-sm text-slate-700">{{ value or '—' }}</p>
+            </div>
+          {% endfor %}
+
+          {% if current_user.is_admin() %}
+          <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 md:col-span-2">
+            <h3 class="text-sm font-semibold text-amber-900">Manager Confidential Notes</h3>
+            <p class="mt-2 whitespace-pre-line text-sm text-amber-900">{{ supervision.manager_confidential_notes or '—' }}</p>
+          </div>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-semibold text-ellipse-teal">Actions</h2>
+            <p class="mt-1 text-sm text-slate-500">Agreed follow-up actions from this session.</p>
+          </div>
+        </div>
+
+        <div class="mt-4 space-y-3">
+          {% for action in supervision.actions %}
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <form method="post" action="{{ url_for('supervision.edit_action', action_id=action.id) }}" class="space-y-3">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-5">
+                  <div class="md:col-span-2">
+                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Action</label>
+                    <textarea name="description" rows="2"
+                              class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">{{ action.description }}</textarea>
+                  </div>
+
+                  <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Owner Type</label>
+                    <select name="owner_type" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+                      {% for option in owner_types %}
+                        <option value="{{ option }}" {% if action.owner_type == option %}selected{% endif %}>{{ option }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Owner Name</label>
+                    <input type="text" name="owner_name" value="{{ action.owner_name or '' }}"
+                           class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+                  </div>
+
+                  <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Due Date</label>
+                    <input type="date" name="due_date" value="{{ action.due_date.isoformat() if action.due_date else '' }}"
+                           class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Status</label>
+                    <select name="status" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+                      {% for option in action_statuses %}
+                        <option value="{{ option }}" {% if action.status == option %}selected{% endif %}>{{ option }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Completion Notes</label>
+                    <input type="text" name="completion_notes" value="{{ action.completion_notes or '' }}"
+                           class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+                  </div>
+                </div>
+
+                <div class="flex flex-wrap justify-end gap-2">
+                  <button type="submit"
+                          class="rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100">
+                    Save Action
+                  </button>
+                </div>
+              </form>
+
+              {% if action.status != 'Completed' %}
+              <form method="post" action="{{ url_for('supervision.complete_action', action_id=action.id) }}" class="mt-2 flex justify-end">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit"
+                        class="rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700">
+                  Mark Completed
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          {% else %}
+            <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+              No actions recorded.
+            </div>
+          {% endfor %}
+        </div>
+
+        <form method="post" action="{{ url_for('supervision.add_action', id=supervision.id) }}" class="mt-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <h3 class="text-sm font-semibold text-slate-900">Add action</h3>
+
+          <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-5">
+            <div class="md:col-span-2">
+              <textarea name="description" rows="2" required
+                        placeholder="Describe the action"
+                        class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"></textarea>
+            </div>
+
+            <div>
+              <select name="owner_type" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+                {% for option in owner_types %}
+                  <option value="{{ option }}">{{ option }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div>
+              <input type="text" name="owner_name" placeholder="Owner name"
+                     class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            </div>
+
+            <div>
+              <input type="date" name="due_date"
+                     class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            </div>
+          </div>
+
+          <div class="mt-3 flex justify-end">
+            <button type="submit"
+                    class="rounded-full bg-ellipse-teal px-4 py-2 text-sm font-semibold text-white hover:bg-ellipse-hover">
+              Add Action
+            </button>
+          </div>
+        </form>
+      </section>
+
+    </div>
+
+    <aside class="space-y-6">
+      <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-ellipse-teal">Timeline</h2>
+
+        <div class="mt-4 space-y-3">
+          {% for event in supervision.timeline_events %}
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p class="text-sm font-semibold text-slate-900">{{ event.event_type }}</p>
+              <p class="mt-1 text-xs text-slate-500">
+                {{ event.timestamp.strftime('%d %b %Y %H:%M') if event.timestamp else 'No timestamp' }}
+                {% if event.updated_by %} · {{ event.updated_by }}{% endif %}
+              </p>
+              {% if event.notes %}
+                <p class="mt-2 whitespace-pre-line text-sm text-slate-700">{{ event.notes }}</p>
+              {% endif %}
+            </div>
+          {% else %}
+            <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+              No timeline events yet.
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-ellipse-teal">Quick links</h2>
+        <div class="mt-4 space-y-2">
+          <a href="{{ url_for('supervision.employee_supervisions', employee_id=employee.id) }}"
+             class="block rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 hover:border-ellipse-teal hover:bg-ellipse-light">
+            Employee supervision history
+          </a>
+          <a href="{{ url_for('supervision.create_supervision', employee_id=employee.id) }}"
+             class="block rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 hover:border-ellipse-teal hover:bg-ellipse-light">
+            Create another supervision
+          </a>
+        </div>
+      </section>
+    </aside>
+
+  </div>
+</div>
+{% endblock %}

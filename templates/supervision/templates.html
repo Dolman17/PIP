@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Supervision Templates{% endblock %}
+{% block page_title %}Supervision Templates{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto p-6 space-y-6">
+
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-ellipse-teal">Supervision Templates</h1>
+      <p class="mt-1 text-sm text-slate-500">Manage default question sets for supervision and 1:1 meetings.</p>
+    </div>
+
+    <div class="flex flex-wrap gap-3">
+      <a href="{{ url_for('supervision.dashboard') }}"
+         class="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        Dashboard
+      </a>
+      <a href="{{ url_for('supervision.create_template') }}"
+         class="inline-flex items-center rounded-full bg-ellipse-teal px-4 py-2 text-sm font-semibold text-white hover:bg-ellipse-hover">
+        New Template
+      </a>
+    </div>
+  </div>
+
+  <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <table class="min-w-full divide-y divide-slate-200 text-sm">
+      <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+        <tr>
+          <th class="px-4 py-3">Name</th>
+          <th class="px-4 py-3">Type</th>
+          <th class="px-4 py-3">Questions</th>
+          <th class="px-4 py-3">Status</th>
+          <th class="px-4 py-3">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100 bg-white">
+        {% for template in templates %}
+          <tr class="hover:bg-slate-50">
+            <td class="px-4 py-3">
+              <div class="font-semibold text-slate-900">{{ template.name }}</div>
+              <div class="text-xs text-slate-500">{{ template.description or 'No description' }}</div>
+            </td>
+            <td class="px-4 py-3 text-slate-700">{{ template.meeting_type }}</td>
+            <td class="px-4 py-3 text-slate-700">{{ template.questions|length }}</td>
+            <td class="px-4 py-3">
+              {% if template.is_active %}
+                <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Active</span>
+              {% else %}
+                <span class="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">Inactive</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-3">
+              <a href="{{ url_for('supervision.edit_template', id=template.id) }}"
+                 class="font-medium text-ellipse-teal hover:underline">
+                Edit
+              </a>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="5" class="px-4 py-8 text-center text-sm text-slate-500">
+              No templates found.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,175 @@
+{% set record = supervision if supervision is defined else none %}
+{% set fd = form_data if form_data is defined else {} %}
+
+<div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+  <h2 class="text-lg font-semibold text-ellipse-teal">Meeting details</h2>
+
+  <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Meeting Title</label>
+      <input type="text"
+             name="meeting_title"
+             value="{{ record.meeting_title if record else fd.get('meeting_title', '') }}"
+             placeholder="e.g. April supervision"
+             class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Meeting Type</label>
+      <select name="meeting_type"
+              class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">
+        {% set selected_type = record.meeting_type if record else fd.get('meeting_type', 'Supervision') %}
+        {% for option in meeting_types %}
+          <option value="{{ option }}" {% if selected_type == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Meeting Date <span class="text-rose-600">*</span></label>
+      <input type="date"
+             name="meeting_date"
+             value="{{ record.meeting_date.isoformat() if record and record.meeting_date else fd.get('meeting_date', '') }}"
+             required
+             class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Meeting Time</label>
+      <input type="time"
+             name="meeting_time"
+             value="{{ record.meeting_time if record else fd.get('meeting_time', '') }}"
+             class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Location</label>
+      <input type="text"
+             name="location"
+             value="{{ record.location if record else fd.get('location', '') }}"
+             placeholder="Office, Teams, phone, etc."
+             class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Status</label>
+      <select name="status"
+              class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">
+        {% set selected_status = record.status if record else fd.get('status', 'Scheduled') %}
+        {% for option in statuses %}
+          <option value="{{ option }}" {% if selected_status == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Period Start</label>
+      <input type="date"
+             name="supervision_period_start"
+             value="{{ record.supervision_period_start.isoformat() if record and record.supervision_period_start else fd.get('supervision_period_start', '') }}"
+             class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Period End</label>
+      <input type="date"
+             name="supervision_period_end"
+             value="{{ record.supervision_period_end.isoformat() if record and record.supervision_period_end else fd.get('supervision_period_end', '') }}"
+             class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">
+    </div>
+  </div>
+</div>
+
+<div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+  <h2 class="text-lg font-semibold text-ellipse-teal">Discussion notes</h2>
+  <p class="mt-1 text-sm text-slate-500">Record the key areas discussed during the supervision or 1:1.</p>
+
+  <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Wellbeing Summary</label>
+      <textarea name="wellbeing_summary" rows="4"
+                class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">{{ record.wellbeing_summary if record else fd.get('wellbeing_summary', '') }}</textarea>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Workload Summary</label>
+      <textarea name="workload_summary" rows="4"
+                class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">{{ record.workload_summary if record else fd.get('workload_summary', '') }}</textarea>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Performance Summary</label>
+      <textarea name="performance_summary" rows="4"
+                class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">{{ record.performance_summary if record else fd.get('performance_summary', '') }}</textarea>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Conduct / Standards Summary</label>
+      <textarea name="conduct_summary" rows="4"
+                class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">{{ record.conduct_summary if record else fd.get('conduct_summary', '') }}</textarea>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Training / Development Summary</label>
+      <textarea name="training_summary" rows="4"
+                class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">{{ record.training_summary if record else fd.get('training_summary', '') }}</textarea>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Achievements Summary</label>
+      <textarea name="achievements_summary" rows="4"
+                class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">{{ record.achievements_summary if record else fd.get('achievements_summary', '') }}</textarea>
+    </div>
+
+    <div class="md:col-span-2">
+      <label class="block text-sm font-medium text-slate-700">Concerns / Barriers</label>
+      <textarea name="concerns_summary" rows="4"
+                class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">{{ record.concerns_summary if record else fd.get('concerns_summary', '') }}</textarea>
+    </div>
+  </div>
+</div>
+
+<div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+  <h2 class="text-lg font-semibold text-ellipse-teal">Comments, support and next steps</h2>
+
+  <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Employee Comments</label>
+      <textarea name="employee_comments" rows="4"
+                class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">{{ record.employee_comments if record else fd.get('employee_comments', '') }}</textarea>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Manager Comments</label>
+      <textarea name="manager_comments" rows="4"
+                class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">{{ record.manager_comments if record else fd.get('manager_comments', '') }}</textarea>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Agreed Support</label>
+      <textarea name="agreed_support" rows="4"
+                class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">{{ record.agreed_support if record else fd.get('agreed_support', '') }}</textarea>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Overall Summary</label>
+      <textarea name="overall_summary" rows="4"
+                class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">{{ record.overall_summary if record else fd.get('overall_summary', '') }}</textarea>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Next Meeting Date</label>
+      <input type="date"
+             name="next_meeting_date"
+             value="{{ record.next_meeting_date.isoformat() if record and record.next_meeting_date else fd.get('next_meeting_date', '') }}"
+             class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Manager Confidential Notes</label>
+      <textarea name="manager_confidential_notes" rows="4"
+                class="mt-1 w-full rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20">{{ record.manager_confidential_notes if record else fd.get('manager_confidential_notes', '') }}</textarea>
+      <p class="mt-1 text-xs text-amber-700">Visible to authorised users only. Avoid unnecessary sensitive detail.</p>
+    </div>
+  </div>
+</div>

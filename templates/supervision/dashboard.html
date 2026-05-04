@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}Supervision Dashboard{% endblock %}
+{% block page_title %}Supervision / 1:1 Dashboard{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto p-6 space-y-6">
+
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-ellipse-teal">Supervision / 1:1 Dashboard</h1>
+      <p class="mt-1 text-sm text-slate-500">
+        Track supervision meetings, 1:1s, check-ins, action points, and overdue follow-ups.
+      </p>
+    </div>
+
+    <div class="flex flex-wrap gap-3">
+      <a href="{{ url_for('supervision.list_supervisions') }}"
+         class="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        View All
+      </a>
+      {% if current_user.is_admin() %}
+      <a href="{{ url_for('supervision.templates') }}"
+         class="inline-flex items-center rounded-full border border-ellipse-teal bg-white px-4 py-2 text-sm font-medium text-ellipse-teal hover:bg-ellipse-light">
+        Templates
+      </a>
+      {% endif %}
+      <a href="{{ url_for('employee_list') }}"
+         class="inline-flex items-center rounded-full bg-ellipse-teal px-4 py-2 text-sm font-semibold text-white hover:bg-ellipse-hover">
+        Start from Employee
+      </a>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Scheduled</p>
+      <p class="mt-2 text-3xl font-bold text-slate-900">{{ stats.scheduled }}</p>
+    </div>
+
+    <div class="rounded-2xl border border-rose-200 bg-rose-50 p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-rose-700">Overdue</p>
+      <p class="mt-2 text-3xl font-bold text-rose-900">{{ stats.overdue }}</p>
+    </div>
+
+    <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Completed</p>
+      <p class="mt-2 text-3xl font-bold text-emerald-900">{{ stats.completed }}</p>
+    </div>
+
+    <div class="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-amber-700">Open Actions</p>
+      <p class="mt-2 text-3xl font-bold text-amber-900">{{ stats.open_actions }}</p>
+    </div>
+
+    <div class="rounded-2xl border border-sky-200 bg-sky-50 p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-sky-700">Due Soon</p>
+      <p class="mt-2 text-3xl font-bold text-sky-900">{{ stats.actions_due_soon }}</p>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Missing 60 Days</p>
+      <p class="mt-2 text-3xl font-bold text-slate-900">{{ stats.missing_supervision }}</p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+
+    <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-semibold text-ellipse-teal">Upcoming supervisions</h2>
+          <p class="mt-1 text-sm text-slate-500">Scheduled in the next 14 days.</p>
+        </div>
+        <a href="{{ url_for('supervision.list_supervisions') }}?status=Scheduled"
+           class="text-sm font-medium text-ellipse-teal hover:underline">
+          View scheduled
+        </a>
+      </div>
+
+      <div class="mt-4 space-y-3">
+        {% for supervision in upcoming %}
+          <a href="{{ url_for('supervision.detail', id=supervision.id) }}"
+             class="block rounded-xl border border-slate-200 bg-slate-50 p-4 hover:border-ellipse-teal hover:bg-ellipse-light/40">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <p class="text-sm font-semibold text-slate-900">
+                  {{ supervision.employee.full_name if supervision.employee else 'Unknown employee' }}
+                </p>
+                <p class="mt-1 text-xs text-slate-500">
+                  {{ supervision.meeting_type }} · {{ supervision.meeting_date.strftime('%d %b %Y') if supervision.meeting_date else 'No date' }}
+                  {% if supervision.meeting_time %} · {{ supervision.meeting_time }}{% endif %}
+                </p>
+              </div>
+              <span class="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-700">
+                Scheduled
+              </span>
+            </div>
+          </a>
+        {% else %}
+          <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+            No upcoming supervision sessions found.
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="rounded-2xl border border-rose-200 bg-white p-6 shadow-sm">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-semibold text-rose-700">Overdue supervisions</h2>
+          <p class="mt-1 text-sm text-slate-500">Scheduled sessions that have passed.</p>
+        </div>
+        <a href="{{ url_for('supervision.list_supervisions') }}?overdue_only=1"
+           class="text-sm font-medium text-rose-700 hover:underline">
+          View overdue
+        </a>
+      </div>
+
+      <div class="mt-4 space-y-3">
+        {% for supervision in overdue %}
+          <a href="{{ url_for('supervision.detail', id=supervision.id) }}"
+             class="block rounded-xl border border-rose-200 bg-rose-50 p-4 hover:bg-rose-100">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <p class="text-sm font-semibold text-rose-950">
+                  {{ supervision.employee.full_name if supervision.employee else 'Unknown employee' }}
+                </p>
+                <p class="mt-1 text-xs text-rose-800">
+                  {{ supervision.meeting_type }} · {{ supervision.meeting_date.strftime('%d %b %Y') if supervision.meeting_date else 'No date' }}
+                </p>
+              </div>
+              <span class="rounded-full bg-rose-600 px-2.5 py-1 text-xs font-semibold text-white">
+                Overdue
+              </span>
+            </div>
+          </a>
+        {% else %}
+          <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+            No overdue supervision sessions.
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+  </div>
+
+  <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+
+    <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 class="text-lg font-semibold text-ellipse-teal">Open action points</h2>
+      <p class="mt-1 text-sm text-slate-500">Actions from recent supervision meetings.</p>
+
+      <div class="mt-4 space-y-3">
+        {% for action in open_actions %}
+          <a href="{{ url_for('supervision.detail', id=action.supervision_id) }}"
+             class="block rounded-xl border border-slate-200 bg-slate-50 p-4 hover:border-ellipse-teal hover:bg-ellipse-light/40">
+            <p class="text-sm font-semibold text-slate-900">{{ action.description }}</p>
+            <p class="mt-1 text-xs text-slate-500">
+              {{ action.employee.full_name if action.employee else 'Unknown employee' }}
+              · Owner: {{ action.owner_type }}
+              {% if action.due_date %} · Due: {{ action.due_date.strftime('%d %b %Y') }}{% endif %}
+            </p>
+          </a>
+        {% else %}
+          <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+            No open action points.
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 class="text-lg font-semibold text-ellipse-teal">Recently completed</h2>
+      <p class="mt-1 text-sm text-slate-500">Latest completed sessions.</p>
+
+      <div class="mt-4 space-y-3">
+        {% for supervision in recent_completed %}
+          <a href="{{ url_for('supervision.detail', id=supervision.id) }}"
+             class="block rounded-xl border border-slate-200 bg-slate-50 p-4 hover:border-ellipse-teal hover:bg-ellipse-light/40">
+            <p class="text-sm font-semibold text-slate-900">
+              {{ supervision.employee.full_name if supervision.employee else 'Unknown employee' }}
+            </p>
+            <p class="mt-1 text-xs text-slate-500">
+              {{ supervision.meeting_type }} · {{ supervision.meeting_date.strftime('%d %b %Y') if supervision.meeting_date else 'No date' }}
+            </p>
+          </a>
+        {% else %}
+          <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+            No completed sessions yet.
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 class="text-lg font-semibold text-ellipse-teal">Employees missing supervision</h2>
+      <p class="mt-1 text-sm text-slate-500">No supervision in the last 60 days.</p>
+
+      <div class="mt-4 space-y-3">
+        {% for item in missing_supervision %}
+          {% set employee = item.employee %}
+          {% set latest = item.latest %}
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-sm font-semibold text-slate-900">{{ employee.full_name }}</p>
+                <p class="mt-1 text-xs text-slate-500">
+                  {% if latest %}
+                    Last: {{ latest.meeting_date.strftime('%d %b %Y') if latest.meeting_date else 'No date' }}
+                  {% else %}
+                    No supervision recorded
+                  {% endif %}
+                </p>
+              </div>
+              {% if not employee.is_leaver %}
+              <a href="{{ url_for('supervision.create_supervision', employee_id=employee.id) }}"
+                 class="shrink-0 rounded-full bg-ellipse-teal px-3 py-1.5 text-xs font-semibold text-white hover:bg-ellipse-hover">
+                Add
+              </a>
+              {% endif %}
+            </div>
+          </div>
+        {% else %}
+          <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+            No missing supervision alerts.
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+  </div>
+</div>
+{% endblock %}

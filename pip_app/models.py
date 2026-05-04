@@ -1099,3 +1099,296 @@ class AdvisorEscalationDocument(db.Model):
             f"<AdvisorEscalationDocument id={self.id} "
             f"escalation_id={self.escalation_id} file_name={self.file_name}>"
         )
+    
+    # ---------------------------------------------------------------------
+# Supervision / 1:1 Module
+# ---------------------------------------------------------------------
+
+class SupervisionRecord(db.Model):
+    __tablename__ = "supervision_records"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    organisation_id = db.Column(
+        db.Integer,
+        db.ForeignKey("organisations.id"),
+        nullable=True,
+        index=True,
+    )
+
+    employee_id = db.Column(
+        db.Integer,
+        db.ForeignKey("employee.id"),
+        nullable=False,
+        index=True,
+    )
+
+    manager_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=True,
+        index=True,
+    )
+
+    meeting_title = db.Column(db.String(255), nullable=True)
+    meeting_type = db.Column(db.String(100), nullable=False, default="Supervision", index=True)
+
+    meeting_date = db.Column(db.Date, nullable=False, index=True)
+    meeting_time = db.Column(db.String(20), nullable=True)
+    location = db.Column(db.String(255), nullable=True)
+
+    status = db.Column(db.String(50), nullable=False, default="Scheduled", index=True)
+
+    supervision_period_start = db.Column(db.Date, nullable=True)
+    supervision_period_end = db.Column(db.Date, nullable=True)
+
+    wellbeing_summary = db.Column(db.Text, nullable=True)
+    performance_summary = db.Column(db.Text, nullable=True)
+    conduct_summary = db.Column(db.Text, nullable=True)
+    training_summary = db.Column(db.Text, nullable=True)
+    workload_summary = db.Column(db.Text, nullable=True)
+    achievements_summary = db.Column(db.Text, nullable=True)
+    concerns_summary = db.Column(db.Text, nullable=True)
+
+    employee_comments = db.Column(db.Text, nullable=True)
+    manager_comments = db.Column(db.Text, nullable=True)
+    manager_confidential_notes = db.Column(db.Text, nullable=True)
+
+    agreed_support = db.Column(db.Text, nullable=True)
+    overall_summary = db.Column(db.Text, nullable=True)
+    next_meeting_date = db.Column(db.Date, nullable=True, index=True)
+
+    created_by = db.Column(db.String(120), nullable=True)
+    updated_by = db.Column(db.String(120), nullable=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+    completed_at = db.Column(db.DateTime, nullable=True)
+    cancelled_at = db.Column(db.DateTime, nullable=True)
+
+    organisation = db.relationship(
+        "Organisation",
+        backref=db.backref("supervision_records", lazy=True),
+    )
+
+    employee = db.relationship(
+        "Employee",
+        backref=db.backref(
+            "supervision_records",
+            lazy=True,
+            order_by="desc(SupervisionRecord.meeting_date)",
+        ),
+    )
+
+    manager = db.relationship(
+        "User",
+        foreign_keys=[manager_user_id],
+        backref=db.backref("managed_supervisions", lazy=True),
+    )
+
+    actions = db.relationship(
+        "SupervisionAction",
+        back_populates="supervision",
+        cascade="all, delete-orphan",
+        lazy=True,
+        order_by="SupervisionAction.due_date.asc().nullslast()",
+    )
+
+    timeline_events = db.relationship(
+        "SupervisionTimelineEvent",
+        back_populates="supervision",
+        cascade="all, delete-orphan",
+        lazy=True,
+        order_by="desc(SupervisionTimelineEvent.timestamp)",
+    )
+
+    def is_open(self):
+        return self.status in {"Draft", "Scheduled", "Overdue"}
+
+    def __repr__(self):
+        return (
+            f"<SupervisionRecord id={self.id} "
+            f"employee_id={self.employee_id} "
+            f"type={self.meeting_type} status={self.status}>"
+        )
+
+
+class SupervisionAction(db.Model):
+    __tablename__ = "supervision_actions"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    supervision_id = db.Column(
+        db.Integer,
+        db.ForeignKey("supervision_records.id"),
+        nullable=False,
+        index=True,
+    )
+
+    organisation_id = db.Column(
+        db.Integer,
+        db.ForeignKey("organisations.id"),
+        nullable=True,
+        index=True,
+    )
+
+    employee_id = db.Column(
+        db.Integer,
+        db.ForeignKey("employee.id"),
+        nullable=False,
+        index=True,
+    )
+
+    description = db.Column(db.Text, nullable=False)
+    owner_type = db.Column(db.String(50), nullable=False, default="Employee")
+    owner_name = db.Column(db.String(120), nullable=True)
+
+    due_date = db.Column(db.Date, nullable=True, index=True)
+    status = db.Column(db.String(50), nullable=False, default="Open", index=True)
+    completion_notes = db.Column(db.Text, nullable=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    organisation = db.relationship(
+        "Organisation",
+        backref=db.backref("supervision_actions", lazy=True),
+    )
+
+    employee = db.relationship(
+        "Employee",
+        backref=db.backref("supervision_actions", lazy=True),
+    )
+
+    supervision = db.relationship(
+        "SupervisionRecord",
+        back_populates="actions",
+    )
+
+    def is_open(self):
+        return self.status in {"Open", "Carried Forward"}
+
+    def __repr__(self):
+        return (
+            f"<SupervisionAction id={self.id} "
+            f"supervision_id={self.supervision_id} status={self.status}>"
+        )
+
+
+class SupervisionTemplate(db.Model):
+    __tablename__ = "supervision_templates"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    organisation_id = db.Column(
+        db.Integer,
+        db.ForeignKey("organisations.id"),
+        nullable=True,
+        index=True,
+    )
+
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    meeting_type = db.Column(db.String(100), nullable=False, default="Supervision")
+
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+
+    organisation = db.relationship(
+        "Organisation",
+        backref=db.backref("supervision_templates", lazy=True),
+    )
+
+    questions = db.relationship(
+        "SupervisionTemplateQuestion",
+        back_populates="template",
+        cascade="all, delete-orphan",
+        lazy=True,
+        order_by="SupervisionTemplateQuestion.sort_order.asc()",
+    )
+
+    def __repr__(self):
+        return f"<SupervisionTemplate id={self.id} name={self.name}>"
+
+
+class SupervisionTemplateQuestion(db.Model):
+    __tablename__ = "supervision_template_questions"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    template_id = db.Column(
+        db.Integer,
+        db.ForeignKey("supervision_templates.id"),
+        nullable=False,
+        index=True,
+    )
+
+    section = db.Column(db.String(100), nullable=False, default="General")
+    question_text = db.Column(db.Text, nullable=False)
+    help_text = db.Column(db.Text, nullable=True)
+    field_type = db.Column(db.String(50), nullable=False, default="textarea")
+
+    is_required = db.Column(db.Boolean, nullable=False, default=False)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+
+    template = db.relationship(
+        "SupervisionTemplate",
+        back_populates="questions",
+    )
+
+    def __repr__(self):
+        return (
+            f"<SupervisionTemplateQuestion id={self.id} "
+            f"template_id={self.template_id} section={self.section}>"
+        )
+
+
+class SupervisionTimelineEvent(db.Model):
+    __tablename__ = "supervision_timeline_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    supervision_id = db.Column(
+        db.Integer,
+        db.ForeignKey("supervision_records.id"),
+        nullable=False,
+        index=True,
+    )
+
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    event_type = db.Column(db.String(100), nullable=False)
+    notes = db.Column(db.Text, nullable=True)
+    updated_by = db.Column(db.String(120), nullable=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    supervision = db.relationship(
+        "SupervisionRecord",
+        back_populates="timeline_events",
+    )
+
+    def __repr__(self):
+        return (
+            f"<SupervisionTimelineEvent id={self.id} "
+            f"supervision_id={self.supervision_id} type={self.event_type}>"
+        )

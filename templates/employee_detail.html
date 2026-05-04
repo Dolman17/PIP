@@ -10,7 +10,6 @@
      ---------------------------- #}
   {% set s_ns = namespace(total=0, open=0, last_case=None, long_term_open=0, next_meeting=None) %}
 
-  {# Find last_case + counts (no date maths requiring now_local/today_local) #}
   {% for sc in employee.sickness_cases %}
     {% set s_ns.total = s_ns.total + 1 %}
 
@@ -23,10 +22,6 @@
     {% endif %}
   {% endfor %}
 
-  {# Next sickness meeting (earliest upcoming-ish).
-     We can't safely compare to today without a Jinja global,
-     so we pick the earliest meeting_date overall. That's still useful UX.
-  #}
   {% set m_ns = namespace(best=None) %}
   {% for sc in employee.sickness_cases %}
     {% set meetings_list = [] %}
@@ -46,16 +41,41 @@
   {% endfor %}
   {% set s_ns.next_meeting = m_ns.best %}
 
-  {# Long-term open count: prefer Phase 3 computed metric if supplied (has_long_term),
-     otherwise fall back to counting open cases with trigger_type == 'long_term'.
-     This avoids date maths in-template.
-  #}
   {% if sickness_trigger and sickness_trigger.get('has_long_term') %}
     {% set s_ns.long_term_open = 1 %}
   {% else %}
     {% for sc in employee.sickness_cases %}
       {% if sc.status == 'Open' and sc.trigger_type == 'long_term' %}
         {% set s_ns.long_term_open = s_ns.long_term_open + 1 %}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+
+  {# ----------------------------
+     Precompute supervision summary
+     ---------------------------- #}
+  {% set sup_ns = namespace(total=0, open_actions=0, latest=None, next_meeting=None) %}
+
+  {% if employee.supervision_records is defined %}
+    {% for supervision in employee.supervision_records %}
+      {% set sup_ns.total = sup_ns.total + 1 %}
+
+      {% if supervision.meeting_date and (not sup_ns.latest or (sup_ns.latest.meeting_date and supervision.meeting_date > sup_ns.latest.meeting_date)) %}
+        {% set sup_ns.latest = supervision %}
+      {% endif %}
+
+      {% if supervision.next_meeting_date %}
+        {% if not sup_ns.next_meeting or supervision.next_meeting_date < sup_ns.next_meeting.next_meeting_date %}
+          {% set sup_ns.next_meeting = supervision %}
+        {% endif %}
+      {% endif %}
+
+      {% if supervision.actions is defined %}
+        {% for action in supervision.actions %}
+          {% if action.status in ['Open', 'Carried Forward'] %}
+            {% set sup_ns.open_actions = sup_ns.open_actions + 1 %}
+          {% endif %}
+        {% endfor %}
       {% endif %}
     {% endfor %}
   {% endif %}
@@ -83,20 +103,27 @@
         🗂️ Open Manage Employee
       </a>
 
-      <button onclick="openPipModal()"
-              class="inline-flex items-center bg-blue-600 text-white px-4 py-2 rounded-full text-sm hover:bg-blue-700">
-        ➕ Start New PIP
-      </button>
+      {% if not employee.is_leaver %}
+        <button onclick="openPipModal()"
+                class="inline-flex items-center bg-blue-600 text-white px-4 py-2 rounded-full text-sm hover:bg-blue-700">
+          ➕ Start New PIP
+        </button>
 
-      <a href="{{ url_for('create_probation', employee_id=employee.id) }}"
-         class="inline-flex items-center bg-indigo-600 text-white px-4 py-2 rounded-full text-sm hover:bg-indigo-700">
-        📆 Start Probation
-      </a>
+        <a href="{{ url_for('probation_create_wizard') }}?employee_id={{ employee.id }}"
+           class="inline-flex items-center bg-indigo-600 text-white px-4 py-2 rounded-full text-sm hover:bg-indigo-700">
+          📆 Start Probation
+        </a>
 
-      <a href="{{ url_for('sickness_create_for_employee', employee_id=employee.id) }}"
-         class="inline-flex items-center bg-ellipse-teal text-white px-4 py-2 rounded-full text-sm hover:bg-ellipse-hover">
-        🤒 Start Sickness Case
-      </a>
+        <a href="{{ url_for('sickness_create_for_employee', employee_id=employee.id) }}"
+           class="inline-flex items-center bg-ellipse-teal text-white px-4 py-2 rounded-full text-sm hover:bg-ellipse-hover">
+          🤒 Start Sickness Case
+        </a>
+
+        <a href="{{ url_for('supervision.create_supervision', employee_id=employee.id) }}"
+           class="inline-flex items-center bg-violet-600 text-white px-4 py-2 rounded-full text-sm hover:bg-violet-700">
+          📝 Add Supervision / 1:1
+        </a>
+      {% endif %}
     </div>
   </div>
 
@@ -124,7 +151,7 @@
   </div>
   {% endif %}
 
-    <!-- Top Summary Cards -->
+  <!-- Top Summary Cards -->
   <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
     <div class="bg-white p-4 rounded-2xl shadow border border-gray-100">
       <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Organisation</p>
@@ -136,18 +163,21 @@
         {% endif %}
       </p>
     </div>
+
     <div class="bg-white p-4 rounded-2xl shadow border border-gray-100">
       <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Job Title</p>
       <p class="mt-1 text-base font-semibold text-gray-900">
         {{ employee.job_title or 'Not set' }}
       </p>
     </div>
+
     <div class="bg-white p-4 rounded-2xl shadow border border-gray-100">
       <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Service</p>
       <p class="mt-1 text-base font-semibold text-gray-900">
         {{ employee.service or 'Not set' }}
       </p>
     </div>
+
     <div class="bg-white p-4 rounded-2xl shadow border border-gray-100">
       <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Start Date</p>
       <p class="mt-1 text-base font-semibold text-gray-900">
@@ -158,6 +188,7 @@
         {% endif %}
       </p>
     </div>
+
     <div class="bg-white p-4 rounded-2xl shadow border border-gray-100">
       <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Employment Status</p>
       <p class="mt-1">
@@ -177,7 +208,7 @@
   <!-- Main layout: left = records, right = summary -->
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-    <!-- Left: PIP, Probation & Sickness (span 2) -->
+    <!-- Left: PIP, Probation, Sickness & Supervision -->
     <div class="space-y-6 lg:col-span-2">
 
       <!-- PIP Records -->
@@ -323,6 +354,79 @@
         {% endif %}
       </div>
 
+      <!-- Supervision Records -->
+      <div class="bg-white p-6 rounded-2xl shadow border border-gray-100">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-lg font-semibold text-ellipse-teal">📝 Supervision / 1:1 Records</h2>
+            <p class="mt-1 text-xs text-gray-500">Management supervision, check-ins, and agreed action tracking.</p>
+          </div>
+          <span class="text-xs text-gray-500">
+            {{ sup_ns.total }} record{{ sup_ns.total == 1 and '' or 's' }}
+          </span>
+        </div>
+
+        {% if employee.supervision_records %}
+          <ul class="space-y-2">
+            {% for supervision in employee.supervision_records|sort(attribute='meeting_date', reverse=True) %}
+              <li class="flex justify-between items-center border border-gray-100 p-3 rounded-xl hover:bg-ellipse-light/60 transition">
+                <div class="text-sm text-gray-800">
+                  <span class="font-medium">
+                    {% if supervision.meeting_date %}
+                      {{ supervision.meeting_date.strftime('%d %b %Y') }}
+                    {% else %}
+                      Unknown date
+                    {% endif %}
+                  </span>
+                  · {{ supervision.meeting_type or 'Supervision' }}
+                  {% if supervision.meeting_title %}
+                    · {{ supervision.meeting_title }}
+                  {% endif %}
+                  <span class="mx-1 text-gray-400">|</span>
+                  <span class="text-xs">
+                    Status:
+                    <span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold
+                      {% if supervision.status == 'Completed' %}
+                        bg-emerald-100 text-emerald-800
+                      {% elif supervision.status == 'Overdue' %}
+                        bg-rose-100 text-rose-800
+                      {% elif supervision.status == 'Cancelled' %}
+                        bg-gray-200 text-gray-700
+                      {% elif supervision.status == 'Draft' %}
+                        bg-amber-100 text-amber-800
+                      {% else %}
+                        bg-sky-100 text-sky-800
+                      {% endif %}">
+                      {{ supervision.status or 'Unknown' }}
+                    </span>
+                  </span>
+                </div>
+                <a href="{{ url_for('supervision.detail', id=supervision.id) }}"
+                   class="text-sm text-ellipse-teal hover:underline font-medium shrink-0">
+                  View
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-gray-400 text-sm">No supervision or 1:1 records found for this employee yet.</p>
+        {% endif %}
+
+        <div class="mt-4 flex flex-wrap gap-2">
+          <a href="{{ url_for('supervision.employee_supervisions', employee_id=employee.id) }}"
+             class="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-800 hover:bg-slate-50">
+            View supervision history
+          </a>
+
+          {% if not employee.is_leaver %}
+          <a href="{{ url_for('supervision.create_supervision', employee_id=employee.id) }}"
+             class="inline-flex items-center gap-2 rounded-full bg-violet-600 px-3 py-1.5 text-sm text-white hover:bg-violet-700">
+            Add supervision / 1:1
+          </a>
+          {% endif %}
+        </div>
+      </div>
+
     </div>
 
     <!-- Right: Summary -->
@@ -381,7 +485,80 @@
         </div>
       </div>
 
-      <!-- Phase 3: Trigger status (employee-level) -->
+      <!-- Supervision Summary -->
+      <div class="bg-white p-5 rounded-2xl shadow border border-gray-100">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h3 class="text-sm font-semibold text-gray-900">📝 Supervision summary</h3>
+            <p class="text-xs text-gray-500 mt-0.5">Quick view of supervision and 1:1 activity.</p>
+          </div>
+          <a href="{{ url_for('supervision.employee_supervisions', employee_id=employee.id) }}"
+             class="text-xs font-medium text-ellipse-teal hover:underline shrink-0">
+            History
+          </a>
+        </div>
+
+        <div class="mt-4 grid grid-cols-3 gap-2">
+          <div class="rounded-xl bg-slate-50 border border-slate-100 p-3">
+            <div class="text-[11px] text-slate-500">Total</div>
+            <div class="text-lg font-semibold text-slate-900">{{ sup_ns.total }}</div>
+          </div>
+          <div class="rounded-xl bg-violet-50 border border-violet-100 p-3">
+            <div class="text-[11px] text-violet-700/80">Actions</div>
+            <div class="text-lg font-semibold text-violet-900">{{ sup_ns.open_actions }}</div>
+          </div>
+          <div class="rounded-xl bg-sky-50 border border-sky-100 p-3">
+            <div class="text-[11px] text-sky-700/80">Next</div>
+            <div class="text-lg font-semibold text-sky-900">
+              {% if sup_ns.next_meeting and sup_ns.next_meeting.next_meeting_date %}
+                {{ sup_ns.next_meeting.next_meeting_date.strftime('%d %b') }}
+              {% else %}
+                —
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <dl class="mt-4 space-y-2 text-sm">
+          <div class="flex justify-between gap-4">
+            <dt class="text-gray-500">Latest session</dt>
+            <dd class="font-semibold text-gray-900 text-right">
+              {% if sup_ns.latest and sup_ns.latest.meeting_date %}
+                {{ sup_ns.latest.meeting_date.strftime('%d %b %Y') }}
+              {% elif sup_ns.total > 0 %}
+                Recorded
+              {% else %}
+                None
+              {% endif %}
+            </dd>
+          </div>
+
+          <div class="flex justify-between gap-4">
+            <dt class="text-gray-500">Open actions</dt>
+            <dd class="font-semibold text-gray-900 text-right">
+              {{ sup_ns.open_actions }}
+            </dd>
+          </div>
+        </dl>
+
+        <div class="mt-4 flex flex-wrap gap-2">
+          {% if sup_ns.latest %}
+            <a href="{{ url_for('supervision.detail', id=sup_ns.latest.id) }}"
+               class="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-800 hover:bg-slate-50">
+              View latest
+            </a>
+          {% endif %}
+
+          {% if not employee.is_leaver %}
+          <a href="{{ url_for('supervision.create_supervision', employee_id=employee.id) }}"
+             class="inline-flex items-center gap-2 rounded-full bg-violet-600 text-white px-3 py-1.5 text-sm hover:bg-violet-700">
+            Add record
+          </a>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Phase 3: Trigger status -->
       <div class="bg-white p-5 rounded-2xl shadow border border-gray-100">
         <div class="flex items-start justify-between gap-3">
           <div>
@@ -463,10 +640,12 @@
              class="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-800 hover:bg-slate-50">
             View dashboard
           </a>
+          {% if not employee.is_leaver %}
           <a href="{{ url_for('sickness_create_for_employee', employee_id=employee.id) }}"
              class="inline-flex items-center gap-2 rounded-full bg-ellipse-teal text-white px-3 py-1.5 text-sm hover:bg-ellipse-hover">
             ➕ New case
           </a>
+          {% endif %}
         </div>
       </div>
 
@@ -537,7 +716,7 @@
           <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
             <div class="font-semibold">Heads-up</div>
             <div class="text-xs text-amber-900/80 mt-0.5">
-              {{ s_ns.open }} open case{{ s_ns.open == 1 and '' or 's' }}. Keep notes + meetings tidy — Phase 3 triggers will love you for it.
+              {{ s_ns.open }} open case{{ s_ns.open == 1 and '' or 's' }}. Keep notes and meetings tidy for reliable trigger monitoring.
             </div>
           </div>
         {% endif %}
@@ -558,6 +737,14 @@
           <div class="flex justify-between">
             <dt class="text-gray-500">Sickness cases</dt>
             <dd class="font-semibold text-gray-900">{{ s_ns.total }}</dd>
+          </div>
+          <div class="flex justify-between">
+            <dt class="text-gray-500">Supervision records</dt>
+            <dd class="font-semibold text-gray-900">{{ sup_ns.total }}</dd>
+          </div>
+          <div class="flex justify-between">
+            <dt class="text-gray-500">Open supervision actions</dt>
+            <dd class="font-semibold text-gray-900">{{ sup_ns.open_actions }}</dd>
           </div>
           <div class="flex justify-between">
             <dt class="text-gray-500">Open sickness cases</dt>
@@ -581,8 +768,9 @@
       <div class="bg-[#0f6b6a] text-white p-5 rounded-2xl shadow">
         <h3 class="text-sm font-semibold mb-2">Next actions</h3>
         <ul class="space-y-1 text-sm">
-          <li>• Start a new PIP, probation, or sickness case.</li>
-          <li>• Use the Sickness Dashboard to monitor patterns.</li>
+          <li>• Start a new PIP, probation, sickness case, or supervision record.</li>
+          <li>• Use the Sickness Dashboard to monitor absence patterns.</li>
+          <li>• Use Supervision to record early support and agreed follow-up actions.</li>
           <li>• Keep all documentation in one place.</li>
         </ul>
       </div>
@@ -621,6 +809,7 @@
     m.classList.remove('hidden');
     m.classList.add('flex');
   }
+
   function closePipModal() {
     const m = document.getElementById('pipModal');
     if (!m) return;

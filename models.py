@@ -27,6 +27,11 @@ from pip_app.models import (
     OrganisationModuleSetting,
     AdvisorEscalation,
     AdvisorEscalationDocument,
+    SupervisionRecord,
+    SupervisionAction,
+    SupervisionTemplate,
+    SupervisionTemplateQuestion,
+    SupervisionTimelineEvent,
 )
 
 __all__ = [
@@ -58,4 +63,9 @@ __all__ = [
     "OrganisationModuleSetting",
     "AdvisorEscalation",
     "AdvisorEscalationDocument",
+    "SupervisionRecord",
+    "SupervisionAction",
+    "SupervisionTemplate",
+    "SupervisionTemplateQuestion",
+    "SupervisionTimelineEvent",
 ]

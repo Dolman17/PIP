@@ -10,6 +10,7 @@ DEFAULT_MODULE_KEYS = [
     "probation",
     "sickness",
     "employee_relations",
+    "supervision",
 ]
 
 DEFAULT_MODULE_LABELS = [
@@ -17,6 +18,7 @@ DEFAULT_MODULE_LABELS = [
     ("probation", "Probation"),
     ("sickness", "Sickness"),
     ("employee_relations", "Employee Relations"),
+    ("supervision", "Supervision / 1:1s"),
 ]
 
 DEFAULT_MODULE_SETTINGS = {
@@ -39,6 +41,11 @@ DEFAULT_MODULE_SETTINGS = {
         "is_enabled": True,
         "ai_enabled": True,
         "escalation_enabled": True,
+    },
+    "supervision": {
+        "is_enabled": True,
+        "ai_enabled": False,
+        "escalation_enabled": False,
     },
 }
 

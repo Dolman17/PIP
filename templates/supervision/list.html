@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}All Supervisions{% endblock %}
+{% block page_title %}Supervision / 1:1 Records{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto p-6 space-y-6">
+
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-ellipse-teal">Supervision / 1:1 Records</h1>
+      <p class="mt-1 text-sm text-slate-500">
+        Search, filter, and review supervision sessions and check-ins.
+      </p>
+    </div>
+
+    <div class="flex flex-wrap gap-3">
+      <a href="{{ url_for('supervision.dashboard') }}"
+         class="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        Dashboard
+      </a>
+      <a href="{{ url_for('employee_list') }}"
+         class="inline-flex items-center rounded-full bg-ellipse-teal px-4 py-2 text-sm font-semibold text-white hover:bg-ellipse-hover">
+        Start from Employee
+      </a>
+    </div>
+  </div>
+
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <form method="get" action="{{ url_for('supervision.list_supervisions') }}" class="space-y-4">
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
+        <div class="xl:col-span-2">
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Search</label>
+          <input type="text"
+                 name="search"
+                 value="{{ filters.search }}"
+                 placeholder="Employee, job title, service, notes..."
+                 class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Status</label>
+          <select name="status"
+                  class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">
+            <option value="">All statuses</option>
+            {% for option in statuses %}
+              <option value="{{ option }}" {% if filters.status == option %}selected{% endif %}>{{ option }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Meeting Type</label>
+          <select name="meeting_type"
+                  class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">
+            <option value="">All types</option>
+            {% for option in meeting_types %}
+              <option value="{{ option }}" {% if filters.meeting_type == option %}selected{% endif %}>{{ option }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Date From</label>
+          <input type="date"
+                 name="date_from"
+                 value="{{ filters.date_from }}"
+                 class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Date To</label>
+          <input type="date"
+                 name="date_to"
+                 value="{{ filters.date_to }}"
+                 class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-ellipse-teal focus:outline-none focus:ring-2 focus:ring-ellipse-teal/20">
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-wrap gap-4">
+          <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox"
+                   name="overdue_only"
+                   value="1"
+                   {% if filters.overdue_only == '1' %}checked{% endif %}
+                   class="h-4 w-4 rounded border-slate-300 text-ellipse-teal focus:ring-ellipse-teal">
+            Overdue only
+          </label>
+
+          <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox"
+                   name="open_actions_only"
+                   value="1"
+                   {% if filters.open_actions_only == '1' %}checked{% endif %}
+                   class="h-4 w-4 rounded border-slate-300 text-ellipse-teal focus:ring-ellipse-teal">
+            Open actions only
+          </label>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <a href="{{ url_for('supervision.list_supervisions') }}"
+             class="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            Clear
+          </a>
+          <button type="submit"
+                  class="inline-flex items-center rounded-full bg-ellipse-teal px-4 py-2 text-sm font-semibold text-white hover:bg-ellipse-hover">
+            Apply Filters
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div class="flex items-center justify-between">
+    <p class="text-sm text-slate-600">
+      Showing <span class="font-semibold text-slate-900">{{ supervisions|length }}</span>
+      record{{ supervisions|length == 1 and '' or 's' }}
+    </p>
+  </div>
+
+  {% if supervisions %}
+  <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <table class="min-w-full divide-y divide-slate-200 text-left text-sm">
+      <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600">
+        <tr>
+          <th class="px-4 py-3">Employee</th>
+          <th class="px-4 py-3">Manager</th>
+          <th class="px-4 py-3">Type</th>
+          <th class="px-4 py-3">Meeting Date</th>
+          <th class="px-4 py-3">Status</th>
+          <th class="px-4 py-3">Open Actions</th>
+          <th class="px-4 py-3">Next Meeting</th>
+          <th class="px-4 py-3">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100 bg-white">
+        {% for supervision in supervisions %}
+          {% set open_actions = supervision.actions|selectattr('status', 'in', ['Open', 'Carried Forward'])|list %}
+          <tr class="hover:bg-slate-50">
+            <td class="px-4 py-3">
+              <div class="font-semibold text-slate-900">
+                {{ supervision.employee.full_name if supervision.employee else 'Unknown employee' }}
+              </div>
+              <div class="text-xs text-slate-500">
+                {{ supervision.employee.job_title if supervision.employee and supervision.employee.job_title else 'No job title' }}
+              </div>
+            </td>
+
+            <td class="px-4 py-3 text-slate-700">
+              {{ supervision.manager.username if supervision.manager else '—' }}
+            </td>
+
+            <td class="px-4 py-3 text-slate-700">
+              {{ supervision.meeting_type }}
+            </td>
+
+            <td class="px-4 py-3 text-slate-700">
+              {{ supervision.meeting_date.strftime('%d %b %Y') if supervision.meeting_date else '—' }}
+              {% if supervision.meeting_time %}
+                <div class="text-xs text-slate-500">{{ supervision.meeting_time }}</div>
+              {% endif %}
+            </td>
+
+            <td class="px-4 py-3">
+              {% if supervision.status == 'Completed' %}
+                <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Completed</span>
+              {% elif supervision.status == 'Overdue' %}
+                <span class="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700">Overdue</span>
+              {% elif supervision.status == 'Cancelled' %}
+                <span class="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">Cancelled</span>
+              {% elif supervision.status == 'Draft' %}
+                <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">Draft</span>
+              {% else %}
+                <span class="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700">Scheduled</span>
+              {% endif %}
+            </td>
+
+            <td class="px-4 py-3">
+              <span class="font-semibold text-slate-900">{{ open_actions|length }}</span>
+            </td>
+
+            <td class="px-4 py-3 text-slate-700">
+              {{ supervision.next_meeting_date.strftime('%d %b %Y') if supervision.next_meeting_date else '—' }}
+            </td>
+
+            <td class="px-4 py-3">
+              <a href="{{ url_for('supervision.detail', id=supervision.id) }}"
+                 class="font-medium text-ellipse-teal hover:underline">
+                View
+              </a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+      No supervision records matched your filters.
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

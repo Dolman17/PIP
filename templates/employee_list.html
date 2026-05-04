@@ -3,59 +3,236 @@
 {% block page_title %}👥 Employees{% endblock %}
 
 {% block content %}
-<div class="bg-white border border-gray-200 rounded-2xl shadow p-6">
-  <div class="flex items-start justify-between gap-3 mb-4">
-    <h1 class="text-xl font-semibold text-[#005b5a]">All Employees</h1>
-    <a href="{{ url_for('add_employee') }}"
-       class="inline-flex items-center bg-[#005b5a] text-white px-3 py-2 rounded-lg hover:bg-[#007876] text-sm">
-      ➕ Add Employee
-    </a>
+<div class="max-w-7xl mx-auto p-6 space-y-6">
+
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-[#005b5a]">All Employees</h1>
+      <p class="mt-1 text-sm text-slate-500">
+        Select an employee to view their full HR record or start a workflow across PIP, probation, sickness, supervision, and employee relations.
+      </p>
+    </div>
+
+    <div class="flex flex-wrap gap-3">
+      <a href="{{ url_for('manage_employee.index') }}"
+         class="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        🗂️ Manage Employees
+      </a>
+
+      <a href="{{ url_for('add_employee') }}"
+         class="inline-flex items-center rounded-full bg-[#005b5a] px-4 py-2 text-sm font-semibold text-white hover:bg-[#007876]">
+        ➕ Add Employee
+      </a>
+    </div>
   </div>
 
-  {% if employees %}
-    <div class="overflow-x-auto">
-      <table class="min-w-full text-sm">
-        <thead>
-          <tr class="text-left text-gray-600 border-b">
-            <th class="py-2 pr-4">Name</th>
-            <th class="py-2 pr-4">Job Title</th>
-            <th class="py-2 pr-4">Service</th>
-            <th class="py-2 pr-4">Organisation</th>
-            <th class="py-2 pr-4">Email</th>
-            <th class="py-2 pr-4">Actions</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y">
-          {% for emp in employees %}
-            <tr>
-              <td class="py-2 pr-4">{{ emp.last_name }}, {{ emp.first_name }}</td>
-              <td class="py-2 pr-4">{{ emp.job_title or '—' }}</td>
-              <td class="py-2 pr-4">{{ emp.service or '—' }}</td>
-              <td class="py-2 pr-4">
-                {% if emp.organisation %}
-                  {{ emp.organisation.name }}
-                {% else %}
-                  —
-                {% endif %}
-              </td>
-              <td class="py-2 pr-4">{{ emp.email or '—' }}</td>
-              <td class="py-2 pr-4">
-                <a href="{{ url_for('employee_detail', employee_id=emp.id) }}"
-                   class="text-[#005b5a] hover:underline">View</a>
-                <span class="mx-1 text-gray-400">|</span>
-                <a href="{{ url_for('edit_employee', employee_id=emp.id) }}"
-                   class="text-[#005b5a] hover:underline">Edit</a>
-                <span class="mx-1 text-gray-400">|</span>
-                <a href="{{ url_for('create_pip_wizard') }}?employee_id={{ emp.id }}&goto=2"
-                   class="text-[#005b5a] hover:underline">Start PIP</a>
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Employees</p>
+      <p class="mt-2 text-3xl font-bold text-slate-900">{{ employees|length }}</p>
+      <p class="mt-1 text-xs text-slate-500">Visible to your access level</p>
     </div>
-  {% else %}
-    <p class="text-sm text-gray-600">No employees found.</p>
-  {% endif %}
+
+    {% if enabled_modules.get('pip', True) %}
+    <div class="rounded-2xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-blue-700">PIP</p>
+      <p class="mt-2 text-sm font-semibold text-blue-900">Performance plans</p>
+      <p class="mt-1 text-xs text-blue-800">Formal performance support</p>
+    </div>
+    {% endif %}
+
+    {% if enabled_modules.get('probation', True) %}
+    <div class="rounded-2xl border border-indigo-200 bg-indigo-50 p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-indigo-700">Probation</p>
+      <p class="mt-2 text-sm font-semibold text-indigo-900">Probation reviews</p>
+      <p class="mt-1 text-xs text-indigo-800">Early employment workflow</p>
+    </div>
+    {% endif %}
+
+    {% if enabled_modules.get('sickness', True) %}
+    <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Sickness</p>
+      <p class="mt-2 text-sm font-semibold text-emerald-900">Absence cases</p>
+      <p class="mt-1 text-xs text-emerald-800">Trigger and meeting support</p>
+    </div>
+    {% endif %}
+
+    {% if enabled_modules.get('supervision', True) %}
+    <div class="rounded-2xl border border-violet-200 bg-violet-50 p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-violet-700">Supervision</p>
+      <p class="mt-2 text-sm font-semibold text-violet-900">1:1s and actions</p>
+      <p class="mt-1 text-xs text-violet-800">Preventative support layer</p>
+    </div>
+    {% endif %}
+
+    {% if current_user.is_superuser() and enabled_modules.get('employee_relations', True) %}
+    <div class="rounded-2xl border border-rose-200 bg-rose-50 p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-rose-700">ER</p>
+      <p class="mt-2 text-sm font-semibold text-rose-900">Formal ER cases</p>
+      <p class="mt-1 text-xs text-rose-800">Superuser only</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <div class="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h2 class="text-base font-semibold text-slate-900">Employee records</h2>
+        <p class="mt-1 text-sm text-slate-500">
+          Use the workflow buttons to start the right process from the employee row.
+        </p>
+      </div>
+
+      <div class="text-xs text-slate-500">
+        Active module:
+        <span class="font-semibold text-slate-700">
+          {{ session.get('active_module') or 'Workspace' }}
+        </span>
+      </div>
+    </div>
+
+    {% if employees %}
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-white text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <tr>
+              <th class="px-4 py-3">Employee</th>
+              <th class="px-4 py-3">Job Title</th>
+              <th class="px-4 py-3">Service</th>
+              <th class="px-4 py-3">Organisation</th>
+              <th class="px-4 py-3">Email</th>
+              <th class="px-4 py-3">Workflows</th>
+              <th class="px-4 py-3">Record</th>
+            </tr>
+          </thead>
+
+          <tbody class="divide-y divide-slate-100 bg-white">
+            {% for emp in employees %}
+              <tr class="hover:bg-slate-50">
+                <td class="px-4 py-3">
+                  <div class="font-semibold text-slate-900">
+                    {{ emp.last_name }}, {{ emp.first_name }}
+                  </div>
+                  <div class="mt-1 text-xs text-slate-500">
+                    {% if emp.is_leaver %}
+                      <span class="inline-flex rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-700">
+                        Leaver
+                      </span>
+                    {% else %}
+                      <span class="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">
+                        Active
+                      </span>
+                    {% endif %}
+                    {% if emp.team_id is not none %}
+                      <span class="ml-1">Team {{ emp.team_id }}</span>
+                    {% endif %}
+                  </div>
+                </td>
+
+                <td class="px-4 py-3 text-slate-700">
+                  {{ emp.job_title or '—' }}
+                </td>
+
+                <td class="px-4 py-3 text-slate-700">
+                  {{ emp.service or '—' }}
+                </td>
+
+                <td class="px-4 py-3 text-slate-700">
+                  {% if emp.organisation %}
+                    {{ emp.organisation.name }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+
+                <td class="px-4 py-3 text-slate-700">
+                  {% if emp.email %}
+                    <a href="mailto:{{ emp.email }}" class="text-[#005b5a] hover:underline">
+                      {{ emp.email }}
+                    </a>
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+
+                <td class="px-4 py-3">
+                  {% if emp.is_leaver %}
+                    <span class="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                      Workflows disabled for leaver
+                    </span>
+                  {% else %}
+                    <div class="flex min-w-[420px] flex-wrap gap-2">
+                      {% if enabled_modules.get('pip', True) %}
+                      <a href="{{ url_for('create_pip_wizard') }}?employee_id={{ emp.id }}&goto=2"
+                         class="inline-flex items-center rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-100 hover:bg-blue-100">
+                        Start PIP
+                      </a>
+                      {% endif %}
+
+                      {% if enabled_modules.get('probation', True) %}
+                      <a href="{{ url_for('probation_create_wizard') }}?employee_id={{ emp.id }}"
+                         class="inline-flex items-center rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-100 hover:bg-indigo-100">
+                        Start Probation
+                      </a>
+                      {% endif %}
+
+                      {% if enabled_modules.get('sickness', True) %}
+                      <a href="{{ url_for('sickness_create_for_employee', employee_id=emp.id) }}"
+                         class="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100 hover:bg-emerald-100">
+                        Start Sickness
+                      </a>
+                      {% endif %}
+
+                      {% if enabled_modules.get('supervision', True) %}
+                      <a href="{{ url_for('supervision.create_supervision', employee_id=emp.id) }}"
+                         class="inline-flex items-center rounded-full bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 ring-1 ring-violet-100 hover:bg-violet-100">
+                        Add Supervision
+                      </a>
+                      {% endif %}
+
+                      {% if current_user.is_superuser() and enabled_modules.get('employee_relations', True) %}
+                      <a href="{{ url_for('employee_relations.create_case') }}?employee_id={{ emp.id }}"
+                         class="inline-flex items-center rounded-full bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-100 hover:bg-rose-100">
+                        Start ER
+                      </a>
+                      {% endif %}
+                    </div>
+                  {% endif %}
+                </td>
+
+                <td class="px-4 py-3">
+                  <div class="flex flex-wrap gap-2">
+                    <a href="{{ url_for('employee_detail', employee_id=emp.id) }}"
+                       class="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                      View
+                    </a>
+
+                    <a href="{{ url_for('edit_employee', employee_id=emp.id) }}"
+                       class="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                      Edit
+                    </a>
+
+                    <a href="{{ url_for('manage_employee.detail', employee_id=emp.id) }}"
+                       class="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                      Manage
+                    </a>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="p-8 text-center">
+        <p class="text-sm text-slate-600">No employees found.</p>
+        <a href="{{ url_for('add_employee') }}"
+           class="mt-4 inline-flex items-center rounded-full bg-[#005b5a] px-4 py-2 text-sm font-semibold text-white hover:bg-[#007876]">
+          Add your first employee
+        </a>
+      </div>
+    {% endif %}
+  </div>
+
 </div>
 {% endblock %}
