@@ -90,7 +90,7 @@ html, body {
 }
 
 /* Sticky action bar (opt-in for mobile forms) */
-.sticky-actions {
+sticky-actions, .sticky-actions {
   position: sticky; bottom: 0;
   background: var(--color-surface);
   padding: var(--space-3);
@@ -216,34 +216,54 @@ body.portal-shell .form-textarea {
 @media (min-width: 1024px) {
   body.portal-shell .portal-sidebar {
     width: 18rem !important;
-    transform: translateX(-16.15rem);
+    transform: translateX(calc(-100% + 12px));
     transition: transform .24s ease, box-shadow .24s ease;
-    overflow-x: hidden !important;
-    overflow-y: auto !important;
-    border-top-right-radius: 1.25rem !important;
-    border-bottom-right-radius: 1.25rem !important;
+    overflow: hidden !important;
+    border-top-right-radius: .85rem !important;
+    border-bottom-right-radius: .85rem !important;
   }
 
   body.portal-shell .portal-sidebar::after {
     content: '';
     position: fixed;
-    top: 1.25rem;
-    right: .55rem;
-    width: .45rem;
-    height: 3.75rem;
+    top: 1.4rem;
+    right: 3px;
+    width: 4px;
+    height: 3.5rem;
     border-radius: 999px;
     background: rgba(255, 255, 255, .72);
     box-shadow: 0 0 0 1px rgba(255,255,255,.12);
   }
 
+  body.portal-shell .portal-sidebar nav {
+    overflow-y: hidden !important;
+    overflow-x: hidden !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+
+  body.portal-shell .portal-sidebar nav::-webkit-scrollbar,
+  body.portal-shell .portal-sidebar::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+    display: none !important;
+  }
+
   body.portal-shell .portal-sidebar:hover,
   body.portal-shell .portal-sidebar:focus-within {
     transform: translateX(0);
+    overflow: hidden !important;
     box-shadow: 0 24px 60px rgba(6, 43, 69, .26) !important;
   }
 
+  body.portal-shell .portal-sidebar:hover nav,
+  body.portal-shell .portal-sidebar:focus-within nav {
+    overflow-y: auto !important;
+    scrollbar-width: none !important;
+  }
+
   body.portal-shell .portal-sidebar + div {
-    padding-left: 1.85rem !important;
+    padding-left: .75rem !important;
     transition: padding-left .24s ease;
   }
 
