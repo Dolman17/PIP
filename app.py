@@ -11,6 +11,7 @@ from flask_login import (
     LoginManager, login_required, current_user
 )
 from flask_wtf.csrf import CSRFProtect, generate_csrf
+from sqlalchemy import text
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -92,6 +93,18 @@ if database_url:
         database_url = database_url.replace("postgres://", "postgresql://", 1)
 
     app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+
+    # Railway/PostgreSQL hardening:
+    # - pool_pre_ping avoids stale DB connections.
+    # - pool_recycle refreshes old pooled connections.
+    # - connect_timeout prevents request hangs if DB is unreachable.
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
+        "connect_args": {
+            "connect_timeout": 5,
+        },
+    }
 else:
     DB_PATH = os.path.join(BASE_DIR, "pip_crm.db")
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + DB_PATH
@@ -178,6 +191,7 @@ def inject_enabled_modules():
     except Exception:
         return dict(enabled_modules={module_key: True for module_key in DEFAULT_MODULE_KEYS})
 
+
 @app.context_processor
 def inject_advisor_queue_counts():
     try:
@@ -205,6 +219,7 @@ def inject_advisor_queue_counts():
         )
     except Exception:
         return dict(advisor_queue_counts={"open": 0, "unassigned": 0})
+
 
 @app.context_processor
 def inject_csrf_token():
@@ -325,6 +340,11 @@ app.jinja_env.globals["url_for"] = compat_url_for
 @app.before_request
 def set_active_module():
     path = (request.path or "").lower()
+
+    # Do not set an active module for lightweight health probes.
+    if path in ("/health", "/db-health", "/ping"):
+        return
+
     if path.startswith('/pip/') or path.startswith('/employee/') or path in (
         '/dashboard', '/pip_list', '/employee/list', '/employee/add', '/pip/select-employee'
     ):
@@ -448,9 +468,21 @@ def dashboard_stats_json():
         "totals": {"open": open_total, "due_soon": due_soon, "overdue": overdue}
     })
 
+
 @app.route("/health")
 def health():
     return "OK", 200
+
+
+@app.route("/db-health")
+def db_health():
+    try:
+        db.session.execute(text("SELECT 1"))
+        return "DB OK", 200
+    except Exception as e:
+        app.logger.exception("DB health check failed")
+        return f"DB ERROR: {type(e).__name__}", 500
+
 
 @app.route('/ping')
 def ping():
