@@ -1,67 +1,94 @@
 {% extends 'base.html' %}
-{% block title %}Login - HR{% endblock %}
+{% set layout = 'fullscreen' %}
+{% block title %}Login - ResolvHR{% endblock %}
 {% block page_title %}{% endblock %}
 
 {% block content %}
-<div class="min-h-screen flex items-center justify-center bg-ellipse-light px-4 py-12">
-  <div class="w-full max-w-md bg-[#e6f3f3] p-6 sm:p-8 rounded-2xl shadow-xl border border-gray-200 animate-fade-in">
+<div class="min-h-screen -mx-4 sm:-mx-6 lg:-mx-8 flex items-center justify-center bg-slate-950 px-4 py-12">
+  <div class="absolute inset-0 overflow-hidden">
+    <div class="absolute -top-24 -right-24 h-72 w-72 rounded-full bg-teal-500/20 blur-3xl"></div>
+    <div class="absolute -bottom-32 -left-24 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl"></div>
+  </div>
 
-    <!-- Logo + Title -->
-    <div class="text-center mb-6">
-      <img src="{{ url_for('static', filename='images/logo.avif') }}"
-           alt="HR Logo"
-           class="h-14 w-auto mx-auto mb-3">
-      <h1 class="text-2xl font-bold text-ellipse-teal">HR Login</h1>
-      <p class="text-sm text-gray-500 mt-1">Sign in to your account</p>
+  <div class="relative grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/10 bg-white shadow-2xl lg:grid-cols-2">
+    <div class="hidden bg-gradient-to-br from-[#0b3f3c] via-[#115e59] to-[#0f766e] p-10 text-white lg:block">
+      <div class="flex items-center gap-3">
+        <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm">
+          <img src="{{ url_for('static', filename='images/logo.avif') }}" alt="ResolvHR" class="h-9 w-9 rounded-xl object-cover">
+        </div>
+        <div>
+          <div class="text-xl font-extrabold tracking-tight">ResolvHR</div>
+          <div class="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">HR case management</div>
+        </div>
+      </div>
+
+      <div class="mt-16 max-w-md">
+        <h1 class="text-4xl font-extrabold tracking-tight">A calmer way to manage people cases.</h1>
+        <p class="mt-5 text-sm leading-7 text-white/75">
+          Centralise performance, probation, absence, supervision and employee relations workflows in one secure workspace.
+        </p>
+      </div>
+
+      <div class="mt-12 grid grid-cols-2 gap-3 text-sm">
+        <div class="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
+          <div class="font-bold">Structured workflows</div>
+          <div class="mt-1 text-xs text-white/65">Cleaner case handling from start to close.</div>
+        </div>
+        <div class="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
+          <div class="font-bold">Audit-ready records</div>
+          <div class="mt-1 text-xs text-white/65">Keep activity, notes and documents together.</div>
+        </div>
+      </div>
     </div>
 
-    <form method="post" class="space-y-4">
-      {{ form.hidden_tag() }}
-
-      <!-- Username -->
-      <div>
-        <label class="block text-sm font-medium text-ellipse-gray mb-1">{{ form.username.label }}</label>
-        {{ form.username(class_="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-ellipse-teal") }}
+    <div class="p-6 sm:p-10">
+      <div class="mb-8 text-center lg:text-left">
+        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-50 lg:mx-0">
+          <img src="{{ url_for('static', filename='images/logo.avif') }}" alt="ResolvHR" class="h-10 w-10 rounded-xl object-cover">
+        </div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-950">Sign in to ResolvHR</h1>
+        <p class="mt-2 text-sm text-slate-500">Access your HR case management workspace.</p>
       </div>
 
-      <!-- Password -->
-      <div>
-        <label class="block text-sm font-medium text-ellipse-gray mb-1">{{ form.password.label }}</label>
-        {{ form.password(class_="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-ellipse-teal") }}
-      </div>
+      <form method="post" class="space-y-5">
+        {{ form.hidden_tag() }}
 
-      <!-- Remember me + forgot password -->
-      <div class="flex items-center justify-between">
-        <label class="flex items-center text-sm text-gray-600">
-          {{ form.remember(class_="mr-2 rounded") }}
-          Remember me
-        </label>
-        <a href="#" class="text-sm text-ellipse-teal hover:underline">Forgot password?</a>
-      </div>
+        <div>
+          <label class="mb-1.5 block text-sm font-bold text-slate-700">{{ form.username.label }}</label>
+          {{ form.username(class_="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm shadow-sm outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10") }}
+        </div>
 
-      <!-- Flash messages -->
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          {% for category, message in messages %}
-            <div class="text-sm text-red-600">
-              {{ message }}
-            </div>
-          {% endfor %}
-        {% endif %}
-      {% endwith %}
+        <div>
+          <label class="mb-1.5 block text-sm font-bold text-slate-700">{{ form.password.label }}</label>
+          {{ form.password(class_="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm shadow-sm outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10") }}
+        </div>
 
-      <!-- Submit -->
-      <div>
-        <button type="submit"
-                class="w-full bg-ellipse-teal hover:bg-ellipse-hover text-white font-semibold py-2 px-4 rounded-lg transition">
-          🔐 Log In
+        <div class="flex items-center justify-between">
+          <label class="flex items-center text-sm font-medium text-slate-600">
+            {{ form.remember(class_="mr-2 rounded border-slate-300 text-teal-700 focus:ring-teal-600") }}
+            Remember me
+          </label>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <button type="submit" class="w-full rounded-xl bg-teal-700 px-4 py-3 text-sm font-extrabold text-white shadow-lg shadow-teal-900/10 transition hover:bg-teal-800">
+          Sign in
         </button>
-      </div>
-    </form>
+      </form>
 
-    <p class="text-xs text-center text-gray-400 mt-6">
-      &copy; {{ current_year }} HR. All rights reserved.
-    </p>
+      <p class="mt-8 text-center text-xs text-slate-400">
+        &copy; {{ current_year }} ResolvHR. All rights reserved.
+      </p>
+    </div>
   </div>
 </div>
 {% endblock %}
