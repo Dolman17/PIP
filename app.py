@@ -338,6 +338,22 @@ app.jinja_env.globals["url_for"] = compat_url_for
 
 
 @app.before_request
+def log_request_start():
+    app.logger.warning("REQUEST START: %s %s", request.method, request.path)
+
+
+@app.after_request
+def log_request_end(response):
+    app.logger.warning(
+        "REQUEST END: %s %s -> %s",
+        request.method,
+        request.path,
+        response.status_code,
+    )
+    return response
+
+
+@app.before_request
 def set_active_module():
     path = (request.path or "").lower()
 
