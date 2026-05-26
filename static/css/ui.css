@@ -97,43 +97,107 @@ html, body {
   border-top: 1px solid var(--color-border);
 }
 
-/* ---------- ResolvHR portal refresh overrides ---------- */
+/* ---------- ResolvHR / PayScope blue portal refresh overrides ---------- */
 body.portal-shell {
+  color: #061b33;
   background:
-    radial-gradient(circle at 6% 0%, rgba(86, 49, 132, .16), transparent 28%),
-    radial-gradient(circle at 90% 10%, rgba(0, 169, 157, .10), transparent 26%),
-    linear-gradient(135deg, #f0edf7 0%, #f5f2fa 42%, #eef5f5 100%) !important;
+    radial-gradient(circle at 8% 0%, rgba(11, 139, 179, .18), transparent 30%),
+    radial-gradient(circle at 88% 8%, rgba(11, 75, 102, .12), transparent 28%),
+    linear-gradient(135deg, #edf4f8 0%, #f4f8fb 46%, #e7f1f6 100%) !important;
+}
+
+body.portal-shell .portal-sidebar {
+  background: linear-gradient(180deg, #0b4b66 0%, #083e5c 44%, #062b45 100%) !important;
+}
+
+body.portal-shell .nav-link-active,
+body.portal-shell .module-link-active {
+  color: #0b4b66 !important;
+}
+
+body.portal-shell .top-tab:hover {
+  color: #0b4b66 !important;
+  border-bottom-color: #9bd7eb !important;
+}
+
+body.portal-shell .top-tab-active {
+  color: #0b8bb3 !important;
+  border-bottom-color: #0b8bb3 !important;
 }
 
 body.portal-shell header.bg-\[\#f6f7fb\]\/90,
 body.portal-shell .bg-\[\#f6f7fb\]\/90 {
-  background-color: rgba(240, 237, 247, .88) !important;
+  background-color: rgba(237, 244, 248, .9) !important;
 }
 
 body.portal-shell .bg-white {
-  background-color: #fbf9fd !important;
+  background-color: #f9fcfe !important;
 }
 
 body.portal-shell .bg-white\/75,
 body.portal-shell .bg-white\/80,
 body.portal-shell .bg-white\/90 {
-  background-color: rgba(251, 249, 253, .88) !important;
+  background-color: rgba(249, 252, 254, .9) !important;
 }
 
 body.portal-shell .bg-slate-50 {
-  background-color: #f3eef8 !important;
+  background-color: #eef6fa !important;
 }
 
 body.portal-shell .border-slate-200 {
-  border-color: #ddd5e8 !important;
+  border-color: #cfe2ec !important;
+}
+
+body.portal-shell .text-\[\#563184\],
+body.portal-shell .text-purple-700 {
+  color: #0b8bb3 !important;
+}
+
+body.portal-shell .bg-\[\#563184\] {
+  background-color: #0b8bb3 !important;
+}
+
+body.portal-shell .hover\:bg-\[\#40245F\]:hover {
+  background-color: #0b4b66 !important;
+}
+
+body.portal-shell .bg-purple-50 {
+  background-color: #e5f4fa !important;
+}
+
+body.portal-shell .from-\[\#563184\].to-\[\#7c4cc2\],
+body.portal-shell .from-orange-400.to-rose-400 {
+  background-image: linear-gradient(to right, #0b4b66, #0b8bb3) !important;
+}
+
+body.portal-shell .from-blue-600.to-cyan-500 {
+  background-image: linear-gradient(to right, #0b8bb3, #22b8d6) !important;
+}
+
+body.portal-shell .from-emerald-400.to-teal-400 {
+  background-image: linear-gradient(to right, #0b6f8f, #00a5bd) !important;
+}
+
+body.portal-shell .from-amber-400.to-yellow-300 {
+  color: #fff !important;
+  background-image: linear-gradient(to right, #0b5f7d, #118ab2) !important;
+}
+
+body.portal-shell .bg-yellow-400 {
+  color: #fff !important;
+  background-color: #118ab2 !important;
+}
+
+body.portal-shell .bg-blue-500 {
+  background-color: #0b8bb3 !important;
 }
 
 body.portal-shell .shadow-sm {
-  box-shadow: 0 10px 28px rgba(72, 45, 105, .07) !important;
+  box-shadow: 0 10px 28px rgba(6, 43, 69, .07) !important;
 }
 
 body.portal-shell .shadow-md {
-  box-shadow: 0 16px 36px rgba(72, 45, 105, .10) !important;
+  box-shadow: 0 16px 36px rgba(6, 43, 69, .10) !important;
 }
 
 body.portal-shell input,
@@ -145,5 +209,5 @@ body.portal-shell .textarea,
 body.portal-shell .form-input,
 body.portal-shell .form-select,
 body.portal-shell .form-textarea {
-  background-color: #fffdff !important;
+  background-color: #fcfeff !important;
 }
