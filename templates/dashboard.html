@@ -8,323 +8,314 @@
 {% set open_count = (open_pips|length) if open_pips else 0 %}
 {% set activity_count = (recent_activity|length) if recent_activity else 0 %}
 
-<div class="mx-auto max-w-7xl space-y-6 pb-8">
+<div class="relative -mx-4 -mb-8 -mt-5 min-h-screen overflow-hidden bg-slate-950 px-4 py-8 text-white sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+  <div class="pointer-events-none absolute inset-0 overflow-hidden">
+    <div class="absolute -top-32 right-0 h-96 w-96 rounded-full bg-teal-500/20 blur-3xl"></div>
+    <div class="absolute top-1/3 -left-32 h-96 w-96 rounded-full bg-cyan-400/10 blur-3xl"></div>
+    <div class="absolute bottom-0 right-1/4 h-80 w-80 rounded-full bg-emerald-400/10 blur-3xl"></div>
+  </div>
 
-  {% macro status_pill(label, tone='slate') %}
-    <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold
-      {% if tone == 'red' %}bg-red-50 text-red-700 ring-1 ring-red-200
-      {% elif tone == 'amber' %}bg-amber-50 text-amber-800 ring-1 ring-amber-200
-      {% elif tone == 'emerald' %}bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200
-      {% elif tone == 'teal' %}bg-teal-50 text-teal-700 ring-1 ring-teal-200
-      {% else %}bg-slate-100 text-slate-700 ring-1 ring-slate-200{% endif %}">
-      {{ label }}
-    </span>
-  {% endmacro %}
+  <div class="relative mx-auto max-w-7xl space-y-7">
 
-  {% macro metric_card(label, value, helper='', tone='slate', href=None) %}
-    {% if href %}<a href="{{ href }}" class="group block">{% endif %}
-    <div class="h-full rounded-2xl border bg-white p-5 shadow-sm transition {% if href %}group-hover:-translate-y-0.5 group-hover:shadow-md{% endif %}
-      {% if tone == 'red' %}border-red-200
-      {% elif tone == 'amber' %}border-amber-200
-      {% elif tone == 'emerald' %}border-emerald-200
-      {% elif tone == 'teal' %}border-teal-200
-      {% else %}border-slate-200{% endif %}">
-      <div class="flex items-start justify-between gap-4">
-        <div>
-          <p class="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{{ label }}</p>
-          <p class="mt-2 text-3xl font-extrabold tracking-tight text-slate-950">{{ value }}</p>
-        </div>
-        <div class="flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-black
-          {% if tone == 'red' %}bg-red-50 text-red-700
-          {% elif tone == 'amber' %}bg-amber-50 text-amber-800
-          {% elif tone == 'emerald' %}bg-emerald-50 text-emerald-700
-          {% elif tone == 'teal' %}bg-teal-50 text-teal-700
-          {% else %}bg-slate-100 text-slate-700{% endif %}">
-          {% if tone == 'red' %}!{% elif tone == 'amber' %}D{% elif tone == 'emerald' %}C{% elif tone == 'teal' %}A{% else %}# {% endif %}
-        </div>
+    {% macro signal_pill(label, tone='slate') %}
+      <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-extrabold
+        {% if tone == 'red' %}bg-red-400/10 text-red-100 ring-1 ring-red-300/20
+        {% elif tone == 'amber' %}bg-amber-300/10 text-amber-100 ring-1 ring-amber-200/20
+        {% elif tone == 'emerald' %}bg-emerald-300/10 text-emerald-100 ring-1 ring-emerald-200/20
+        {% elif tone == 'teal' %}bg-teal-300/10 text-teal-100 ring-1 ring-teal-200/20
+        {% else %}bg-white/10 text-white/70 ring-1 ring-white/10{% endif %}">
+        {{ label }}
+      </span>
+    {% endmacro %}
+
+    {% macro light_pill(label, tone='slate') %}
+      <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-extrabold
+        {% if tone == 'red' %}bg-red-50 text-red-700
+        {% elif tone == 'amber' %}bg-amber-50 text-amber-800
+        {% elif tone == 'emerald' %}bg-emerald-50 text-emerald-700
+        {% elif tone == 'teal' %}bg-teal-50 text-teal-700
+        {% else %}bg-slate-100 text-slate-600{% endif %}">
+        {{ label }}
+      </span>
+    {% endmacro %}
+
+    {% macro glass_stat(label, value, href=None) %}
+      {% if href %}<a href="{{ href }}" class="group block">{% endif %}
+      <div class="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur transition {% if href %}group-hover:-translate-y-0.5 group-hover:bg-white/15{% endif %}">
+        <p class="text-[11px] font-bold uppercase tracking-wide text-white/45">{{ label }}</p>
+        <p class="mt-2 text-3xl font-extrabold tracking-tight text-white">{{ value }}</p>
       </div>
-      {% if helper %}<p class="mt-3 text-sm leading-6 text-slate-500">{{ helper }}</p>{% endif %}
-    </div>
-    {% if href %}</a>{% endif %}
-  {% endmacro %}
+      {% if href %}</a>{% endif %}
+    {% endmacro %}
 
-  {% macro case_row(p, compact=false) %}
-    {% set employee_name = ((p.employee.first_name ~ ' ' ~ p.employee.last_name) if p.employee else 'Unknown employee') %}
-    {% set is_overdue = p.review_date and p.review_date < today %}
-    {% set is_due_soon = p.review_date and p.review_date >= today %}
-    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-teal-200 hover:shadow-md">
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div class="min-w-0">
-          <div class="flex flex-wrap items-center gap-2">
-            <h3 class="truncate text-sm font-extrabold text-slate-950">{{ employee_name }}</h3>
-            {% if is_overdue %}
-              {{ status_pill('Overdue', 'red') }}
-            {% elif is_due_soon %}
-              {{ status_pill('Review due', 'amber') }}
-            {% else %}
-              {{ status_pill(p.status or 'Open', 'teal') }}
-            {% endif %}
-            {% if p.severity %}
-              {% if p.severity == 'High' %}{{ status_pill('High severity', 'red') }}
-              {% elif p.severity == 'Moderate' %}{{ status_pill('Moderate', 'amber') }}
-              {% else %}{{ status_pill(p.severity, 'emerald') }}{% endif %}
+    {% macro action_chip(label, href, primary=false) %}
+      <a href="{{ href }}" class="inline-flex items-center justify-center rounded-xl px-3 py-2 text-xs font-extrabold transition
+        {% if primary %}bg-white text-slate-950 hover:bg-slate-100
+        {% else %}border border-white/10 bg-white/10 text-white backdrop-blur hover:bg-white/15{% endif %}">
+        {{ label }}
+      </a>
+    {% endmacro %}
+
+    {% macro case_strip(p, compact=false, dark=false) %}
+      {% set employee_name = ((p.employee.first_name ~ ' ' ~ p.employee.last_name) if p.employee else 'Unknown employee') %}
+      {% set is_overdue = p.review_date and p.review_date < today %}
+      {% set is_due_soon = p.review_date and p.review_date >= today %}
+      <a href="{{ url_for('pip_detail', id=p.id) }}" class="group block rounded-2xl transition
+        {% if dark %}border border-white/10 bg-white/10 p-4 hover:bg-white/15
+        {% else %}border border-slate-200 bg-white/80 p-4 shadow-sm hover:border-teal-200 hover:bg-white hover:shadow-md{% endif %}">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+              <p class="truncate text-sm font-extrabold {% if dark %}text-white{% else %}text-slate-950{% endif %}">{{ employee_name }}</p>
+              {% if is_overdue %}
+                {% if dark %}{{ signal_pill('Overdue', 'red') }}{% else %}{{ light_pill('Overdue', 'red') }}{% endif %}
+              {% elif is_due_soon %}
+                {% if dark %}{{ signal_pill('Review due', 'amber') }}{% else %}{{ light_pill('Review due', 'amber') }}{% endif %}
+              {% else %}
+                {% if dark %}{{ signal_pill(p.status or 'Open', 'teal') }}{% else %}{{ light_pill(p.status or 'Open', 'teal') }}{% endif %}
+              {% endif %}
+              {% if p.severity == 'High' %}
+                {% if dark %}{{ signal_pill('High severity', 'red') }}{% else %}{{ light_pill('High severity', 'red') }}{% endif %}
+              {% elif p.severity == 'Moderate' %}
+                {% if dark %}{{ signal_pill('Moderate', 'amber') }}{% else %}{{ light_pill('Moderate', 'amber') }}{% endif %}
+              {% elif p.severity %}
+                {% if dark %}{{ signal_pill(p.severity, 'emerald') }}{% else %}{{ light_pill(p.severity, 'emerald') }}{% endif %}
+              {% endif %}
+            </div>
+            <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs {% if dark %}text-white/50{% else %}text-slate-500{% endif %}">
+              <span>{{ p.concern_category or 'Uncategorised' }}</span>
+              <span>{{ p.review_date.strftime('%d %b %Y') if p.review_date else 'No review date' }}</span>
+              {% if p.frequency %}<span>{{ p.frequency }}</span>{% endif %}
+            </div>
+            {% if not compact and p.concerns %}
+              <p class="mt-2 line-clamp-1 text-sm {% if dark %}text-white/65{% else %}text-slate-600{% endif %}">{{ p.concerns }}</p>
             {% endif %}
           </div>
-          <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-            <span>{{ p.concern_category or 'Uncategorised' }}</span>
-            <span>Review: {{ p.review_date.strftime('%d %b %Y') if p.review_date else 'No review date' }}</span>
-            {% if p.frequency %}<span>Frequency: {{ p.frequency }}</span>{% endif %}
-          </div>
+          <div class="shrink-0 text-xs font-extrabold {% if dark %}text-teal-100 group-hover:text-white{% else %}text-teal-700 group-hover:text-teal-900{% endif %}">Open case</div>
         </div>
-        <a href="{{ url_for('pip_detail', id=p.id) }}" class="inline-flex shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm hover:border-teal-300 hover:text-teal-700">Open case</a>
-      </div>
-      {% if not compact and p.concerns %}
-        <p class="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">{{ p.concerns }}</p>
-      {% endif %}
-    </div>
-  {% endmacro %}
+      </a>
+    {% endmacro %}
 
-  <section class="relative overflow-hidden rounded-3xl border border-teal-900/10 bg-[#073f3c] p-6 text-white shadow-xl sm:p-8">
-    <div class="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-white/10 blur-3xl"></div>
-    <div class="absolute -bottom-24 left-1/2 h-64 w-64 rounded-full bg-teal-300/20 blur-3xl"></div>
-
-    <div class="relative grid gap-6 lg:grid-cols-[1.3fr_0.7fr] lg:items-end">
-      <div>
-        <p class="text-xs font-bold uppercase tracking-[0.22em] text-teal-100/80">Performance improvement workspace</p>
-        <h1 class="mt-3 max-w-3xl text-3xl font-extrabold tracking-tight sm:text-4xl">
-          Control today’s PIP actions before they become risk.
+    <section class="grid gap-6 lg:grid-cols-[1.15fr_.85fr]">
+      <div class="rounded-[2rem] border border-white/10 bg-white/[0.07] p-7 shadow-2xl shadow-black/20 backdrop-blur-xl sm:p-9 lg:p-10">
+        <div class="inline-flex rounded-full border border-teal-300/20 bg-teal-300/10 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-teal-100">
+          Performance improvement workspace
+        </div>
+        <h1 class="mt-6 max-w-4xl text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
+          PIP command centre.
         </h1>
-        <p class="mt-4 max-w-2xl text-sm leading-7 text-teal-50/85">
-          Prioritise overdue reviews, upcoming deadlines, active case work, draft records, and recent activity from one operational view.
+        <p class="mt-5 max-w-2xl text-base leading-7 text-white/70">
+          A calmer operational view for reviews, active case work, overdue actions, and recent timeline movement.
         </p>
-      </div>
 
-      <div class="flex flex-col gap-3 sm:flex-row lg:justify-end">
-        <a href="{{ url_for('create_pip_wizard') }}" class="inline-flex items-center justify-center rounded-2xl bg-white px-4 py-3 text-sm font-extrabold text-[#0b4f4c] shadow-sm hover:bg-teal-50">Start new PIP</a>
-        <a href="{{ url_for('pip_list') }}" class="inline-flex items-center justify-center rounded-2xl border border-white/25 bg-white/10 px-4 py-3 text-sm font-extrabold text-white hover:bg-white/15">View PIP records</a>
-      </div>
-    </div>
-
-    <div class="relative mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <div class="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
-        <p class="text-xs font-bold uppercase tracking-wide text-white/65">Employees</p>
-        <p class="mt-2 text-3xl font-extrabold">{{ total_employees or 0 }}</p>
-      </div>
-      <div class="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
-        <p class="text-xs font-bold uppercase tracking-wide text-white/65">Active PIPs</p>
-        <p class="mt-2 text-3xl font-extrabold">{{ active_pips or 0 }}</p>
-      </div>
-      <div class="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
-        <p class="text-xs font-bold uppercase tracking-wide text-white/65">Due this week</p>
-        <p class="mt-2 text-3xl font-extrabold">{{ upcoming_count or 0 }}</p>
-      </div>
-      <div class="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
-        <p class="text-xs font-bold uppercase tracking-wide text-white/65">Overdue</p>
-        <p class="mt-2 text-3xl font-extrabold">{{ overdue_reviews or 0 }}</p>
-      </div>
-    </div>
-  </section>
-
-  {% if draft %}
-    <section id="draftResumeBanner" class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm sm:p-5">
-      <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p class="text-sm font-extrabold text-emerald-950">Draft PIP waiting</p>
-          <p class="mt-1 text-sm text-emerald-800">
-            Resume the in-progress wizard{% if draft.updated_at %}. Last updated {{ draft.updated_at.strftime('%d %b %Y %H:%M') }} UTC{% endif %}.
-          </p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <a href="{{ url_for('pip_wizard_resume') }}" class="inline-flex items-center justify-center rounded-xl bg-emerald-700 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-emerald-800">Resume draft</a>
-          <button id="dismissDraftBtn" type="button" class="inline-flex items-center justify-center rounded-xl border border-emerald-300 bg-white/70 px-4 py-2 text-sm font-bold text-emerald-800 hover:bg-white">Dismiss</button>
+        <div class="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {{ glass_stat('Employees', total_employees or 0, url_for('employee_list')) }}
+          {{ glass_stat('Active PIPs', active_pips or 0, url_for('pip_list')) }}
+          {{ glass_stat('Due soon', upcoming_count or 0, url_for('pip_list')) }}
+          {{ glass_stat('Overdue', overdue_reviews or 0, url_for('pip_list')) }}
         </div>
       </div>
-    </section>
-  {% endif %}
 
-  <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-    {{ metric_card('Overdue reviews', overdue_reviews or 0, 'Open PIPs with a review date before today.', 'red', url_for('pip_list')) }}
-    {{ metric_card('Due in 7 days', upcoming_count or 0, 'Reviews that need scheduling, preparation, or completion.', 'amber', url_for('pip_list')) }}
-    {{ metric_card('Open cases', open_count or 0, 'Active records currently in progress.', 'teal', url_for('pip_list')) }}
-    {{ metric_card('Completed', completed_pips or 0, 'Closed performance improvement records.', 'emerald', url_for('pip_list')) }}
-  </section>
-
-  <section class="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-    <div class="space-y-6">
-      <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <aside class="rounded-[2rem] border border-white/10 bg-white/[0.07] p-6 shadow-2xl shadow-black/20 backdrop-blur-xl">
+        <div class="flex items-center justify-between gap-4">
           <div>
-            <p class="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">Today’s HR actions</p>
-            <h2 class="mt-1 text-xl font-extrabold tracking-tight text-slate-950">Priority queue</h2>
-            <p class="mt-1 text-sm leading-6 text-slate-500">Deal with missed dates and near-term reviews first.</p>
+            <h2 class="text-lg font-extrabold">Needs attention</h2>
+            <p class="mt-1 text-sm text-white/55">Current PIP signals.</p>
           </div>
-          <a href="{{ url_for('pip_list') }}" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-sm hover:border-teal-300 hover:text-teal-700">Open list</a>
+          {% if overdue_reviews and overdue_reviews > 0 %}
+            {{ signal_pill('Action required', 'red') }}
+          {% else %}
+            {{ signal_pill('Stable', 'emerald') }}
+          {% endif %}
         </div>
 
-        <div class="mt-5 grid gap-3 md:grid-cols-3">
-          <div class="rounded-2xl border border-red-200 bg-red-50 p-4">
-            <p class="text-sm font-extrabold text-red-900">Overdue reviews</p>
-            <p class="mt-2 text-3xl font-extrabold text-red-950">{{ overdue_reviews or 0 }}</p>
-            <p class="mt-2 text-xs leading-5 text-red-800/75">Complete the review, update the outcome, or record why it is delayed.</p>
+        <div class="mt-5 grid grid-cols-2 gap-3">
+          <a href="{{ url_for('pip_list') }}" class="rounded-2xl border border-white/10 bg-white/10 p-4 transition hover:bg-white/15">
+            <p class="text-xs font-bold text-white/50">Overdue reviews</p>
+            <p class="mt-1 text-3xl font-extrabold">{{ overdue_reviews or 0 }}</p>
+          </a>
+          <a href="{{ url_for('pip_list') }}" class="rounded-2xl border border-white/10 bg-white/10 p-4 transition hover:bg-white/15">
+            <p class="text-xs font-bold text-white/50">Due this week</p>
+            <p class="mt-1 text-3xl font-extrabold">{{ upcoming_count or 0 }}</p>
+          </a>
+          <a href="{{ url_for('pip_list') }}" class="rounded-2xl border border-white/10 bg-white/10 p-4 transition hover:bg-white/15">
+            <p class="text-xs font-bold text-white/50">Open cases</p>
+            <p class="mt-1 text-3xl font-extrabold">{{ open_count or 0 }}</p>
+          </a>
+          <a href="{{ url_for('pip_list') }}" class="rounded-2xl border border-white/10 bg-white/10 p-4 transition hover:bg-white/15">
+            <p class="text-xs font-bold text-white/50">Activity</p>
+            <p class="mt-1 text-3xl font-extrabold">{{ activity_count or 0 }}</p>
+          </a>
+        </div>
+
+        <div class="mt-5 flex flex-wrap gap-2">
+          {{ action_chip('New PIP', url_for('create_pip_wizard'), true) }}
+          {{ action_chip('PIP records', url_for('pip_list')) }}
+          {{ action_chip('Employees', url_for('employee_list')) }}
+        </div>
+      </aside>
+    </section>
+
+    {% if draft %}
+      <section id="draftResumeBanner" class="rounded-[1.75rem] border border-emerald-300/20 bg-emerald-300/10 p-5 text-emerald-50 shadow-2xl shadow-black/10 backdrop-blur-xl">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="font-extrabold">Draft PIP waiting</p>
+            <p class="mt-1 text-sm text-emerald-50/70">
+              Resume the in-progress wizard{% if draft.updated_at %}. Last updated {{ draft.updated_at.strftime('%d %b %Y %H:%M') }} UTC{% endif %}.
+            </p>
           </div>
-          <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-            <p class="text-sm font-extrabold text-amber-950">Due soon</p>
-            <p class="mt-2 text-3xl font-extrabold text-amber-950">{{ upcoming_count or 0 }}</p>
-            <p class="mt-2 text-xs leading-5 text-amber-900/75">Prepare the meeting, evidence, support actions, and documentation.</p>
-          </div>
-          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p class="text-sm font-extrabold text-slate-900">Recent updates</p>
-            <p class="mt-2 text-3xl font-extrabold text-slate-950">{{ activity_count or 0 }}</p>
-            <p class="mt-2 text-xs leading-5 text-slate-500">Latest timeline entries across visible PIP records.</p>
+          <div class="flex flex-wrap gap-2">
+            <a href="{{ url_for('pip_wizard_resume') }}" class="rounded-xl bg-white px-3 py-2 text-xs font-extrabold text-slate-950 transition hover:bg-slate-100">Resume draft</a>
+            <button id="dismissDraftBtn" type="button" class="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-extrabold text-white transition hover:bg-white/15">Dismiss</button>
           </div>
         </div>
       </section>
+    {% endif %}
 
-      <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p class="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">Case radar</p>
-            <h2 class="mt-1 text-xl font-extrabold tracking-tight text-slate-950">Upcoming reviews</h2>
-            <p class="mt-1 text-sm leading-6 text-slate-500">A focused view of PIPs due in the next 7 days.</p>
+    <section>
+      <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 class="text-2xl font-extrabold tracking-tight">Today’s flow</h2>
+          <p class="mt-1 text-sm text-white/55">Less dashboard noise. More direct action.</p>
+        </div>
+        <a href="{{ url_for('pip_list') }}" class="text-sm font-bold text-teal-100 hover:text-white">Open full PIP register</a>
+      </div>
+
+      <div class="grid gap-3 md:grid-cols-3">
+        <a href="{{ url_for('pip_list') }}" class="rounded-2xl border border-white/10 bg-white px-4 py-4 text-slate-950 shadow-xl shadow-black/10 transition hover:-translate-y-0.5 hover:shadow-2xl">
+          <div class="flex items-center justify-between gap-3">
+            <span class="h-2.5 w-2.5 rounded-full bg-red-500"></span>
+            {{ light_pill('Risk', 'red') }}
           </div>
-          {{ status_pill((upcoming_count|string) ~ ' due soon', 'amber') }}
+          <div class="mt-4 text-3xl font-extrabold">{{ overdue_reviews or 0 }}</div>
+          <div class="mt-1 text-xs font-semibold text-slate-500">Overdue reviews</div>
+        </a>
+        <a href="{{ url_for('pip_list') }}" class="rounded-2xl border border-white/10 bg-white px-4 py-4 text-slate-950 shadow-xl shadow-black/10 transition hover:-translate-y-0.5 hover:shadow-2xl">
+          <div class="flex items-center justify-between gap-3">
+            <span class="h-2.5 w-2.5 rounded-full bg-amber-500"></span>
+            {{ light_pill('Due', 'amber') }}
+          </div>
+          <div class="mt-4 text-3xl font-extrabold">{{ upcoming_count or 0 }}</div>
+          <div class="mt-1 text-xs font-semibold text-slate-500">Reviews due in 7 days</div>
+        </a>
+        <a href="{{ url_for('pip_list') }}" class="rounded-2xl border border-white/10 bg-white px-4 py-4 text-slate-950 shadow-xl shadow-black/10 transition hover:-translate-y-0.5 hover:shadow-2xl">
+          <div class="flex items-center justify-between gap-3">
+            <span class="h-2.5 w-2.5 rounded-full bg-teal-500"></span>
+            {{ light_pill('Live', 'teal') }}
+          </div>
+          <div class="mt-4 text-3xl font-extrabold">{{ open_count or 0 }}</div>
+          <div class="mt-1 text-xs font-semibold text-slate-500">Open PIP cases</div>
+        </a>
+      </div>
+    </section>
+
+    <section class="grid grid-cols-1 gap-5 xl:grid-cols-[1.2fr_.8fr]">
+      <div class="rounded-[1.75rem] border border-white/10 bg-white/10 p-5 backdrop-blur-xl sm:p-6">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 class="text-lg font-extrabold">Upcoming reviews</h2>
+            <p class="mt-1 text-sm text-white/55">Near-term case work, shown as compact strips.</p>
+          </div>
+          {{ signal_pill((upcoming_count|string) ~ ' due soon', 'amber') }}
         </div>
 
         <div class="mt-5 space-y-3">
           {% if upcoming_pips %}
             {% for p in upcoming_pips[:6] %}
-              {{ case_row(p, true) }}
+              {{ case_strip(p, true, true) }}
             {% endfor %}
-            {% if upcoming_pips|length > 6 %}
-              <a href="{{ url_for('pip_list') }}" class="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-100">View all upcoming reviews</a>
-            {% endif %}
           {% else %}
-            <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-              <p class="font-bold text-slate-900">No PIP reviews due this week</p>
-              <p class="mt-1 text-sm text-slate-500">The immediate review queue is clear.</p>
+            <div class="rounded-2xl border border-white/10 bg-white/10 p-6 text-center text-white/70">
+              <p class="font-extrabold text-white">No reviews due this week</p>
+              <p class="mt-1 text-sm text-white/50">The immediate review queue is clear.</p>
             </div>
           {% endif %}
         </div>
-      </section>
+      </div>
 
-      <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p class="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">Active case work</p>
-            <h2 class="mt-1 text-xl font-extrabold tracking-tight text-slate-950">Open PIPs</h2>
-            <p class="mt-1 text-sm leading-6 text-slate-500">Current active records, ordered by review date from the backend.</p>
+      <aside class="rounded-[1.75rem] border border-white/10 bg-white/10 p-5 backdrop-blur-xl sm:p-6">
+        <h2 class="text-lg font-extrabold">Next best actions</h2>
+        <p class="mt-1 text-sm text-white/55">Quick access without extra dashboard clutter.</p>
+        <div class="mt-5 flex flex-wrap gap-2">
+          {{ action_chip('Start PIP wizard', url_for('create_pip_wizard'), true) }}
+          {{ action_chip('Find employee', url_for('employee_list')) }}
+          {{ action_chip('Open PIP list', url_for('pip_list')) }}
+          {% if current_user.is_superuser() %}{{ action_chip('Export data', url_for('export_data')) }}{% endif %}
+        </div>
+
+        <div class="mt-6 border-t border-white/10 pt-5">
+          <h3 class="text-sm font-extrabold">High-attention cases</h3>
+          <div class="mt-3 space-y-3">
+            {% set rendered_risk = namespace(count=0) %}
+            {% if open_pips %}
+              {% for p in open_pips %}
+                {% if rendered_risk.count < 4 and ((p.review_date and p.review_date < today) or p.severity == 'High') %}
+                  {% set rendered_risk.count = rendered_risk.count + 1 %}
+                  {{ case_strip(p, true, true) }}
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+            {% if rendered_risk.count == 0 %}
+              <div class="rounded-2xl border border-white/10 bg-white/10 p-5 text-sm text-white/60">No high-attention PIPs currently visible.</div>
+            {% endif %}
           </div>
-          {{ status_pill((open_count|string) ~ ' open', 'teal') }}
+        </div>
+      </aside>
+    </section>
+
+    <section class="grid grid-cols-1 gap-5 xl:grid-cols-[1.2fr_.8fr]">
+      <div class="rounded-[1.75rem] border border-white/10 bg-white p-5 text-slate-950 shadow-2xl shadow-black/10 sm:p-6">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 class="text-lg font-extrabold">Open PIPs</h2>
+            <p class="mt-1 text-sm text-slate-500">Active case records, softened into row-based cards.</p>
+          </div>
+          {{ light_pill((open_count|string) ~ ' open', 'teal') }}
         </div>
 
         <div class="mt-5 space-y-3">
           {% if open_pips %}
             {% for p in open_pips[:8] %}
-              {{ case_row(p) }}
+              {{ case_strip(p) }}
             {% endfor %}
             {% if open_pips|length > 8 %}
-              <a href="{{ url_for('pip_list') }}" class="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-100">Open full PIP register</a>
+              <a href="{{ url_for('pip_list') }}" class="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:bg-slate-100">View all open PIPs</a>
             {% endif %}
           {% else %}
             <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-              <p class="font-bold text-slate-900">No open PIPs</p>
+              <p class="font-extrabold text-slate-900">No open PIPs</p>
               <p class="mt-1 text-sm text-slate-500">New performance improvement cases will appear here.</p>
             </div>
           {% endif %}
         </div>
-      </section>
-    </div>
+      </div>
 
-    <aside class="space-y-6">
-      <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <p class="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">Next best actions</p>
-        <h2 class="mt-1 text-xl font-extrabold tracking-tight text-slate-950">Recommended workflow</h2>
-        <div class="mt-5 space-y-3">
-          <a href="{{ url_for('create_pip_wizard') }}" class="block rounded-2xl border border-slate-200 p-4 transition hover:border-teal-300 hover:bg-teal-50/40">
-            <p class="font-extrabold text-slate-950">Create a new PIP</p>
-            <p class="mt-1 text-sm leading-6 text-slate-500">Use the guided wizard to capture concerns, support, review dates, and actions.</p>
-          </a>
-          <a href="{{ url_for('employee_list') }}" class="block rounded-2xl border border-slate-200 p-4 transition hover:border-teal-300 hover:bg-teal-50/40">
-            <p class="font-extrabold text-slate-950">Find an employee</p>
-            <p class="mt-1 text-sm leading-6 text-slate-500">Open the employee record before starting or reviewing case work.</p>
-          </a>
-          <a href="{{ url_for('pip_list') }}" class="block rounded-2xl border border-slate-200 p-4 transition hover:border-teal-300 hover:bg-teal-50/40">
-            <p class="font-extrabold text-slate-950">Review all PIPs</p>
-            <p class="mt-1 text-sm leading-6 text-slate-500">Filter the full register when you need broader operational oversight.</p>
-          </a>
-          {% if current_user.is_superuser() %}
-            <a href="{{ url_for('export_data') }}" class="block rounded-2xl border border-slate-200 p-4 transition hover:border-teal-300 hover:bg-teal-50/40">
-              <p class="font-extrabold text-slate-950">Export records</p>
-              <p class="mt-1 text-sm leading-6 text-slate-500">Download the current data pack for admin review or backup.</p>
-            </a>
-          {% endif %}
-        </div>
-      </section>
-
-      <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <aside class="rounded-[1.75rem] border border-white/10 bg-white/10 p-5 backdrop-blur-xl sm:p-6">
         <div class="flex items-start justify-between gap-4">
           <div>
-            <p class="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">Risk snapshot</p>
-            <h2 class="mt-1 text-xl font-extrabold tracking-tight text-slate-950">High attention cases</h2>
+            <h2 class="text-lg font-extrabold">Recent activity</h2>
+            <p class="mt-1 text-sm text-white/55">Latest timeline movement.</p>
           </div>
-          {% if overdue_reviews and overdue_reviews > 0 %}{{ status_pill('Action required', 'red') }}{% else %}{{ status_pill('Stable', 'emerald') }}{% endif %}
+          {{ signal_pill((activity_count|string) ~ ' updates') }}
         </div>
 
-        <div class="mt-5 space-y-3">
-          {% set rendered_risk = namespace(count=0) %}
-          {% if open_pips %}
-            {% for p in open_pips %}
-              {% if rendered_risk.count < 5 and ((p.review_date and p.review_date < today) or p.severity == 'High') %}
-                {% set rendered_risk.count = rendered_risk.count + 1 %}
-                {{ case_row(p, true) }}
-              {% endif %}
-            {% endfor %}
-          {% endif %}
-
-          {% if rendered_risk.count == 0 %}
-            <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-              <p class="font-bold text-slate-900">No high-attention PIPs visible</p>
-              <p class="mt-1 text-sm text-slate-500">High severity and overdue cases will be pulled into this panel.</p>
+        <div class="mt-5 space-y-4">
+          {% for ev in (recent_activity or [])[:8] %}
+            <div class="border-l border-white/15 pl-4">
+              <p class="text-sm font-extrabold text-white">{{ ev.event_type }}</p>
+              {% if ev.notes %}<p class="mt-1 line-clamp-2 text-sm leading-6 text-white/60">{{ ev.notes }}</p>{% endif %}
+              <p class="mt-1 text-xs text-white/40">
+                {% if ev.updated_by %}{{ ev.updated_by }} · {% endif %}{{ ev.timestamp.strftime('%d %b %Y %H:%M') if ev.timestamp else 'No timestamp' }}{% if ev.timestamp %} UTC{% endif %}
+              </p>
             </div>
-          {% endif %}
+          {% else %}
+            <div class="rounded-2xl border border-white/10 bg-white/10 p-5 text-sm text-white/60">No recent activity yet.</div>
+          {% endfor %}
         </div>
-      </section>
-
-      <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <p class="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">Audit trail</p>
-            <h2 class="mt-1 text-xl font-extrabold tracking-tight text-slate-950">Recent activity</h2>
-          </div>
-          {{ status_pill((activity_count|string) ~ ' updates', 'slate') }}
-        </div>
-
-        <div class="mt-5 flow-root">
-          <div class="-my-2 divide-y divide-slate-100">
-            {% for ev in (recent_activity or [])[:8] %}
-              <div class="py-3">
-                <div class="flex gap-3">
-                  <div class="mt-1 h-2.5 w-2.5 rounded-full bg-teal-600"></div>
-                  <div class="min-w-0 flex-1">
-                    <p class="text-sm font-extrabold text-slate-950">{{ ev.event_type }}</p>
-                    {% if ev.notes %}<p class="mt-1 line-clamp-2 text-sm leading-6 text-slate-600">{{ ev.notes }}</p>{% endif %}
-                    <p class="mt-1 text-xs text-slate-500">
-                      {% if ev.updated_by %}{{ ev.updated_by }} · {% endif %}{{ ev.timestamp.strftime('%d %b %Y %H:%M') if ev.timestamp else 'No timestamp' }}{% if ev.timestamp %} UTC{% endif %}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            {% else %}
-              <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-                <p class="font-bold text-slate-900">No recent activity</p>
-                <p class="mt-1 text-sm text-slate-500">Timeline events will appear once cases are updated.</p>
-              </div>
-            {% endfor %}
-          </div>
-        </div>
-      </section>
-    </aside>
-  </section>
+      </aside>
+    </section>
+  </div>
 </div>
 {% endblock %}
 
