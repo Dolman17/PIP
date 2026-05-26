@@ -212,69 +212,39 @@ body.portal-shell .form-textarea {
   background-color: #fcfeff !important;
 }
 
-/* ---------- Desktop hover auto-hide sidebar ---------- */
+/* ---------- Desktop hover drawer sidebar ---------- */
 @media (min-width: 1024px) {
   body.portal-shell .portal-sidebar {
-    width: 5.25rem !important;
-    transition: width .22s ease, box-shadow .22s ease;
+    width: 18rem !important;
+    transform: translateX(-16.15rem);
+    transition: transform .24s ease, box-shadow .24s ease;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    border-top-right-radius: 1.25rem !important;
+    border-bottom-right-radius: 1.25rem !important;
+  }
+
+  body.portal-shell .portal-sidebar::after {
+    content: '';
+    position: fixed;
+    top: 1.25rem;
+    right: .55rem;
+    width: .45rem;
+    height: 3.75rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .72);
+    box-shadow: 0 0 0 1px rgba(255,255,255,.12);
   }
 
   body.portal-shell .portal-sidebar:hover,
   body.portal-shell .portal-sidebar:focus-within {
-    width: 18rem !important;
-    box-shadow: 0 24px 60px rgba(6, 43, 69, .24) !important;
+    transform: translateX(0);
+    box-shadow: 0 24px 60px rgba(6, 43, 69, .26) !important;
   }
 
-  body.portal-shell .portal-sidebar .min-w-0,
-  body.portal-shell .portal-sidebar .nav-link span:last-child,
-  body.portal-shell .portal-sidebar .module-link,
-  body.portal-shell .portal-sidebar section > div:first-child,
-  body.portal-shell .portal-sidebar form,
-  body.portal-shell .portal-sidebar .rounded-3xl .text-\[10px\],
-  body.portal-shell .portal-sidebar .rounded-3xl .text-sm {
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity .14s ease;
-    white-space: nowrap;
-  }
-
-  body.portal-shell .portal-sidebar:hover .min-w-0,
-  body.portal-shell .portal-sidebar:focus-within .min-w-0,
-  body.portal-shell .portal-sidebar:hover .nav-link span:last-child,
-  body.portal-shell .portal-sidebar:focus-within .nav-link span:last-child,
-  body.portal-shell .portal-sidebar:hover .module-link,
-  body.portal-shell .portal-sidebar:focus-within .module-link,
-  body.portal-shell .portal-sidebar:hover section > div:first-child,
-  body.portal-shell .portal-sidebar:focus-within section > div:first-child,
-  body.portal-shell .portal-sidebar:hover form,
-  body.portal-shell .portal-sidebar:focus-within form,
-  body.portal-shell .portal-sidebar:hover .rounded-3xl .text-\[10px\],
-  body.portal-shell .portal-sidebar:focus-within .rounded-3xl .text-\[10px\],
-  body.portal-shell .portal-sidebar:hover .rounded-3xl .text-sm,
-  body.portal-shell .portal-sidebar:focus-within .rounded-3xl .text-sm {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  body.portal-shell .portal-sidebar .grid.grid-cols-2 {
-    grid-template-columns: 1fr !important;
-  }
-
-  body.portal-shell .portal-sidebar:not(:hover):not(:focus-within) .module-link {
-    height: .55rem;
-    overflow: hidden;
-    padding: 0;
-    border-radius: 999px;
-  }
-
-  body.portal-shell .portal-sidebar:not(:hover):not(:focus-within) .nav-link {
-    justify-content: center;
-    padding-left: .75rem !important;
-    padding-right: .75rem !important;
-  }
-
-  body.portal-shell .portal-sidebar:not(:hover):not(:focus-within) + div {
-    padding-left: 5.25rem !important;
+  body.portal-shell .portal-sidebar + div {
+    padding-left: 1.85rem !important;
+    transition: padding-left .24s ease;
   }
 
   body.portal-shell .portal-sidebar:hover + div,
