@@ -448,6 +448,9 @@ def dashboard_stats_json():
         "totals": {"open": open_total, "due_soon": due_soon, "overdue": overdue}
     })
 
+@app.route("/health")
+def health():
+    return "OK", 200
 
 @app.route('/ping')
 def ping():
