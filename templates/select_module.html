@@ -1,548 +1,193 @@
 {% extends 'base.html' %}
 {% set layout = 'fullscreen' %}
 
-{% block title %}Workspace Home - HR{% endblock %}
+{% block title %}Workspace Home - ResolvHR{% endblock %}
 {% block page_title %}{% endblock %}
 
 {% block content %}
-<div class="min-h-screen -mx-4 sm:-mx-6 px-4 sm:px-6 py-8 bg-slate-100">
+<div class="min-h-screen -mx-4 sm:-mx-6 lg:-mx-8 bg-slate-100 px-4 py-8 sm:px-6 lg:px-8">
   <div class="mx-auto max-w-7xl space-y-8">
 
-    <!-- Hero -->
-    <section class="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#0a4d4c] via-[#0f6b69] to-[#14827f] text-white shadow-2xl">
-      <div class="absolute inset-0 opacity-10">
-        <div class="absolute -top-16 -right-16 h-64 w-64 rounded-full bg-white blur-3xl"></div>
-        <div class="absolute -bottom-20 -left-10 h-72 w-72 rounded-full bg-white blur-3xl"></div>
-      </div>
-
-      <div class="relative px-6 py-8 sm:px-10 sm:py-10 lg:px-12 lg:py-12">
-        <div class="flex flex-col gap-8 xl:flex-row xl:items-center xl:justify-between">
-          <div class="max-w-3xl">
-            <div class="mb-4 flex items-center gap-3">
-              <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur shrink-0">
-                <img
-                  src="{{ url_for('static', filename='images/logo.avif') }}"
-                  alt="HR Logo"
-                  class="h-10 w-10 rounded-xl object-cover"
-                >
-              </div>
-              <div>
-                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
-                  HR
-                </p>
-                <p class="text-sm text-white/80">
-                  HR Case and Employee Management Platform
-                </p>
-              </div>
+    <section class="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-xl shadow-slate-900/5">
+      <div class="grid gap-0 lg:grid-cols-[1.25fr_.75fr]">
+        <div class="bg-gradient-to-br from-[#0b3f3c] via-[#115e59] to-[#0f766e] p-8 text-white sm:p-10 lg:p-12">
+          <div class="flex items-center gap-3">
+            <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm">
+              <img src="{{ url_for('static', filename='images/logo.avif') }}" alt="ResolvHR" class="h-10 w-10 rounded-xl object-cover">
             </div>
-
-            <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">
-              Welcome back, {{ current_user.username }}
-            </h1>
-            <p class="mt-3 max-w-2xl text-sm leading-6 text-white/85 sm:text-base">
-              This is your central workspace for employee lifecycle, performance,
-              probation, sickness, supervision, and employee relations activity.
-            </p>
-
-            <div class="mt-6 flex flex-wrap gap-3">
-              <a href="{{ url_for('manage_employee.index') }}"
-                 class="inline-flex items-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#0a4d4c] shadow-sm transition hover:bg-slate-100">
-                Manage Employees
-              </a>
-              <a href="{{ url_for('manage_employee.reporting') }}"
-                 class="inline-flex items-center rounded-full border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/15">
-                Employee Reporting
-              </a>
-              {% if current_user.is_superuser() %}
-              <a href="{{ url_for('admin_dashboard') }}"
-                 class="inline-flex items-center rounded-full border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/15">
-                Admin Dashboard
-              </a>
-              {% endif %}
+            <div>
+              <p class="text-xs font-bold uppercase tracking-[0.2em] text-white/60">ResolvHR</p>
+              <p class="text-sm font-semibold text-white/80">HR Case and Employee Management Platform</p>
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-3 sm:gap-4 xl:w-[420px]">
-            <div class="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur">
-              <p class="text-[11px] font-semibold uppercase tracking-wide text-white/70">Modules</p>
-              <p class="mt-2 text-2xl font-bold">{{ workspace_stats.module_count }}</p>
-              <p class="mt-1 text-xs text-white/75">Available workspaces</p>
-            </div>
+          <div class="mt-10 max-w-3xl">
+            <h1 class="text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">Welcome back, {{ current_user.username }}</h1>
+            <p class="mt-4 max-w-2xl text-sm leading-7 text-white/80 sm:text-base">
+              Manage employee lifecycle, performance, probation, sickness, supervision and employee relations from one structured workspace.
+            </p>
+          </div>
 
-            <div class="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur">
-              <p class="text-[11px] font-semibold uppercase tracking-wide text-white/70">Active Employees</p>
-              <p class="mt-2 text-2xl font-bold">{{ workspace_stats.active_employees }}</p>
-              <p class="mt-1 text-xs text-white/75">Current active records</p>
-            </div>
+          <div class="mt-8 flex flex-wrap gap-3">
+            <a href="{{ url_for('manage_employee.index') }}" class="inline-flex items-center rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-[#115e59] shadow-sm hover:bg-slate-100">Manage employees</a>
+            <a href="{{ url_for('employee_list') }}" class="inline-flex items-center rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white backdrop-blur hover:bg-white/15">All employees</a>
+            {% if current_user.is_superuser() %}
+            <a href="{{ url_for('admin_dashboard') }}" class="inline-flex items-center rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white backdrop-blur hover:bg-white/15">Admin dashboard</a>
+            {% endif %}
+          </div>
+        </div>
 
-            <div class="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur">
-              <p class="text-[11px] font-semibold uppercase tracking-wide text-white/70">Leavers</p>
-              <p class="mt-2 text-2xl font-bold">{{ workspace_stats.leavers }}</p>
-              <p class="mt-1 text-xs text-white/75">Tracked lifecycle exits</p>
-            </div>
-
-            <div class="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur">
-              <p class="text-[11px] font-semibold uppercase tracking-wide text-white/70">Access</p>
-              <p class="mt-2 text-2xl font-bold">
-                {% if current_user.is_superuser() %}Superuser{% elif current_user.is_admin() %}Admin{% else %}Standard{% endif %}
-              </p>
-              <p class="mt-1 text-xs text-white/75">Role-aware access</p>
-            </div>
+        <div class="grid grid-cols-2 gap-4 bg-white p-6 sm:p-8 lg:p-10">
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Modules</p>
+            <p class="mt-2 text-3xl font-extrabold text-slate-950">{{ workspace_stats.module_count }}</p>
+            <p class="mt-1 text-xs text-slate-500">Available areas</p>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Active employees</p>
+            <p class="mt-2 text-3xl font-extrabold text-slate-950">{{ workspace_stats.active_employees }}</p>
+            <p class="mt-1 text-xs text-slate-500">Current records</p>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Leavers</p>
+            <p class="mt-2 text-3xl font-extrabold text-slate-950">{{ workspace_stats.leavers }}</p>
+            <p class="mt-1 text-xs text-slate-500">Tracked exits</p>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Access</p>
+            <p class="mt-2 text-lg font-extrabold text-slate-950">{% if current_user.is_superuser() %}Superuser{% elif current_user.is_admin() %}Admin{% else %}Standard{% endif %}</p>
+            <p class="mt-1 text-xs text-slate-500">Role-aware access</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Needs Attention -->
     <section>
-      <div class="mb-4">
-        <h2 class="text-xl font-bold text-slate-900">Needs attention</h2>
-        <p class="mt-1 text-sm text-slate-500">
-          Key operational areas that may need review.
-        </p>
+      <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 class="text-xl font-extrabold text-slate-950">Needs attention</h2>
+          <p class="mt-1 text-sm text-slate-500">Operational indicators that may need review.</p>
+        </div>
       </div>
 
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
         {% if enabled_modules.get('pip', True) %}
-        <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Open PIPs</p>
-          <p class="mt-2 text-3xl font-bold text-slate-900">{{ workspace_stats.open_pips }}</p>
-          <p class="mt-2 text-sm text-slate-500">Performance plans currently in progress.</p>
-        </div>
+        <a href="{{ url_for('dashboard') }}" class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+          <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Open PIPs</p>
+          <p class="mt-2 text-3xl font-extrabold text-slate-950">{{ workspace_stats.open_pips }}</p>
+          <p class="mt-2 text-sm text-slate-500">Performance plans in progress.</p>
+        </a>
         {% endif %}
 
         {% if enabled_modules.get('probation', True) %}
-        <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Active Probations</p>
-          <p class="mt-2 text-3xl font-bold text-slate-900">{{ workspace_stats.active_probations }}</p>
-          <p class="mt-2 text-sm text-slate-500">Employees currently in probation workflow.</p>
-        </div>
+        <a href="{{ url_for('probation_dashboard') }}" class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+          <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Active Probations</p>
+          <p class="mt-2 text-3xl font-extrabold text-slate-950">{{ workspace_stats.active_probations }}</p>
+          <p class="mt-2 text-sm text-slate-500">Probation workflows active.</p>
+        </a>
         {% endif %}
 
         {% if enabled_modules.get('sickness', True) %}
-        <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Open Sickness Cases</p>
-          <p class="mt-2 text-3xl font-bold text-slate-900">{{ workspace_stats.open_sickness_cases }}</p>
-          <p class="mt-2 text-sm text-slate-500">Sickness records requiring monitoring or action.</p>
-        </div>
+        <a href="{{ url_for('sickness_dashboard') }}" class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+          <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Open Sickness Cases</p>
+          <p class="mt-2 text-3xl font-extrabold text-slate-950">{{ workspace_stats.open_sickness_cases }}</p>
+          <p class="mt-2 text-sm text-slate-500">Absence cases requiring monitoring.</p>
+        </a>
         {% endif %}
 
-        <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Missing Employee Emails</p>
-          <p class="mt-2 text-3xl font-bold text-slate-900">{{ workspace_stats.employee_records_missing_email }}</p>
-          <p class="mt-2 text-sm text-slate-500">Active employee records missing email details.</p>
-        </div>
+        <a href="{{ url_for('employee_list') }}" class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+          <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Missing Emails</p>
+          <p class="mt-2 text-3xl font-extrabold text-slate-950">{{ workspace_stats.employee_records_missing_email }}</p>
+          <p class="mt-2 text-sm text-slate-500">Active records missing email details.</p>
+        </a>
 
         {% if enabled_modules.get('supervision', True) %}
-        <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Supervision Overdue</p>
-          <p class="mt-2 text-3xl font-bold text-slate-900">{{ workspace_stats.overdue_supervisions }}</p>
-          <p class="mt-2 text-sm text-slate-500">Scheduled supervision sessions needing follow-up.</p>
-        </div>
+        <a href="{{ url_for('supervision.dashboard') }}" class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+          <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Supervision Overdue</p>
+          <p class="mt-2 text-3xl font-extrabold text-slate-950">{{ workspace_stats.overdue_supervisions }}</p>
+          <p class="mt-2 text-sm text-slate-500">Scheduled sessions needing follow-up.</p>
+        </a>
         {% endif %}
       </div>
     </section>
 
-    <!-- Workspace cards -->
     <section>
       <div class="mb-4">
-        <h2 class="text-xl font-bold text-slate-900">Your workspaces</h2>
-        <p class="mt-1 text-sm text-slate-500">
-          Open the area you want to work in.
-        </p>
+        <h2 class="text-xl font-extrabold text-slate-950">Workspaces</h2>
+        <p class="mt-1 text-sm text-slate-500">Choose the module you want to work in.</p>
       </div>
 
-      <div class="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-5">
-
+      <div class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-5">
         {% if enabled_modules.get('pip', True) %}
-        <a href="{{ url_for('dashboard') }}"
-           class="group flex h-full flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-xl">
-          <div class="flex items-start justify-between gap-3">
-            <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-50 text-[#0a4d4c] ring-1 ring-teal-100">
-              <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M9 12h6m-6 4h6M4 6h16M4 10h16M4 14h16M4 18h16" />
-              </svg>
-            </div>
-            <span class="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-100">
-              {{ workspace_stats.open_pips }} open
-            </span>
-          </div>
-
-          <div class="mt-5">
-            <h3 class="text-lg font-bold text-slate-900 group-hover:text-[#0a4d4c]">Performance Improvement Plans</h3>
-            <p class="mt-2 text-sm leading-6 text-slate-600">
-              Create, manage, review, and document formal performance improvement activity.
-            </p>
-          </div>
-
-          <div class="mt-5 space-y-2 text-xs text-slate-500">
-            <div class="flex items-center gap-2"><span>•</span><span>Wizard-based case creation</span></div>
-            <div class="flex items-center gap-2"><span>•</span><span>Action plans and outcome tracking</span></div>
-            <div class="flex items-center gap-2"><span>•</span><span>AI-assisted document support</span></div>
-          </div>
-
-          <div class="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[#0a4d4c]">
-            Open module <span class="transition group-hover:translate-x-1">→</span>
-          </div>
+        <a href="{{ url_for('dashboard') }}" class="group rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
+          <div class="flex items-center justify-between"><div class="rounded-2xl bg-teal-50 px-3 py-2 text-sm font-extrabold text-teal-800">PIP</div><span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{{ workspace_stats.open_pips }} open</span></div>
+          <h3 class="mt-5 text-lg font-extrabold text-slate-950 group-hover:text-teal-700">Performance Improvement</h3>
+          <p class="mt-2 text-sm leading-6 text-slate-600">Create, manage, review and document formal performance plans.</p>
+          <div class="mt-5 text-sm font-bold text-teal-700">Open module →</div>
         </a>
         {% endif %}
 
         {% if enabled_modules.get('probation', True) %}
-        <a href="{{ url_for('probation_dashboard') }}"
-           class="group flex h-full flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-xl">
-          <div class="flex items-start justify-between gap-3">
-            <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 ring-1 ring-sky-100">
-              <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M5.121 17.804A2 2 0 017 16h10a2 2 0 011.879 1.264M16 11a4 4 0 10-8 0 4 4 0 008 0z" />
-              </svg>
-            </div>
-            <span class="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 ring-1 ring-sky-100">
-              {{ workspace_stats.active_probations }} active
-            </span>
-          </div>
-
-          <div class="mt-5">
-            <h3 class="text-lg font-bold text-slate-900 group-hover:text-[#0a4d4c]">Probation Management</h3>
-            <p class="mt-2 text-sm leading-6 text-slate-600">
-              Track probation periods, reviews, extensions, objectives, and final outcomes.
-            </p>
-          </div>
-
-          <div class="mt-5 space-y-2 text-xs text-slate-500">
-            <div class="flex items-center gap-2"><span>•</span><span>Structured review workflow</span></div>
-            <div class="flex items-center gap-2"><span>•</span><span>Plans and review records</span></div>
-            <div class="flex items-center gap-2"><span>•</span><span>Status-led employee progression</span></div>
-          </div>
-
-          <div class="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[#0a4d4c]">
-            Open module <span class="transition group-hover:translate-x-1">→</span>
-          </div>
+        <a href="{{ url_for('probation_dashboard') }}" class="group rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
+          <div class="flex items-center justify-between"><div class="rounded-2xl bg-sky-50 px-3 py-2 text-sm font-extrabold text-sky-800">Probation</div><span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{{ workspace_stats.active_probations }} active</span></div>
+          <h3 class="mt-5 text-lg font-extrabold text-slate-950 group-hover:text-teal-700">Probation Management</h3>
+          <p class="mt-2 text-sm leading-6 text-slate-600">Track probation periods, objectives, reviews and outcomes.</p>
+          <div class="mt-5 text-sm font-bold text-teal-700">Open module →</div>
         </a>
         {% endif %}
 
         {% if enabled_modules.get('sickness', True) %}
-        <a href="{{ url_for('sickness_dashboard') }}"
-           class="group flex h-full flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-xl">
-          <div class="flex items-start justify-between gap-3">
-            <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-700 ring-1 ring-amber-100">
-              <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-            </div>
-            <span class="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-100">
-              {{ workspace_stats.open_sickness_cases }} open
-            </span>
-          </div>
-
-          <div class="mt-5">
-            <h3 class="text-lg font-bold text-slate-900 group-hover:text-[#0a4d4c]">Sickness Management</h3>
-            <p class="mt-2 text-sm leading-6 text-slate-600">
-              Record sickness cases, review patterns, and manage absence-related meetings.
-            </p>
-          </div>
-
-          <div class="mt-5 space-y-2 text-xs text-slate-500">
-            <div class="flex items-center gap-2"><span>•</span><span>Case-based absence tracking</span></div>
-            <div class="flex items-center gap-2"><span>•</span><span>Meeting history and outcomes</span></div>
-            <div class="flex items-center gap-2"><span>•</span><span>Support for trigger monitoring</span></div>
-          </div>
-
-          <div class="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[#0a4d4c]">
-            Open module <span class="transition group-hover:translate-x-1">→</span>
-          </div>
+        <a href="{{ url_for('sickness_dashboard') }}" class="group rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
+          <div class="flex items-center justify-between"><div class="rounded-2xl bg-amber-50 px-3 py-2 text-sm font-extrabold text-amber-800">Sickness</div><span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{{ workspace_stats.open_sickness_cases }} open</span></div>
+          <h3 class="mt-5 text-lg font-extrabold text-slate-950 group-hover:text-teal-700">Absence Management</h3>
+          <p class="mt-2 text-sm leading-6 text-slate-600">Record sickness cases, monitor triggers and manage meetings.</p>
+          <div class="mt-5 text-sm font-bold text-teal-700">Open module →</div>
         </a>
         {% endif %}
 
         {% if enabled_modules.get('supervision', True) %}
-        <a href="{{ url_for('supervision.dashboard') }}"
-           class="group flex h-full flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-xl">
-          <div class="flex items-start justify-between gap-3">
-            <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50 text-violet-700 ring-1 ring-violet-100">
-              <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M8 7h8M8 11h8M5 19h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <span class="rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-100">
-              {{ workspace_stats.scheduled_supervisions }} scheduled
-            </span>
-          </div>
-
-          <div class="mt-5">
-            <h3 class="text-lg font-bold text-slate-900 group-hover:text-[#0a4d4c]">Supervision / 1:1s</h3>
-            <p class="mt-2 text-sm leading-6 text-slate-600">
-              Record management supervision, 1:1s, wellbeing check-ins, actions, and follow-ups.
-            </p>
-          </div>
-
-          <div class="mt-5 space-y-2 text-xs text-slate-500">
-            <div class="flex items-center gap-2"><span>•</span><span>Structured supervision notes</span></div>
-            <div class="flex items-center gap-2"><span>•</span><span>Action points and due dates</span></div>
-            <div class="flex items-center gap-2"><span>•</span><span>Overdue and missing supervision alerts</span></div>
-          </div>
-
-          <div class="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[#0a4d4c]">
-            Open module <span class="transition group-hover:translate-x-1">→</span>
-          </div>
+        <a href="{{ url_for('supervision.dashboard') }}" class="group rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
+          <div class="flex items-center justify-between"><div class="rounded-2xl bg-violet-50 px-3 py-2 text-sm font-extrabold text-violet-800">Supervision</div><span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{{ workspace_stats.scheduled_supervisions }} scheduled</span></div>
+          <h3 class="mt-5 text-lg font-extrabold text-slate-950 group-hover:text-teal-700">Supervision / 1:1s</h3>
+          <p class="mt-2 text-sm leading-6 text-slate-600">Capture check-ins, actions, wellbeing notes and follow-ups.</p>
+          <div class="mt-5 text-sm font-bold text-teal-700">Open module →</div>
         </a>
         {% endif %}
 
         {% if current_user.is_superuser() and enabled_modules.get('employee_relations', True) %}
-        <a href="{{ url_for('employee_relations.dashboard') }}"
-           class="group flex h-full flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-xl">
-          <div class="flex items-start justify-between gap-3">
-            <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-700 ring-1 ring-rose-100">
-              <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M8 7h8M8 11h8M8 15h5M6 3h12a2 2 0 012 2v14l-4-2-4 2-4-2-4 2V5a2 2 0 012-2z" />
-              </svg>
-            </div>
-            <span class="rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 ring-1 ring-rose-100">
-              {{ workspace_stats.open_er_cases }} open
-            </span>
-          </div>
-
-          <div class="mt-5">
-            <h3 class="text-lg font-bold text-slate-900 group-hover:text-[#0a4d4c]">Employee Relations</h3>
-            <p class="mt-2 text-sm leading-6 text-slate-600">
-              Manage disciplinary, grievance, investigation, hearing, and appeal workflows.
-            </p>
-          </div>
-
-          <div class="mt-5 space-y-2 text-xs text-slate-500">
-            <div class="flex items-center gap-2"><span>•</span><span>Formal ER case management</span></div>
-            <div class="flex items-center gap-2"><span>•</span><span>Timeline, documents, and meetings</span></div>
-            <div class="flex items-center gap-2"><span>•</span><span>Superuser-only access</span></div>
-          </div>
-
-          <div class="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[#0a4d4c]">
-            Open module <span class="transition group-hover:translate-x-1">→</span>
-          </div>
+        <a href="{{ url_for('employee_relations.dashboard') }}" class="group rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
+          <div class="flex items-center justify-between"><div class="rounded-2xl bg-rose-50 px-3 py-2 text-sm font-extrabold text-rose-800">ER</div><span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{{ workspace_stats.open_er_cases }} open</span></div>
+          <h3 class="mt-5 text-lg font-extrabold text-slate-950 group-hover:text-teal-700">Employee Relations</h3>
+          <p class="mt-2 text-sm leading-6 text-slate-600">Manage formal cases, meetings, documents and timelines.</p>
+          <div class="mt-5 text-sm font-bold text-teal-700">Open module →</div>
         </a>
         {% endif %}
       </div>
     </section>
 
-    <!-- Recent activity / quick access -->
     <section class="grid grid-cols-1 gap-6 xl:grid-cols-3">
       <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm xl:col-span-2">
-        <h2 class="text-lg font-bold text-slate-900">Quick access</h2>
-        <p class="mt-1 text-sm text-slate-500">Common places to jump into the system.</p>
-
+        <h2 class="text-lg font-extrabold text-slate-950">Quick access</h2>
         <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <a href="{{ url_for('manage_employee.index') }}" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-700 transition hover:border-[#0a4d4c] hover:bg-teal-50 hover:text-[#0a4d4c]">🗂️ Manage Employees</a>
-          <a href="{{ url_for('manage_employee.reporting') }}" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-700 transition hover:border-[#0a4d4c] hover:bg-teal-50 hover:text-[#0a4d4c]">📈 Employee Reporting</a>
-          <a href="{{ url_for('employee_list') }}" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-700 transition hover:border-[#0a4d4c] hover:bg-teal-50 hover:text-[#0a4d4c]">👥 All Employees</a>
-
-          {% if enabled_modules.get('pip', True) %}
-          <a href="{{ url_for('create_pip_wizard') }}" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-700 transition hover:border-[#0a4d4c] hover:bg-teal-50 hover:text-[#0a4d4c]">➕ New PIP Wizard</a>
-          {% endif %}
-
-          {% if enabled_modules.get('probation', True) %}
-          <a href="{{ url_for('probation_create_wizard') }}" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-700 transition hover:border-[#0a4d4c] hover:bg-teal-50 hover:text-[#0a4d4c]">➕ New Probation Wizard</a>
-          {% endif %}
-
-          {% if enabled_modules.get('supervision', True) %}
-          <a href="{{ url_for('supervision.dashboard') }}" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-700 transition hover:border-[#0a4d4c] hover:bg-teal-50 hover:text-[#0a4d4c]">📝 Supervision Dashboard</a>
-          {% endif %}
-
-          {% if current_user.is_superuser() %}
-          <a href="{{ url_for('admin_dashboard') }}" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-700 transition hover:border-[#0a4d4c] hover:bg-teal-50 hover:text-[#0a4d4c]">⚙ Admin Dashboard</a>
-          {% endif %}
-        </div>
-
-        <div class="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div>
-            <h3 class="text-sm font-semibold text-slate-900">Recent leavers</h3>
-            <div class="mt-3 space-y-3">
-              {% for employee in recent_leavers %}
-                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div class="text-sm font-semibold text-slate-900">{{ employee.full_name }}</div>
-                  <div class="mt-1 text-xs text-slate-500">
-                    {{ employee.service or 'No service' }} • {{ employee.leaving_date or 'No leaving date' }}
-                  </div>
-                </div>
-              {% else %}
-                <div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                  No recent leavers found.
-                </div>
-              {% endfor %}
-            </div>
-          </div>
-
-          <div>
-            <h3 class="text-sm font-semibold text-slate-900">Recent PIP activity</h3>
-            <div class="mt-3 space-y-3">
-              {% for pip in recent_pips %}
-                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div class="text-sm font-semibold text-slate-900">{{ pip.employee.full_name if pip.employee else 'Unknown employee' }}</div>
-                  <div class="mt-1 text-xs text-slate-500">
-                    Status: {{ pip.status or 'Unknown' }} • Review: {{ pip.review_date or 'Not set' }}
-                  </div>
-                </div>
-              {% else %}
-                <div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                  No recent PIP activity found.
-                </div>
-              {% endfor %}
-            </div>
-          </div>
+          <a href="{{ url_for('manage_employee.index') }}" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-bold text-slate-700 hover:border-teal-700 hover:bg-teal-50 hover:text-teal-800">Manage Employees</a>
+          <a href="{{ url_for('manage_employee.reporting') }}" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-bold text-slate-700 hover:border-teal-700 hover:bg-teal-50 hover:text-teal-800">Employee Reporting</a>
+          <a href="{{ url_for('employee_list') }}" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-bold text-slate-700 hover:border-teal-700 hover:bg-teal-50 hover:text-teal-800">All Employees</a>
+          {% if enabled_modules.get('pip', True) %}<a href="{{ url_for('create_pip_wizard') }}" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-bold text-slate-700 hover:border-teal-700 hover:bg-teal-50 hover:text-teal-800">New PIP Wizard</a>{% endif %}
+          {% if enabled_modules.get('probation', True) %}<a href="{{ url_for('probation_create_wizard') }}" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-bold text-slate-700 hover:border-teal-700 hover:bg-teal-50 hover:text-teal-800">New Probation Wizard</a>{% endif %}
+          {% if enabled_modules.get('supervision', True) %}<a href="{{ url_for('supervision.dashboard') }}" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-bold text-slate-700 hover:border-teal-700 hover:bg-teal-50 hover:text-teal-800">Supervision Dashboard</a>{% endif %}
+          {% if current_user.is_superuser() %}<a href="{{ url_for('admin_dashboard') }}" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-bold text-slate-700 hover:border-teal-700 hover:bg-teal-50 hover:text-teal-800">Admin Dashboard</a>{% endif %}
         </div>
       </div>
 
       <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 class="text-lg font-bold text-slate-900">System summary</h2>
-        <p class="mt-1 text-sm text-slate-500">Platform overview at a glance.</p>
-
-        <div class="mt-5 space-y-4">
-          <div class="rounded-2xl bg-slate-50 p-4">
-            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Signed in as</p>
-            <p class="mt-1 text-sm font-semibold text-slate-900">{{ current_user.username }}</p>
-          </div>
-
-          <div class="rounded-2xl bg-slate-50 p-4">
-            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Access level</p>
-            <p class="mt-1 text-sm font-semibold text-slate-900">
-              {% if current_user.is_superuser() %}
-                Superuser
-              {% elif current_user.is_admin() %}
-                Admin
-              {% else %}
-                Standard User
-              {% endif %}
-            </p>
-          </div>
-
-          {% if enabled_modules.get('pip', True) %}
-          <div class="rounded-2xl bg-slate-50 p-4">
-            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">PIP reviews due</p>
-            <p class="mt-1 text-sm font-semibold text-slate-900">{{ workspace_stats.pip_reviews_due }}</p>
-          </div>
-          {% endif %}
-
-          {% if enabled_modules.get('probation', True) %}
-          <div class="rounded-2xl bg-slate-50 p-4">
-            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Probation records</p>
-            <p class="mt-1 text-sm font-semibold text-slate-900">{{ workspace_stats.probation_reviews_due }}</p>
-          </div>
-          {% endif %}
-
-          {% if enabled_modules.get('sickness', True) %}
-          <div class="rounded-2xl bg-slate-50 p-4">
-            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Sickness follow-up</p>
-            <p class="mt-1 text-sm font-semibold text-slate-900">{{ workspace_stats.sickness_follow_up_needed }}</p>
-          </div>
-          {% endif %}
-
-          {% if enabled_modules.get('supervision', True) %}
-          <div class="rounded-2xl bg-slate-50 p-4">
-            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Supervision actions</p>
-            <p class="mt-1 text-sm font-semibold text-slate-900">{{ workspace_stats.open_supervision_actions }}</p>
-          </div>
-
-          <div class="rounded-2xl bg-slate-50 p-4">
-            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Missing supervision</p>
-            <p class="mt-1 text-sm font-semibold text-slate-900">{{ workspace_stats.employees_missing_supervision }}</p>
-          </div>
-          {% endif %}
-
-          {% if current_user.is_superuser() and enabled_modules.get('employee_relations', True) %}
-          <div class="rounded-2xl bg-slate-50 p-4">
-            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Open ER cases</p>
-            <p class="mt-1 text-sm font-semibold text-slate-900">{{ workspace_stats.open_er_cases }}</p>
-          </div>
-          {% endif %}
+        <h2 class="text-lg font-extrabold text-slate-950">System summary</h2>
+        <div class="mt-5 space-y-3">
+          <div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold uppercase tracking-wide text-slate-500">Signed in as</p><p class="mt-1 text-sm font-extrabold text-slate-950">{{ current_user.username }}</p></div>
+          <div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold uppercase tracking-wide text-slate-500">Access level</p><p class="mt-1 text-sm font-extrabold text-slate-950">{% if current_user.is_superuser() %}Superuser{% elif current_user.is_admin() %}Admin{% else %}Standard User{% endif %}</p></div>
+          {% if enabled_modules.get('pip', True) %}<div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold uppercase tracking-wide text-slate-500">PIP reviews due</p><p class="mt-1 text-sm font-extrabold text-slate-950">{{ workspace_stats.pip_reviews_due }}</p></div>{% endif %}
+          {% if enabled_modules.get('supervision', True) %}<div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-bold uppercase tracking-wide text-slate-500">Open supervision actions</p><p class="mt-1 text-sm font-extrabold text-slate-950">{{ workspace_stats.open_supervision_actions }}</p></div>{% endif %}
         </div>
       </div>
-    </section>
-
-    <!-- Additional recent module activity -->
-    <section class="grid grid-cols-1 gap-6 xl:grid-cols-4">
-      {% if enabled_modules.get('probation', True) %}
-      <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 class="text-sm font-semibold text-slate-900">Recent probation activity</h3>
-        <div class="mt-3 space-y-3">
-          {% for probation in recent_probations %}
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div class="text-sm font-semibold text-slate-900">{{ probation.employee.full_name if probation.employee else 'Unknown employee' }}</div>
-              <div class="mt-1 text-xs text-slate-500">
-                Status: {{ probation.status or 'Unknown' }} • End: {{ probation.expected_end_date or 'Not set' }}
-              </div>
-            </div>
-          {% else %}
-            <div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-              No recent probation activity found.
-            </div>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-
-      {% if enabled_modules.get('sickness', True) %}
-      <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 class="text-sm font-semibold text-slate-900">Recent sickness activity</h3>
-        <div class="mt-3 space-y-3">
-          {% for case in recent_sickness_cases %}
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div class="text-sm font-semibold text-slate-900">{{ case.employee.full_name if case.employee else 'Unknown employee' }}</div>
-              <div class="mt-1 text-xs text-slate-500">
-                Status: {{ case.status or 'Unknown' }} • Start: {{ case.start_date or 'Not set' }}
-              </div>
-            </div>
-          {% else %}
-            <div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-              No recent sickness activity found.
-            </div>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-
-      {% if enabled_modules.get('supervision', True) %}
-      <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 class="text-sm font-semibold text-slate-900">Recent supervision activity</h3>
-        <div class="mt-3 space-y-3">
-          {% for supervision in recent_supervisions %}
-            <a href="{{ url_for('supervision.detail', id=supervision.id) }}"
-               class="block rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-[#0a4d4c] hover:bg-teal-50">
-              <div class="text-sm font-semibold text-slate-900">
-                {{ supervision.employee.full_name if supervision.employee else 'Unknown employee' }}
-              </div>
-              <div class="mt-1 text-xs text-slate-500">
-                {{ supervision.meeting_type or 'Supervision' }} · {{ supervision.status or 'Unknown status' }}
-              </div>
-            </a>
-          {% else %}
-            <div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-              No recent supervision activity found.
-            </div>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-
-      {% if current_user.is_superuser() and enabled_modules.get('employee_relations', True) %}
-      <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 class="text-sm font-semibold text-slate-900">Recent ER activity</h3>
-        <div class="mt-3 space-y-3">
-          {% for case in recent_er_cases %}
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div class="text-sm font-semibold text-slate-900">{{ case.title or 'Untitled case' }}</div>
-              <div class="mt-1 text-xs text-slate-500">
-                {{ case.case_type or 'Unknown type' }} • {{ case.status or 'Unknown status' }}
-              </div>
-            </div>
-          {% else %}
-            <div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-              No recent ER activity found.
-            </div>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
     </section>
 
   </div>
