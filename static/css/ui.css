@@ -90,7 +90,7 @@ html, body {
 }
 
 /* Sticky action bar (opt-in for mobile forms) */
-sticky-actions, .sticky-actions {
+.sticky-actions {
   position: sticky; bottom: 0;
   background: var(--color-surface);
   padding: var(--space-3);
