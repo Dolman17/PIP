@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}PIP Command Centre | ResolvHR{% endblock %}
-{% block page_title %}PIP command centre{% endblock %}
+{% block title %}PIP Dashboard | ResolvHR{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
 
 {% block content %}
 {% set today = today_local() %}
@@ -8,281 +8,128 @@
 {% set open_count = (open_pips|length) if open_pips else 0 %}
 {% set activity_count = (recent_activity|length) if recent_activity else 0 %}
 
-<div class="mx-auto max-w-7xl space-y-7 pb-10">
+<div class="mx-auto max-w-7xl space-y-6 pb-10">
 
-  {% macro pill(label, tone='slate') %}
+  {% macro badge(label, tone='slate') %}
     <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-extrabold
-      {% if tone == 'red' %}bg-red-50 text-red-700 ring-1 ring-red-100
-      {% elif tone == 'amber' %}bg-amber-50 text-amber-800 ring-1 ring-amber-100
-      {% elif tone == 'emerald' %}bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100
-      {% elif tone == 'teal' %}bg-teal-50 text-teal-700 ring-1 ring-teal-100
-      {% else %}bg-slate-100 text-slate-600 ring-1 ring-slate-200{% endif %}">
-      {{ label }}
-    </span>
+      {% if tone == 'red' %}bg-red-50 text-red-700
+      {% elif tone == 'amber' %}bg-amber-50 text-amber-800
+      {% elif tone == 'emerald' %}bg-emerald-50 text-emerald-700
+      {% elif tone == 'purple' %}bg-purple-50 text-purple-700
+      {% elif tone == 'blue' %}bg-blue-50 text-blue-700
+      {% else %}bg-slate-100 text-slate-600{% endif %}">{{ label }}</span>
   {% endmacro %}
 
-  {% macro dark_pill(label, tone='teal') %}
-    <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-extrabold
-      {% if tone == 'red' %}bg-red-400/10 text-red-100 ring-1 ring-red-300/20
-      {% elif tone == 'amber' %}bg-amber-300/10 text-amber-100 ring-1 ring-amber-200/20
-      {% elif tone == 'emerald' %}bg-emerald-300/10 text-emerald-100 ring-1 ring-emerald-200/20
-      {% else %}bg-teal-300/10 text-teal-100 ring-1 ring-teal-200/20{% endif %}">
-      {{ label }}
-    </span>
-  {% endmacro %}
-
-  {% macro hero_stat(label, value, href=None) %}
-    {% if href %}<a href="{{ href }}" class="group block">{% endif %}
-      <div class="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur transition {% if href %}group-hover:-translate-y-0.5 group-hover:bg-white/15{% endif %}">
-        <p class="text-[11px] font-bold uppercase tracking-wide text-white/45">{{ label }}</p>
-        <p class="mt-2 text-3xl font-extrabold tracking-tight text-white">{{ value }}</p>
+  {% macro tile(label, value, href, gradient, helper='') %}
+    <a href="{{ href }}" class="group relative overflow-hidden rounded-2xl px-5 py-4 text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl {{ gradient }}">
+      <div class="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-white/20"></div>
+      <div class="relative flex items-start justify-between gap-4">
+        <div>
+          <p class="text-sm font-extrabold">{{ label }}</p>
+          {% if helper %}<p class="mt-1 text-xs font-semibold opacity-80">{{ helper }}</p>{% endif %}
+        </div>
+        <p class="text-3xl font-extrabold tracking-tight">{{ value }}</p>
       </div>
-    {% if href %}</a>{% endif %}
-  {% endmacro %}
-
-  {% macro soft_action(label, href, primary=false) %}
-    <a href="{{ href }}" class="inline-flex items-center justify-center rounded-xl px-3 py-2 text-xs font-extrabold transition
-      {% if primary %}bg-white text-slate-950 shadow-sm hover:bg-slate-100
-      {% else %}border border-white/10 bg-white/10 text-white backdrop-blur hover:bg-white/15{% endif %}">
-      {{ label }}
     </a>
   {% endmacro %}
 
-  {% macro case_line(p, compact=false) %}
+  {% macro pip_row(p, compact=false) %}
     {% set employee_name = ((p.employee.first_name ~ ' ' ~ p.employee.last_name) if p.employee else 'Unknown employee') %}
     {% set is_overdue = p.review_date and p.review_date < today %}
     {% set is_due_soon = p.review_date and p.review_date >= today %}
-    <a href="{{ url_for('pip_detail', id=p.id) }}" class="group block rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 shadow-sm transition hover:border-teal-200 hover:bg-white hover:shadow-md">
+    <a href="{{ url_for('pip_detail', id=p.id) }}" class="block rounded-2xl border border-slate-200 bg-white px-4 py-3 transition hover:border-purple-200 hover:shadow-md">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-2">
             <p class="truncate text-sm font-extrabold text-slate-950">{{ employee_name }}</p>
-            {% if is_overdue %}
-              {{ pill('Overdue', 'red') }}
-            {% elif is_due_soon %}
-              {{ pill('Review due', 'amber') }}
-            {% else %}
-              {{ pill(p.status or 'Open', 'teal') }}
-            {% endif %}
-            {% if p.severity == 'High' %}
-              {{ pill('High severity', 'red') }}
-            {% elif p.severity == 'Moderate' %}
-              {{ pill('Moderate', 'amber') }}
-            {% elif p.severity %}
-              {{ pill(p.severity, 'emerald') }}
-            {% endif %}
+            {% if is_overdue %}{{ badge('Overdue', 'red') }}{% elif is_due_soon %}{{ badge('Review due', 'amber') }}{% else %}{{ badge(p.status or 'Open', 'purple') }}{% endif %}
+            {% if p.severity == 'High' %}{{ badge('High severity', 'red') }}{% elif p.severity == 'Moderate' %}{{ badge('Moderate', 'amber') }}{% elif p.severity %}{{ badge(p.severity, 'emerald') }}{% endif %}
           </div>
-          <div class="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+          <div class="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-slate-500">
             <span>{{ p.concern_category or 'Uncategorised' }}</span>
-            <span>Review: {{ p.review_date.strftime('%d %b %Y') if p.review_date else 'No date' }}</span>
+            <span>{{ p.review_date.strftime('%d %b %Y') if p.review_date else 'No review date' }}</span>
             {% if p.frequency %}<span>{{ p.frequency }}</span>{% endif %}
           </div>
-          {% if not compact and p.concerns %}
-            <p class="mt-2 line-clamp-1 text-sm leading-6 text-slate-600">{{ p.concerns }}</p>
-          {% endif %}
+          {% if not compact and p.concerns %}<p class="mt-2 line-clamp-1 text-sm leading-6 text-slate-600">{{ p.concerns }}</p>{% endif %}
         </div>
-        <span class="shrink-0 text-xs font-extrabold text-teal-700 group-hover:text-teal-900">Open</span>
+        <span class="text-xs font-extrabold text-[#563184]">Open</span>
       </div>
     </a>
   {% endmacro %}
 
-  <section class="relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950 p-7 text-white shadow-2xl shadow-slate-950/20 sm:p-9 lg:p-10">
-    <div class="pointer-events-none absolute inset-0 overflow-hidden">
-      <div class="absolute -top-32 right-0 h-96 w-96 rounded-full bg-teal-500/20 blur-3xl"></div>
-      <div class="absolute top-1/2 -left-28 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl"></div>
-      <div class="absolute bottom-0 right-1/3 h-72 w-72 rounded-full bg-emerald-400/10 blur-3xl"></div>
-    </div>
-
-    <div class="relative grid gap-7 lg:grid-cols-[1.2fr_.8fr] lg:items-end">
-      <div>
-        <div class="inline-flex rounded-full border border-teal-300/20 bg-teal-300/10 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-teal-100">
-          Performance improvement workspace
-        </div>
-        <h1 class="mt-6 max-w-4xl text-4xl font-extrabold tracking-tight sm:text-5xl">
-          PIP command centre.
-        </h1>
-        <p class="mt-5 max-w-2xl text-base leading-7 text-white/70">
-          Reviews, open case work, overdue actions and recent movement in one calm workspace.
-        </p>
-      </div>
-
-      <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.07] p-5 backdrop-blur-xl">
-        <div class="flex items-center justify-between gap-4">
-          <div>
-            <h2 class="text-lg font-extrabold">Needs attention</h2>
-            <p class="mt-1 text-sm text-white/55">Current operational signals.</p>
+  <section class="grid gap-6 xl:grid-cols-[1fr_300px]">
+    <div class="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+        <div class="flex items-center gap-5">
+          <div class="flex h-20 w-20 items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-purple-100 to-teal-50 text-3xl font-extrabold text-[#563184] shadow-inner">
+            {{ current_user.username[:1]|upper if current_user and current_user.username else 'R' }}
           </div>
-          {% if overdue_reviews and overdue_reviews > 0 %}{{ dark_pill('Action required', 'red') }}{% else %}{{ dark_pill('Stable', 'emerald') }}{% endif %}
-        </div>
-        <div class="mt-5 flex flex-wrap gap-2">
-          {{ soft_action('Start new PIP', url_for('create_pip_wizard'), true) }}
-          {{ soft_action('PIP records', url_for('pip_list')) }}
-          {{ soft_action('Employees', url_for('employee_list')) }}
-        </div>
-      </div>
-    </div>
-
-    <div class="relative mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
-      {{ hero_stat('Employees', total_employees or 0, url_for('employee_list')) }}
-      {{ hero_stat('Active PIPs', active_pips or 0, url_for('pip_list')) }}
-      {{ hero_stat('Due soon', upcoming_count or 0, url_for('pip_list')) }}
-      {{ hero_stat('Overdue', overdue_reviews or 0, url_for('pip_list')) }}
-    </div>
-  </section>
-
-  {% if draft %}
-    <section id="draftResumeBanner" class="rounded-[1.5rem] border border-emerald-200 bg-emerald-50/90 p-5 shadow-sm">
-      <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p class="font-extrabold text-emerald-950">Draft PIP waiting</p>
-          <p class="mt-1 text-sm text-emerald-800">
-            Resume the in-progress wizard{% if draft.updated_at %}. Last updated {{ draft.updated_at.strftime('%d %b %Y %H:%M') }} UTC{% endif %}.
-          </p>
+          <div>
+            <p class="text-xs font-extrabold uppercase tracking-[0.18em] text-[#563184]">PIP information</p>
+            <h1 class="mt-2 text-3xl font-extrabold tracking-tight text-slate-950">Welcome back, {{ current_user.username|title if current_user and current_user.username else 'User' }}</h1>
+            <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Monitor review deadlines, open case work and recent updates.</p>
+          </div>
         </div>
         <div class="flex flex-wrap gap-2">
-          <a href="{{ url_for('pip_wizard_resume') }}" class="rounded-xl bg-emerald-700 px-3 py-2 text-xs font-extrabold text-white transition hover:bg-emerald-800">Resume draft</a>
-          <button id="dismissDraftBtn" type="button" class="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-extrabold text-emerald-800 transition hover:bg-emerald-50">Dismiss</button>
+          <a href="{{ url_for('create_pip_wizard') }}" class="rounded-xl bg-[#563184] px-4 py-2 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#40245F]">Start new PIP</a>
+          <a href="{{ url_for('pip_list') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-700 transition hover:bg-slate-50">View records</a>
         </div>
       </div>
-    </section>
-  {% endif %}
+      <div class="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div class="border-l border-slate-200 pl-4"><p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">Employees</p><p class="mt-2 text-2xl font-extrabold text-slate-950">{{ total_employees or 0 }}</p></div>
+        <div class="border-l border-slate-200 pl-4"><p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">Active PIPs</p><p class="mt-2 text-2xl font-extrabold text-slate-950">{{ active_pips or 0 }}</p></div>
+        <div class="border-l border-slate-200 pl-4"><p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">Completed</p><p class="mt-2 text-2xl font-extrabold text-slate-950">{{ completed_pips or 0 }}</p></div>
+        <div class="border-l border-slate-200 pl-4"><p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">Activity</p><p class="mt-2 text-2xl font-extrabold text-slate-950">{{ activity_count or 0 }}</p></div>
+      </div>
+    </div>
 
-  <section class="grid gap-4 md:grid-cols-3">
-    <a href="{{ url_for('pip_list') }}" class="group rounded-[1.5rem] border border-slate-200 bg-white px-5 py-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <div class="flex items-center justify-between gap-3">
-        <span class="h-2.5 w-2.5 rounded-full bg-red-500"></span>
-        {{ pill('Risk', 'red') }}
+    <aside class="space-y-4">
+      <div class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex items-center justify-between gap-4"><div><h2 class="text-sm font-extrabold text-slate-950">Needs attention</h2><p class="mt-1 text-xs font-semibold text-slate-500">Current case signals.</p></div>{% if overdue_reviews and overdue_reviews > 0 %}{{ badge('Action', 'red') }}{% else %}{{ badge('Stable', 'emerald') }}{% endif %}</div>
+        <div class="mt-4 grid grid-cols-2 gap-3">
+          <a href="{{ url_for('pip_list') }}" class="rounded-2xl bg-blue-500 px-4 py-3 text-white shadow-sm"><p class="text-xs font-bold text-white/75">Open</p><p class="mt-1 text-2xl font-extrabold">{{ open_count or 0 }}</p></a>
+          <a href="{{ url_for('pip_list') }}" class="rounded-2xl bg-yellow-400 px-4 py-3 text-slate-950 shadow-sm"><p class="text-xs font-bold text-slate-700">Due</p><p class="mt-1 text-2xl font-extrabold">{{ upcoming_count or 0 }}</p></a>
+        </div>
       </div>
-      <div class="mt-4 text-3xl font-extrabold text-slate-950">{{ overdue_reviews or 0 }}</div>
-      <div class="mt-1 text-xs font-semibold text-slate-500">Overdue reviews</div>
-    </a>
-    <a href="{{ url_for('pip_list') }}" class="group rounded-[1.5rem] border border-slate-200 bg-white px-5 py-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <div class="flex items-center justify-between gap-3">
-        <span class="h-2.5 w-2.5 rounded-full bg-amber-500"></span>
-        {{ pill('Due', 'amber') }}
+      {% if draft %}
+      <div id="draftResumeBanner" class="rounded-[1.75rem] border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+        <p class="text-sm font-extrabold text-emerald-950">Draft available</p>
+        <p class="mt-1 text-xs font-semibold leading-5 text-emerald-800">Resume your in-progress PIP{% if draft.updated_at %}. Last updated {{ draft.updated_at.strftime('%d %b %Y %H:%M') }} UTC{% endif %}.</p>
+        <div class="mt-4 flex flex-wrap gap-2"><a href="{{ url_for('pip_wizard_resume') }}" class="rounded-xl bg-emerald-700 px-3 py-2 text-xs font-extrabold text-white">Resume</a><button id="dismissDraftBtn" type="button" class="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-extrabold text-emerald-800">Dismiss</button></div>
       </div>
-      <div class="mt-4 text-3xl font-extrabold text-slate-950">{{ upcoming_count or 0 }}</div>
-      <div class="mt-1 text-xs font-semibold text-slate-500">Reviews due in 7 days</div>
-    </a>
-    <a href="{{ url_for('pip_list') }}" class="group rounded-[1.5rem] border border-slate-200 bg-white px-5 py-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <div class="flex items-center justify-between gap-3">
-        <span class="h-2.5 w-2.5 rounded-full bg-teal-500"></span>
-        {{ pill('Live', 'teal') }}
-      </div>
-      <div class="mt-4 text-3xl font-extrabold text-slate-950">{{ open_count or 0 }}</div>
-      <div class="mt-1 text-xs font-semibold text-slate-500">Open PIP cases</div>
-    </a>
+      {% endif %}
+    </aside>
   </section>
 
-  <section class="grid grid-cols-1 gap-6 xl:grid-cols-[1.15fr_.85fr]">
-    <div class="space-y-6">
-      <section class="rounded-[1.75rem] border border-slate-200 bg-white/75 p-5 shadow-sm backdrop-blur sm:p-6">
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 class="text-xl font-extrabold tracking-tight text-slate-950">Upcoming reviews</h2>
-            <p class="mt-1 text-sm text-slate-500">Near-term case work, shown as compact rows.</p>
-          </div>
-          {{ pill((upcoming_count|string) ~ ' due soon', 'amber') }}
-        </div>
+  <section class="grid grid-cols-2 gap-4 md:grid-cols-4">
+    {{ tile('Active PIPs', active_pips or 0, url_for('pip_list'), 'bg-gradient-to-r from-orange-400 to-rose-400', 'Live cases') }}
+    {{ tile('Reviews Due', upcoming_count or 0, url_for('pip_list'), 'bg-gradient-to-r from-blue-600 to-cyan-500', 'Next 7 days') }}
+    {{ tile('Completed', completed_pips or 0, url_for('pip_list'), 'bg-gradient-to-r from-emerald-400 to-teal-400', 'Closed records') }}
+    {{ tile('Overdue', overdue_reviews or 0, url_for('pip_list'), 'bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-900', 'Needs action') }}
+  </section>
 
-        <div class="mt-5 space-y-3">
-          {% if upcoming_pips %}
-            {% for p in upcoming_pips[:6] %}
-              {{ case_line(p, true) }}
-            {% endfor %}
-          {% else %}
-            <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-              <p class="font-extrabold text-slate-900">No reviews due this week</p>
-              <p class="mt-1 text-sm text-slate-500">The immediate review queue is clear.</p>
-            </div>
-          {% endif %}
-        </div>
+  <section class="grid gap-6 xl:grid-cols-[1fr_320px]">
+    <div class="space-y-6">
+      <section class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><h2 class="text-lg font-extrabold text-slate-950">Upcoming reviews</h2><p class="mt-1 text-sm font-semibold text-slate-500">Reviews due in the next 7 days.</p></div>{{ badge((upcoming_count|string) ~ ' due soon', 'amber') }}</div>
+        <div class="mt-5 space-y-3">{% if upcoming_pips %}{% for p in upcoming_pips[:6] %}{{ pip_row(p, true) }}{% endfor %}{% else %}<div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center"><p class="font-extrabold text-slate-900">No reviews due this week</p><p class="mt-1 text-sm text-slate-500">The immediate review queue is clear.</p></div>{% endif %}</div>
       </section>
 
-      <section class="rounded-[1.75rem] border border-slate-200 bg-white/75 p-5 shadow-sm backdrop-blur sm:p-6">
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 class="text-xl font-extrabold tracking-tight text-slate-950">Open PIPs</h2>
-            <p class="mt-1 text-sm text-slate-500">Active case records, softened into row-based cards.</p>
-          </div>
-          {{ pill((open_count|string) ~ ' open', 'teal') }}
-        </div>
-
-        <div class="mt-5 space-y-3">
-          {% if open_pips %}
-            {% for p in open_pips[:8] %}
-              {{ case_line(p) }}
-            {% endfor %}
-            {% if open_pips|length > 8 %}
-              <a href="{{ url_for('pip_list') }}" class="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:bg-slate-100">View all open PIPs</a>
-            {% endif %}
-          {% else %}
-            <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-              <p class="font-extrabold text-slate-900">No open PIPs</p>
-              <p class="mt-1 text-sm text-slate-500">New performance improvement cases will appear here.</p>
-            </div>
-          {% endif %}
-        </div>
+      <section class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><h2 class="text-lg font-extrabold text-slate-950">Open PIPs</h2><p class="mt-1 text-sm font-semibold text-slate-500">Active case records.</p></div>{{ badge((open_count|string) ~ ' open', 'purple') }}</div>
+        <div class="mt-5 space-y-3">{% if open_pips %}{% for p in open_pips[:8] %}{{ pip_row(p) }}{% endfor %}{% if open_pips|length > 8 %}<a href="{{ url_for('pip_list') }}" class="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:bg-slate-100">View all open PIPs</a>{% endif %}{% else %}<div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center"><p class="font-extrabold text-slate-900">No open PIPs</p><p class="mt-1 text-sm text-slate-500">New performance improvement cases will appear here.</p></div>{% endif %}</div>
       </section>
     </div>
 
     <aside class="space-y-6">
-      <section class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <h2 class="text-xl font-extrabold tracking-tight text-slate-950">Next best actions</h2>
-        <p class="mt-1 text-sm text-slate-500">Quick access without extra dashboard clutter.</p>
-        <div class="mt-5 flex flex-wrap gap-2">
-          <a href="{{ url_for('create_pip_wizard') }}" class="rounded-xl bg-slate-950 px-3 py-2 text-xs font-extrabold text-white transition hover:bg-slate-800">Start PIP wizard</a>
-          <a href="{{ url_for('employee_list') }}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 transition hover:bg-slate-50">Find employee</a>
-          <a href="{{ url_for('pip_list') }}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 transition hover:bg-slate-50">Open PIP list</a>
-          {% if current_user.is_superuser() %}<a href="{{ url_for('export_data') }}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 transition hover:bg-slate-50">Export data</a>{% endif %}
-        </div>
+      <section class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-sm font-extrabold text-slate-950">Quick actions</h2><p class="mt-1 text-xs font-semibold text-slate-500">Daily shortcuts.</p>
+        <div class="mt-5 grid gap-2"><a href="{{ url_for('create_pip_wizard') }}" class="rounded-xl bg-[#563184] px-4 py-3 text-sm font-extrabold text-white transition hover:bg-[#40245F]">Create new PIP</a><a href="{{ url_for('employee_list') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:bg-slate-50">Find employee</a><a href="{{ url_for('pip_list') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:bg-slate-50">Open PIP records</a>{% if current_user.is_superuser() %}<a href="{{ url_for('export_data') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:bg-slate-50">Export data</a>{% endif %}</div>
       </section>
 
-      <section class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <h2 class="text-xl font-extrabold tracking-tight text-slate-950">High-attention cases</h2>
-            <p class="mt-1 text-sm text-slate-500">Overdue or high-severity records.</p>
-          </div>
-          {% if overdue_reviews and overdue_reviews > 0 %}{{ pill('Check', 'red') }}{% else %}{{ pill('Stable', 'emerald') }}{% endif %}
-        </div>
-        <div class="mt-5 space-y-3">
-          {% set rendered_risk = namespace(count=0) %}
-          {% if open_pips %}
-            {% for p in open_pips %}
-              {% if rendered_risk.count < 4 and ((p.review_date and p.review_date < today) or p.severity == 'High') %}
-                {% set rendered_risk.count = rendered_risk.count + 1 %}
-                {{ case_line(p, true) }}
-              {% endif %}
-            {% endfor %}
-          {% endif %}
-          {% if rendered_risk.count == 0 %}
-            <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">No high-attention PIPs currently visible.</div>
-          {% endif %}
-        </div>
-      </section>
-
-      <section class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <h2 class="text-xl font-extrabold tracking-tight text-slate-950">Recent activity</h2>
-            <p class="mt-1 text-sm text-slate-500">Latest timeline movement.</p>
-          </div>
-          {{ pill((activity_count|string) ~ ' updates') }}
-        </div>
-        <div class="mt-5 space-y-4">
-          {% for ev in (recent_activity or [])[:8] %}
-            <div class="border-l border-slate-200 pl-4">
-              <p class="text-sm font-extrabold text-slate-950">{{ ev.event_type }}</p>
-              {% if ev.notes %}<p class="mt-1 line-clamp-2 text-sm leading-6 text-slate-600">{{ ev.notes }}</p>{% endif %}
-              <p class="mt-1 text-xs text-slate-400">
-                {% if ev.updated_by %}{{ ev.updated_by }} · {% endif %}{{ ev.timestamp.strftime('%d %b %Y %H:%M') if ev.timestamp else 'No timestamp' }}{% if ev.timestamp %} UTC{% endif %}
-              </p>
-            </div>
-          {% else %}
-            <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">No recent activity yet.</div>
-          {% endfor %}
-        </div>
+      <section class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex items-start justify-between gap-4"><div><h2 class="text-sm font-extrabold text-slate-950">Recent activity</h2><p class="mt-1 text-xs font-semibold text-slate-500">Latest timeline movement.</p></div>{{ badge((activity_count|string) ~ ' updates') }}</div>
+        <div class="mt-5 space-y-4">{% for ev in (recent_activity or [])[:8] %}<div class="border-l border-slate-200 pl-4"><p class="text-sm font-extrabold text-slate-950">{{ ev.event_type }}</p>{% if ev.notes %}<p class="mt-1 line-clamp-2 text-sm leading-6 text-slate-600">{{ ev.notes }}</p>{% endif %}<p class="mt-1 text-xs font-semibold text-slate-400">{% if ev.updated_by %}{{ ev.updated_by }} · {% endif %}{{ ev.timestamp.strftime('%d %b %Y %H:%M') if ev.timestamp else 'No timestamp' }}{% if ev.timestamp %} UTC{% endif %}</p></div>{% else %}<div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm font-semibold text-slate-500">No recent activity yet.</div>{% endfor %}</div>
       </section>
     </aside>
   </section>
@@ -294,26 +141,14 @@
   document.addEventListener("DOMContentLoaded", function () {
     const dismissButton = document.getElementById("dismissDraftBtn");
     const banner = document.getElementById("draftResumeBanner");
-
     if (!dismissButton || !banner) return;
-
     dismissButton.addEventListener("click", async function () {
       dismissButton.disabled = true;
       dismissButton.classList.add("opacity-60", "cursor-not-allowed");
-
       try {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
-        const response = await fetch("{{ url_for('dismiss_draft') }}", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(csrfToken ? { "X-CSRFToken": csrfToken } : {})
-          },
-          body: JSON.stringify({ dismissed: true })
-        });
-
+        const response = await fetch("{{ url_for('dismiss_draft') }}", { method: "POST", headers: { "Content-Type": "application/json", ...(csrfToken ? { "X-CSRFToken": csrfToken } : {}) }, body: JSON.stringify({ dismissed: true }) });
         if (!response.ok) throw new Error("Dismiss failed");
-
         banner.classList.add("opacity-0", "transition-opacity", "duration-300");
         setTimeout(() => banner.remove(), 320);
       } catch (error) {
