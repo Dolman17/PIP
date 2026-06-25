@@ -11,7 +11,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -19,14 +19,20 @@
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Open Sans', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+            sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
           },
           colors: {
             resolv: {
-              purple: '#563184',
-              purpleDark: '#40245F',
-              teal: '#00A99D',
-              canvas: '#F6F7FB'
+              navy: '#0F2A44',
+              blue: '#0084BD',
+              blueDark: '#006C9A',
+              teal: '#2FA4A9',
+              slate: '#5F6B7A',
+              border: '#D1D9E0',
+              bg: '#EEF4F8',
+              surface: '#FFFFFF',
+              softBlue: '#EAF5FB',
+              softTeal: '#EAF7F7'
             }
           }
         }
@@ -38,240 +44,179 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/ui.css') }}">
   <link rel="icon" href="{{ url_for('static', filename='images/logo.avif') }}">
 
-  <style>
-    body { font-family: 'Open Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-    .portal-shell { background: radial-gradient(circle at top left, rgba(86,49,132,.16), transparent 34%), #f6f7fb; }
-    .portal-sidebar { background: linear-gradient(180deg, #5b367e 0%, #4b2a70 44%, #3e235f 100%); }
-    .nav-link { color: rgba(255,255,255,.78); }
-    .nav-link:hover { background: rgba(255,255,255,.11); color: #fff; }
-    .nav-link-active { background: #fff; color: #4b2a70; box-shadow: 0 12px 24px rgba(31, 18, 47, .18); }
-    .module-link { border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.08); color: rgba(255,255,255,.82); }
-    .module-link:hover { background: rgba(255,255,255,.14); color: #fff; }
-    .module-link-active { background: #fff; color: #4b2a70; border-color: #fff; }
-    .top-tab { color: #6b7280; border-bottom: 2px solid transparent; }
-    .top-tab:hover { color: #4b2a70; border-bottom-color: #ddd6fe; }
-    .top-tab-active { color: #563184; border-bottom-color: #563184; }
-  </style>
-
   {% block extra_head %}{% endblock %}
 </head>
 
-<body class="min-h-screen portal-shell text-slate-900 antialiased">
+<body class="min-h-screen rh-shell text-[#0F2A44] antialiased">
 {% set is_logged_in = current_user.is_authenticated if current_user is defined else False %}
 {% set current_endpoint = request.endpoint or '' %}
 {% set active_module = (active_module|default(None)) or session.get('active_module') %}
 {% set enabled_modules = enabled_modules|default({}) %}
 {% set advisor_queue_counts = advisor_queue_counts|default({'open': 0, 'unassigned': 0}) %}
 {% set layout = (layout|default('')) %}
-{% set hide_sidebar = ((hide_sidebar if hide_sidebar is defined else False) or (not is_logged_in) or (layout == 'fullscreen')) %}
+{% set fullscreen = (layout == 'fullscreen') %}
 
-<div class="min-h-screen">
-  {% if is_logged_in and not hide_sidebar %}
-    <aside class="fixed inset-y-0 left-0 z-30 hidden w-72 overflow-hidden rounded-r-[2rem] portal-sidebar text-white shadow-2xl lg:flex lg:flex-col">
-      <div class="px-5 pb-4 pt-5">
-        <a href="{{ url_for('main.home') }}" class="flex items-center gap-3 rounded-3xl bg-white/10 p-3 backdrop-blur transition hover:bg-white/15">
-          <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-xl shadow-black/10">
-            <img src="{{ url_for('static', filename='images/logo.avif') }}" alt="ResolvHR" class="h-8 w-8 rounded-xl object-cover">
-          </div>
-          <div class="min-w-0">
-            <div class="truncate text-lg font-extrabold tracking-tight">ResolvHR</div>
-            <div class="truncate text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">People case platform</div>
-          </div>
-        </a>
+{% if is_logged_in and not fullscreen %}
+<header class="rh-topbar">
+  <div class="mx-auto flex min-h-20 max-w-7xl flex-col gap-3 px-4 py-3 lg:px-6 xl:flex-row xl:items-center xl:justify-between">
+    <div class="flex min-w-0 items-center justify-between gap-4">
+      <a href="{{ url_for('main.home') }}" class="rh-brand-lockup" aria-label="ResolvHR home">
+        <span class="rh-brand-mark">
+          <img src="{{ url_for('static', filename='images/logo.avif') }}" alt="" class="h-9 w-9 rounded-xl object-cover">
+        </span>
+        <span class="min-w-0 leading-tight">
+          <span class="block truncate text-xl font-black tracking-tight text-[#0F2A44]">ResolvHR</span>
+          <span class="hidden text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#5F6B7A] sm:block">People case platform</span>
+        </span>
+      </a>
+
+      <div class="xl:hidden text-right">
+        <p class="text-[10px] font-extrabold uppercase tracking-wide text-[#5F6B7A]">Signed in</p>
+        <p class="text-sm font-extrabold text-[#0F2A44]">{{ current_user.username }}</p>
       </div>
-
-      <div class="px-4 pb-4">
-        <div class="grid grid-cols-2 gap-2">
-          {% if enabled_modules.get('pip', True) %}<a href="{{ url_for('dashboard') }}" class="module-link {% if active_module == 'PIP' %}module-link-active{% endif %} rounded-2xl px-3 py-2 text-center text-xs font-extrabold">PIP</a>{% endif %}
-          {% if enabled_modules.get('probation', True) %}<a href="{{ url_for('probation_dashboard') }}" class="module-link {% if active_module == 'Probation' %}module-link-active{% endif %} rounded-2xl px-3 py-2 text-center text-xs font-extrabold">Probation</a>{% endif %}
-          {% if enabled_modules.get('sickness', True) %}<a href="{{ url_for('sickness_dashboard') }}" class="module-link {% if active_module == 'Sickness' %}module-link-active{% endif %} rounded-2xl px-3 py-2 text-center text-xs font-extrabold">Sickness</a>{% endif %}
-          {% if enabled_modules.get('supervision', True) %}<a href="{{ url_for('supervision.dashboard') }}" class="module-link {% if active_module == 'Supervision' %}module-link-active{% endif %} rounded-2xl px-3 py-2 text-center text-xs font-extrabold">Supervision</a>{% endif %}
-          {% if current_user.is_superuser() and enabled_modules.get('employee_relations', True) %}<a href="{{ url_for('employee_relations.dashboard') }}" class="module-link {% if active_module == 'Employee Relations' %}module-link-active{% endif %} col-span-2 rounded-2xl px-3 py-2 text-center text-xs font-extrabold">ER</a>{% endif %}
-        </div>
-      </div>
-
-      <nav class="flex-1 overflow-y-auto px-4 py-3 text-sm">
-        <div class="space-y-6">
-          <section>
-            <div class="px-3 text-[10px] font-extrabold uppercase tracking-[0.18em] text-white/40">Core</div>
-            <div class="mt-2 space-y-1.5">
-              <a href="{{ url_for('main.home') }}" class="nav-link {% if current_endpoint == 'main.home' %}nav-link-active{% endif %} flex items-center gap-3 rounded-2xl px-3 py-2.5 font-bold">
-                <span class="text-base">▦</span><span>Dashboard</span>
-              </a>
-              <a href="{{ url_for('employee_list') }}" class="nav-link {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}nav-link-active{% endif %} flex items-center gap-3 rounded-2xl px-3 py-2.5 font-bold">
-                <span class="text-base">◉</span><span>Employees</span>
-              </a>
-              <a href="{{ url_for('manage_employee.index') }}" class="nav-link {% if current_endpoint.startswith('manage_employee.') %}nav-link-active{% endif %} flex items-center gap-3 rounded-2xl px-3 py-2.5 font-bold">
-                <span class="text-base">↗</span><span>Lifecycle</span>
-              </a>
-            </div>
-          </section>
-
-          {% if active_module == 'PIP' and enabled_modules.get('pip', True) %}
-          <section>
-            <div class="px-3 text-[10px] font-extrabold uppercase tracking-[0.18em] text-white/40">Performance</div>
-            <div class="mt-2 space-y-1.5">
-              <a href="{{ url_for('dashboard') }}" class="nav-link {% if current_endpoint == 'dashboard' %}nav-link-active{% endif %} flex items-center gap-3 rounded-2xl px-3 py-2.5 font-bold"><span>◌</span><span>Overview</span></a>
-              <a href="{{ url_for('pip_list') }}" class="nav-link {% if current_endpoint in ['pip_list', 'pip.pip_list'] %}nav-link-active{% endif %} flex items-center gap-3 rounded-2xl px-3 py-2.5 font-bold"><span>□</span><span>PIP records</span></a>
-              <a href="{{ url_for('create_pip_wizard') }}" class="nav-link {% if 'create_pip_wizard' in current_endpoint %}nav-link-active{% endif %} flex items-center gap-3 rounded-2xl px-3 py-2.5 font-bold"><span>＋</span><span>Create PIP</span></a>
-            </div>
-          </section>
-          {% endif %}
-
-          {% if active_module == 'Probation' and enabled_modules.get('probation', True) %}
-          <section>
-            <div class="px-3 text-[10px] font-extrabold uppercase tracking-[0.18em] text-white/40">Probation</div>
-            <div class="mt-2 space-y-1.5">
-              <a href="{{ url_for('probation_dashboard') }}" class="nav-link {% if current_endpoint in ['probation_dashboard', 'probation.probation_dashboard'] %}nav-link-active{% endif %} flex items-center gap-3 rounded-2xl px-3 py-2.5 font-bold"><span>◌</span><span>Overview</span></a>
-              <a href="{{ url_for('probation_employee_list') }}" class="nav-link {% if current_endpoint in ['probation_employee_list', 'probation.probation_employee_list'] %}nav-link-active{% endif %} flex items-center gap-3 rounded-2xl px-3 py-2.5 font-bold"><span>□</span><span>Records</span></a>
-              <a href="{{ url_for('probation_create_wizard') }}" class="nav-link {% if 'probation_create_wizard' in current_endpoint %}nav-link-active{% endif %} flex items-center gap-3 rounded-2xl px-3 py-2.5 font-bold"><span>＋</span><span>Create</span></a>
-            </div>
-          </section>
-          {% endif %}
-
-          {% if active_module == 'Sickness' and enabled_modules.get('sickness', True) %}
-          <section>
-            <div class="px-3 text-[10px] font-extrabold uppercase tracking-[0.18em] text-white/40">Sickness</div>
-            <div class="mt-2 space-y-1.5">
-              <a href="{{ url_for('sickness_dashboard') }}" class="nav-link {% if current_endpoint in ['sickness_dashboard', 'sickness.sickness_dashboard'] %}nav-link-active{% endif %} flex items-center gap-3 rounded-2xl px-3 py-2.5 font-bold"><span>◌</span><span>Overview</span></a>
-              <a href="{{ url_for('sickness_list') }}" class="nav-link {% if current_endpoint in ['sickness_list', 'sickness.sickness_list'] %}nav-link-active{% endif %} flex items-center gap-3 rounded-2xl px-3 py-2.5 font-bold"><span>□</span><span>Cases</span></a>
-            </div>
-          </section>
-          {% endif %}
-
-          {% if active_module == 'Supervision' and enabled_modules.get('supervision', True) %}
-          <section>
-            <div class="px-3 text-[10px] font-extrabold uppercase tracking-[0.18em] text-white/40">Supervision</div>
-            <div class="mt-2 space-y-1.5">
-              <a href="{{ url_for('supervision.dashboard') }}" class="nav-link {% if current_endpoint == 'supervision.dashboard' %}nav-link-active{% endif %} flex items-center gap-3 rounded-2xl px-3 py-2.5 font-bold"><span>◌</span><span>Overview</span></a>
-              <a href="{{ url_for('supervision.list_supervisions') }}" class="nav-link {% if current_endpoint == 'supervision.list_supervisions' %}nav-link-active{% endif %} flex items-center gap-3 rounded-2xl px-3 py-2.5 font-bold"><span>□</span><span>Supervisions</span></a>
-              {% if current_user.is_admin() %}<a href="{{ url_for('supervision.templates') }}" class="nav-link {% if current_endpoint in ['supervision.templates', 'supervision.create_template', 'supervision.edit_template'] %}nav-link-active{% endif %} flex items-center gap-3 rounded-2xl px-3 py-2.5 font-bold"><span>◇</span><span>Templates</span></a>{% endif %}
-            </div>
-          </section>
-          {% endif %}
-
-          {% if active_module == 'Employee Relations' and current_user.is_superuser() and enabled_modules.get('employee_relations', True) %}
-          <section>
-            <div class="px-3 text-[10px] font-extrabold uppercase tracking-[0.18em] text-white/40">Employee Relations</div>
-            <div class="mt-2 space-y-1.5">
-              <a href="{{ url_for('employee_relations.dashboard') }}" class="nav-link {% if current_endpoint == 'employee_relations.dashboard' %}nav-link-active{% endif %} flex items-center gap-3 rounded-2xl px-3 py-2.5 font-bold"><span>◌</span><span>Overview</span></a>
-              <a href="{{ url_for('employee_relations.case_list') }}" class="nav-link {% if current_endpoint == 'employee_relations.case_list' %}nav-link-active{% endif %} flex items-center gap-3 rounded-2xl px-3 py-2.5 font-bold"><span>□</span><span>Cases</span></a>
-              <a href="{{ url_for('employee_relations.create_case') }}" class="nav-link {% if current_endpoint == 'employee_relations.create_case' %}nav-link-active{% endif %} flex items-center gap-3 rounded-2xl px-3 py-2.5 font-bold"><span>＋</span><span>Create</span></a>
-            </div>
-          </section>
-          {% endif %}
-
-          {% if current_user.is_admin() %}
-          <section>
-            <div class="px-3 text-[10px] font-extrabold uppercase tracking-[0.18em] text-white/40">Advisor</div>
-            <div class="mt-2 space-y-1.5">
-              <a href="{{ url_for('admin.advisor_escalation_queue') }}" class="nav-link {% if current_endpoint == 'admin.advisor_escalation_queue' %}nav-link-active{% endif %} flex items-center justify-between rounded-2xl px-3 py-2.5 font-bold"><span>Advisor queue</span><span class="rounded-full bg-white/15 px-2 py-0.5 text-[10px]">{{ advisor_queue_counts.open }}</span></a>
-            </div>
-          </section>
-          {% endif %}
-
-          {% if current_user.is_superuser() %}
-          <section>
-            <div class="px-3 text-[10px] font-extrabold uppercase tracking-[0.18em] text-white/40">Admin</div>
-            <div class="mt-2 space-y-1.5">
-              <a href="{{ url_for('admin_dashboard') }}" class="nav-link {% if current_endpoint in ['admin_dashboard', 'admin.admin_dashboard'] %}nav-link-active{% endif %} flex items-center gap-3 rounded-2xl px-3 py-2.5 font-bold"><span>⚙</span><span>Admin dashboard</span></a>
-              <a href="{{ url_for('admin.admin_module_settings') }}" class="nav-link {% if current_endpoint == 'admin.admin_module_settings' %}nav-link-active{% endif %} flex items-center gap-3 rounded-2xl px-3 py-2.5 font-bold"><span>◇</span><span>Module settings</span></a>
-              <a href="{{ url_for('employee_import') }}" class="nav-link {% if current_endpoint in ['employee_import', 'employees.employee_import'] %}nav-link-active{% endif %} flex items-center gap-3 rounded-2xl px-3 py-2.5 font-bold"><span>⇪</span><span>Employee import</span></a>
-            </div>
-          </section>
-          {% endif %}
-        </div>
-      </nav>
-
-      <div class="px-4 pb-5 pt-3">
-        <div class="rounded-3xl border border-white/10 bg-white/10 p-3 backdrop-blur">
-          <div class="text-[10px] font-extrabold uppercase tracking-wide text-white/45">Signed in</div>
-          <div class="mt-1 truncate text-sm font-bold text-white">{{ current_user.username }}</div>
-          <form action="{{ url_for('auth.logout') }}" method="post" class="mt-3">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="inline-flex h-9 w-full items-center justify-center rounded-2xl bg-white/12 text-xs font-extrabold text-white transition hover:bg-white/18">Logout</button>
-          </form>
-        </div>
-      </div>
-    </aside>
-  {% endif %}
-
-  <div class="min-h-screen {% if is_logged_in and not hide_sidebar %}lg:pl-72{% endif %}">
-    {% if layout != 'fullscreen' %}
-      <header class="sticky top-0 z-20 bg-[#f6f7fb]/90 backdrop-blur-xl">
-        <div class="px-4 py-5 sm:px-6 lg:px-8">
-          <div class="rounded-[1.75rem] border border-slate-200 bg-white px-5 py-4 shadow-sm">
-            <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div>
-                <p class="text-xs font-extrabold uppercase tracking-[0.18em] text-[#563184]">{% if active_module %}{{ active_module }}{% else %}ResolvHR{% endif %}</p>
-                <h1 class="mt-0.5 text-xl font-extrabold tracking-tight text-slate-950">{% block page_title %}HR case management{% endblock %}</h1>
-                {% if is_logged_in %}<p class="mt-1 text-sm text-slate-500">{{ current_user.username }}{% if current_user.is_superuser() %} · Admin{% elif current_user.is_admin() %} · Manager{% endif %}</p>{% endif %}
-              </div>
-              {% if is_logged_in %}
-                <div class="flex flex-wrap items-center gap-2">
-                  <a href="{{ url_for('main.home') }}" class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-extrabold text-slate-700 transition hover:bg-white">Workspace</a>
-                  <a href="{{ url_for('employee_list') }}" class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-extrabold text-slate-700 transition hover:bg-white">Employees</a>
-                  {% if current_user.is_superuser() %}<a href="{{ url_for('admin_dashboard') }}" class="rounded-xl bg-[#563184] px-3 py-2 text-xs font-extrabold text-white transition hover:bg-[#40245F]">Admin</a>{% endif %}
-                </div>
-              {% endif %}
-            </div>
-
-            {% if is_logged_in and active_module %}
-              <div class="mt-4 overflow-x-auto border-t border-slate-100 pt-3">
-                <div class="flex min-w-max items-center gap-5 text-sm font-extrabold">
-                  {% if active_module == 'PIP' %}
-                    <a href="{{ url_for('dashboard') }}" class="top-tab {% if current_endpoint == 'dashboard' %}top-tab-active{% endif %} pb-2">Overview</a>
-                    <a href="{{ url_for('employee_list') }}" class="top-tab {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}top-tab-active{% endif %} pb-2">Employees</a>
-                    <a href="{{ url_for('pip_list') }}" class="top-tab {% if current_endpoint in ['pip_list', 'pip.pip_list'] %}top-tab-active{% endif %} pb-2">PIP records</a>
-                    <a href="{{ url_for('create_pip_wizard') }}" class="top-tab {% if 'create_pip_wizard' in current_endpoint %}top-tab-active{% endif %} pb-2">Create</a>
-                  {% elif active_module == 'Probation' %}
-                    <a href="{{ url_for('probation_dashboard') }}" class="top-tab {% if current_endpoint in ['probation_dashboard', 'probation.probation_dashboard'] %}top-tab-active{% endif %} pb-2">Overview</a>
-                    <a href="{{ url_for('employee_list') }}" class="top-tab {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}top-tab-active{% endif %} pb-2">Employees</a>
-                    <a href="{{ url_for('probation_employee_list') }}" class="top-tab {% if current_endpoint in ['probation_employee_list', 'probation.probation_employee_list'] %}top-tab-active{% endif %} pb-2">Records</a>
-                    <a href="{{ url_for('probation_create_wizard') }}" class="top-tab {% if 'probation_create_wizard' in current_endpoint %}top-tab-active{% endif %} pb-2">Create</a>
-                  {% elif active_module == 'Sickness' %}
-                    <a href="{{ url_for('sickness_dashboard') }}" class="top-tab {% if current_endpoint in ['sickness_dashboard', 'sickness.sickness_dashboard'] %}top-tab-active{% endif %} pb-2">Overview</a>
-                    <a href="{{ url_for('employee_list') }}" class="top-tab {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}top-tab-active{% endif %} pb-2">Employees</a>
-                    <a href="{{ url_for('sickness_list') }}" class="top-tab {% if current_endpoint in ['sickness_list', 'sickness.sickness_list'] %}top-tab-active{% endif %} pb-2">Cases</a>
-                  {% elif active_module == 'Supervision' %}
-                    <a href="{{ url_for('supervision.dashboard') }}" class="top-tab {% if current_endpoint == 'supervision.dashboard' %}top-tab-active{% endif %} pb-2">Overview</a>
-                    <a href="{{ url_for('supervision.list_supervisions') }}" class="top-tab {% if current_endpoint == 'supervision.list_supervisions' %}top-tab-active{% endif %} pb-2">Records</a>
-                    <a href="{{ url_for('employee_list') }}" class="top-tab {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}top-tab-active{% endif %} pb-2">Employees</a>
-                  {% elif active_module == 'Employee Relations' and current_user.is_superuser() %}
-                    <a href="{{ url_for('employee_relations.dashboard') }}" class="top-tab {% if current_endpoint == 'employee_relations.dashboard' %}top-tab-active{% endif %} pb-2">Overview</a>
-                    <a href="{{ url_for('employee_relations.case_list') }}" class="top-tab {% if current_endpoint == 'employee_relations.case_list' %}top-tab-active{% endif %} pb-2">Cases</a>
-                    <a href="{{ url_for('employee_relations.create_case') }}" class="top-tab {% if current_endpoint == 'employee_relations.create_case' %}top-tab-active{% endif %} pb-2">Create</a>
-                  {% endif %}
-                </div>
-              </div>
-            {% endif %}
-          </div>
-        </div>
-      </header>
-    {% endif %}
-
-    <div class="px-4 pt-1 sm:px-6 lg:px-8">
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}<div class="space-y-2">{% for category, msg in messages %}<div class="flash-auto-dismiss rounded-2xl border px-4 py-3 text-sm font-bold {% if category == 'success' %}border-emerald-200 bg-emerald-50 text-emerald-800{% elif category == 'error' or category == 'danger' %}border-red-200 bg-red-50 text-red-800{% elif category == 'warning' %}border-amber-200 bg-amber-50 text-amber-800{% else %}border-slate-200 bg-white text-slate-700{% endif %}">{{ msg }}</div>{% endfor %}</div>{% endif %}
-      {% endwith %}
     </div>
 
-    <main class="min-w-0 px-4 pb-8 sm:px-6 lg:px-8 {% if layout != 'fullscreen' %}pt-5{% endif %}">
-      {% block content %}{% endblock %}
-    </main>
+    <nav class="rh-primary-nav" aria-label="Primary navigation">
+      <a href="{{ url_for('main.home') }}" class="rh-nav-link {% if current_endpoint == 'main.home' %}is-active{% endif %}">Home</a>
+      <a href="{{ url_for('employee_list') }}" class="rh-nav-link {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}is-active{% endif %}">Employees</a>
+
+      <details class="rh-nav-dropdown group">
+        <summary class="rh-nav-link cursor-pointer list-none select-none {% if active_module in ['PIP', 'Probation', 'Sickness', 'Supervision', 'Employee Relations'] %}is-active{% endif %}">Modules <span class="text-xs opacity-60">▾</span></summary>
+        <div class="rh-dropdown-panel left-0">
+          <div class="rh-dropdown-heading">Case modules</div>
+          {% if enabled_modules.get('pip', True) %}<a href="{{ url_for('dashboard') }}" class="rh-dropdown-link {% if active_module == 'PIP' %}is-active{% endif %}">PIP</a>{% endif %}
+          {% if enabled_modules.get('probation', True) %}<a href="{{ url_for('probation_dashboard') }}" class="rh-dropdown-link {% if active_module == 'Probation' %}is-active{% endif %}">Probation</a>{% endif %}
+          {% if enabled_modules.get('sickness', True) %}<a href="{{ url_for('sickness_dashboard') }}" class="rh-dropdown-link {% if active_module == 'Sickness' %}is-active{% endif %}">Sickness</a>{% endif %}
+          {% if enabled_modules.get('supervision', True) %}<a href="{{ url_for('supervision.dashboard') }}" class="rh-dropdown-link {% if active_module == 'Supervision' %}is-active{% endif %}">Supervision</a>{% endif %}
+          {% if current_user.is_superuser() and enabled_modules.get('employee_relations', True) %}<a href="{{ url_for('employee_relations.dashboard') }}" class="rh-dropdown-link {% if active_module == 'Employee Relations' %}is-active{% endif %}">Employee Relations</a>{% endif %}
+        </div>
+      </details>
+
+      {% if active_module == 'PIP' and enabled_modules.get('pip', True) %}
+        <a href="{{ url_for('pip_list') }}" class="rh-nav-link {% if current_endpoint in ['pip_list', 'pip.pip_list'] %}is-active{% endif %}">PIP Records</a>
+        <a href="{{ url_for('create_pip_wizard') }}" class="rh-nav-link {% if 'create_pip_wizard' in current_endpoint %}is-active{% endif %}">Create PIP</a>
+      {% elif active_module == 'Probation' and enabled_modules.get('probation', True) %}
+        <a href="{{ url_for('probation_employee_list') }}" class="rh-nav-link {% if current_endpoint in ['probation_employee_list', 'probation.probation_employee_list'] %}is-active{% endif %}">Probation Records</a>
+        <a href="{{ url_for('probation_create_wizard') }}" class="rh-nav-link {% if 'probation_create_wizard' in current_endpoint %}is-active{% endif %}">Create</a>
+      {% elif active_module == 'Sickness' and enabled_modules.get('sickness', True) %}
+        <a href="{{ url_for('sickness_list') }}" class="rh-nav-link {% if current_endpoint in ['sickness_list', 'sickness.sickness_list'] %}is-active{% endif %}">Sickness Cases</a>
+      {% elif active_module == 'Supervision' and enabled_modules.get('supervision', True) %}
+        <a href="{{ url_for('supervision.list_supervisions') }}" class="rh-nav-link {% if current_endpoint == 'supervision.list_supervisions' %}is-active{% endif %}">Supervisions</a>
+        {% if current_user.is_admin() %}<a href="{{ url_for('supervision.templates') }}" class="rh-nav-link {% if current_endpoint in ['supervision.templates', 'supervision.create_template', 'supervision.edit_template'] %}is-active{% endif %}">Templates</a>{% endif %}
+      {% elif active_module == 'Employee Relations' and current_user.is_superuser() and enabled_modules.get('employee_relations', True) %}
+        <a href="{{ url_for('employee_relations.case_list') }}" class="rh-nav-link {% if current_endpoint == 'employee_relations.case_list' %}is-active{% endif %}">ER Cases</a>
+        <a href="{{ url_for('employee_relations.create_case') }}" class="rh-nav-link {% if current_endpoint == 'employee_relations.create_case' %}is-active{% endif %}">Create ER Case</a>
+      {% endif %}
+
+      <a href="{{ url_for('manage_employee.index') }}" class="rh-nav-link {% if current_endpoint.startswith('manage_employee.') %}is-active{% endif %}">Lifecycle</a>
+
+      {% if current_user.is_admin() %}
+        <a href="{{ url_for('admin.advisor_escalation_queue') }}" class="rh-nav-link {% if current_endpoint == 'admin.advisor_escalation_queue' %}is-active{% endif %}">Advisor Queue{% if advisor_queue_counts.open %}<span class="rh-count-badge">{{ advisor_queue_counts.open }}</span>{% endif %}</a>
+      {% endif %}
+
+      {% if current_user.is_superuser() %}
+      <details class="rh-nav-dropdown group">
+        <summary class="rh-nav-link cursor-pointer list-none select-none {% if current_endpoint in ['admin_dashboard', 'admin.admin_dashboard'] or current_endpoint.startswith('admin.') %}is-active{% endif %}">Admin <span class="text-xs opacity-60">▾</span></summary>
+        <div class="rh-dropdown-panel right-0">
+          <div class="rh-dropdown-heading">Admin tools</div>
+          <a href="{{ url_for('admin_dashboard') }}" class="rh-dropdown-link {% if current_endpoint in ['admin_dashboard', 'admin.admin_dashboard'] %}is-active{% endif %}">Admin dashboard</a>
+          <a href="{{ url_for('admin.admin_module_settings') }}" class="rh-dropdown-link {% if current_endpoint == 'admin.admin_module_settings' %}is-active{% endif %}">Module settings</a>
+          <a href="{{ url_for('employee_import') }}" class="rh-dropdown-link {% if current_endpoint in ['employee_import', 'employees.employee_import'] %}is-active{% endif %}">Employee import</a>
+        </div>
+      </details>
+      {% endif %}
+    </nav>
+
+    <div class="hidden items-center gap-3 xl:flex">
+      <div class="text-right">
+        <p class="text-xs font-extrabold text-[#0F2A44]">{{ current_user.username }}</p>
+        <p class="text-[10px] font-bold uppercase tracking-wide text-[#0084BD]">{% if current_user.is_superuser() %}Admin{% elif current_user.is_admin() %}Manager{% else %}User{% endif %}</p>
+      </div>
+      <form action="{{ url_for('auth.logout') }}" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="rh-btn-secondary rh-btn-sm">Logout</button>
+      </form>
+    </div>
   </div>
+</header>
+
+{% if active_module %}
+<div class="rh-subnav-shell">
+  <div class="mx-auto max-w-7xl px-4 lg:px-6">
+    <div class="rh-subnav">
+      {% if active_module == 'PIP' %}
+        <a href="{{ url_for('dashboard') }}" class="rh-subnav-link {% if current_endpoint == 'dashboard' %}is-active{% endif %}">Overview</a>
+        <a href="{{ url_for('employee_list') }}" class="rh-subnav-link {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}is-active{% endif %}">Employees</a>
+        <a href="{{ url_for('pip_list') }}" class="rh-subnav-link {% if current_endpoint in ['pip_list', 'pip.pip_list'] %}is-active{% endif %}">Records</a>
+        <a href="{{ url_for('create_pip_wizard') }}" class="rh-subnav-link {% if 'create_pip_wizard' in current_endpoint %}is-active{% endif %}">Create</a>
+      {% elif active_module == 'Probation' %}
+        <a href="{{ url_for('probation_dashboard') }}" class="rh-subnav-link {% if current_endpoint in ['probation_dashboard', 'probation.probation_dashboard'] %}is-active{% endif %}">Overview</a>
+        <a href="{{ url_for('employee_list') }}" class="rh-subnav-link {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}is-active{% endif %}">Employees</a>
+        <a href="{{ url_for('probation_employee_list') }}" class="rh-subnav-link {% if current_endpoint in ['probation_employee_list', 'probation.probation_employee_list'] %}is-active{% endif %}">Records</a>
+        <a href="{{ url_for('probation_create_wizard') }}" class="rh-subnav-link {% if 'probation_create_wizard' in current_endpoint %}is-active{% endif %}">Create</a>
+      {% elif active_module == 'Sickness' %}
+        <a href="{{ url_for('sickness_dashboard') }}" class="rh-subnav-link {% if current_endpoint in ['sickness_dashboard', 'sickness.sickness_dashboard'] %}is-active{% endif %}">Overview</a>
+        <a href="{{ url_for('employee_list') }}" class="rh-subnav-link {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}is-active{% endif %}">Employees</a>
+        <a href="{{ url_for('sickness_list') }}" class="rh-subnav-link {% if current_endpoint in ['sickness_list', 'sickness.sickness_list'] %}is-active{% endif %}">Cases</a>
+      {% elif active_module == 'Supervision' %}
+        <a href="{{ url_for('supervision.dashboard') }}" class="rh-subnav-link {% if current_endpoint == 'supervision.dashboard' %}is-active{% endif %}">Overview</a>
+        <a href="{{ url_for('supervision.list_supervisions') }}" class="rh-subnav-link {% if current_endpoint == 'supervision.list_supervisions' %}is-active{% endif %}">Records</a>
+        <a href="{{ url_for('employee_list') }}" class="rh-subnav-link {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}is-active{% endif %}">Employees</a>
+      {% elif active_module == 'Employee Relations' and current_user.is_superuser() %}
+        <a href="{{ url_for('employee_relations.dashboard') }}" class="rh-subnav-link {% if current_endpoint == 'employee_relations.dashboard' %}is-active{% endif %}">Overview</a>
+        <a href="{{ url_for('employee_relations.case_list') }}" class="rh-subnav-link {% if current_endpoint == 'employee_relations.case_list' %}is-active{% endif %}">Cases</a>
+        <a href="{{ url_for('employee_relations.create_case') }}" class="rh-subnav-link {% if current_endpoint == 'employee_relations.create_case' %}is-active{% endif %}">Create</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
+<div class="{% if fullscreen %}min-h-screen{% else %}rh-page-wrap{% endif %}">
+  <div class="mx-auto max-w-7xl px-4 lg:px-6">
+    {% if is_logged_in and not fullscreen %}
+      <div class="rh-page-header">
+        <div>
+          <p class="rh-kicker">{% if active_module %}{{ active_module }}{% else %}ResolvHR{% endif %}</p>
+          <h1 class="rh-page-title">{% block page_title %}HR case management{% endblock %}</h1>
+        </div>
+      </div>
+    {% endif %}
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-5 space-y-2" aria-live="polite">
+          {% for category, msg in messages %}
+            <div class="flash-auto-dismiss rh-flash {% if category == 'success' %}rh-flash-success{% elif category == 'error' or category == 'danger' %}rh-flash-error{% elif category == 'warning' %}rh-flash-warning{% else %}rh-flash-info{% endif %}">{{ msg }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+  </div>
+
+  <main class="{% if fullscreen %}{% else %}mx-auto max-w-7xl px-4 pb-10 lg:px-6{% endif %}">
+    {% block content %}{% endblock %}
+  </main>
 </div>
 
 <script>
   document.addEventListener('DOMContentLoaded', function () {
     const flashes = document.querySelectorAll('.flash-auto-dismiss');
-    if (!flashes.length) return;
-    setTimeout(() => {
-      flashes.forEach(el => {
-        el.classList.add('opacity-0', 'transition-opacity', 'duration-500');
-        setTimeout(() => el.remove(), 600);
+    if (flashes.length) {
+      setTimeout(() => {
+        flashes.forEach(el => {
+          el.classList.add('opacity-0', 'transition-opacity', 'duration-500');
+          setTimeout(() => el.remove(), 600);
+        });
+      }, 5000);
+    }
+
+    document.addEventListener('click', function (event) {
+      document.querySelectorAll('.rh-nav-dropdown[open]').forEach((dropdown) => {
+        if (!dropdown.contains(event.target)) dropdown.removeAttribute('open');
       });
-    }, 5000);
+    });
   });
 </script>
 
