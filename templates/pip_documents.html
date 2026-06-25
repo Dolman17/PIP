@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Documents — PIP {{ pip_rec.id }}{% endblock %}
-{% block page_title %}🗂️ Document History{% endblock %}
+{% block title %}Documents — Performance Improvement Plan {{ pip_rec.id }}{% endblock %}
+{% block page_title %}Document History{% endblock %}
 
 {% block content %}
 <div class="max-w-6xl mx-auto space-y-6">
@@ -12,18 +12,18 @@
         {% if pip_rec.employee %}
           {{ pip_rec.employee.first_name }} {{ pip_rec.employee.last_name }}
         {% else %}
-          PIP {{ pip_rec.id }}
+          Performance Improvement Plan {{ pip_rec.id }}
         {% endif %}
       </h1>
       <p class="mt-1 text-sm text-slate-500">
-        View the full history of generated letters and action plans for this PIP.
+        View the full history of generated letters and action plans for this Performance Improvement Plan.
       </p>
     </div>
 
     <div class="flex flex-wrap gap-2">
       <a href="{{ url_for('pip_detail', id=pip_rec.id) }}"
          class="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-        ← Back to PIP
+        ← Back to Performance Improvement Plan
       </a>
     </div>
   </div>
@@ -62,7 +62,7 @@
       <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Documents</p>
         <p class="mt-2 text-2xl font-bold text-slate-900">{{ docs|length }}</p>
-        <p class="mt-1 text-xs text-slate-500">All versions for this PIP.</p>
+        <p class="mt-1 text-xs text-slate-500">All versions for this Performance Improvement Plan.</p>
       </div>
 
       <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
@@ -152,7 +152,7 @@
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p class="text-sm font-medium text-slate-700">
-            {{ docs|length }} document{{ docs|length != 1 and 's' or '' }} for this PIP
+            {{ docs|length }} document{{ docs|length != 1 and 's' or '' }} for this Performance Improvement Plan
           </p>
           <p class="mt-1 text-xs text-slate-500">
             Filter by document type to focus on Invite, Plan, or Outcome records.
@@ -322,10 +322,10 @@
       <div class="mb-2 text-3xl">📄</div>
       <h2 class="mb-1 text-lg font-semibold text-slate-900">No documents yet</h2>
       <p class="mb-4 text-sm text-slate-500">
-        You haven’t generated any letters or action plans for this PIP.
+        You haven’t generated any letters or action plans for this Performance Improvement Plan.
       </p>
       <p class="text-xs text-slate-400">
-        Use the buttons on the PIP page to create Invite, Plan, or Outcome documents.
+        Use the buttons on the Performance Improvement Plan page to create Invite, Plan, or Outcome documents.
       </p>
     </div>
   {% endif %}
