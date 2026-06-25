@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}PIP Dashboard | ResolvHR{% endblock %}
+{% block title %}Performance Improvement Plan Dashboard | ResolvHR{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
 
 {% block content %}
@@ -65,19 +65,19 @@
             {{ current_user.username[:1]|upper if current_user and current_user.username else 'R' }}
           </div>
           <div>
-            <p class="text-xs font-extrabold uppercase tracking-[0.18em] text-[#563184]">PIP information</p>
+            <p class="text-xs font-extrabold uppercase tracking-[0.18em] text-[#563184]">Performance Improvement Plan information</p>
             <h1 class="mt-2 text-3xl font-extrabold tracking-tight text-slate-950">Welcome back, {{ current_user.username|title if current_user and current_user.username else 'User' }}</h1>
             <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Monitor review deadlines, open case work and recent updates.</p>
           </div>
         </div>
         <div class="flex flex-wrap gap-2">
-          <a href="{{ url_for('create_pip_wizard') }}" class="rounded-xl bg-[#563184] px-4 py-2 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#40245F]">Start new PIP</a>
+          <a href="{{ url_for('create_pip_wizard') }}" class="rounded-xl bg-[#563184] px-4 py-2 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#40245F]">Start new Performance Improvement Plan</a>
           <a href="{{ url_for('pip_list') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-700 transition hover:bg-slate-50">View records</a>
         </div>
       </div>
       <div class="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div class="border-l border-slate-200 pl-4"><p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">Employees</p><p class="mt-2 text-2xl font-extrabold text-slate-950">{{ total_employees or 0 }}</p></div>
-        <div class="border-l border-slate-200 pl-4"><p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">Active PIPs</p><p class="mt-2 text-2xl font-extrabold text-slate-950">{{ active_pips or 0 }}</p></div>
+        <div class="border-l border-slate-200 pl-4"><p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">Active Plans</p><p class="mt-2 text-2xl font-extrabold text-slate-950">{{ active_pips or 0 }}</p></div>
         <div class="border-l border-slate-200 pl-4"><p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">Completed</p><p class="mt-2 text-2xl font-extrabold text-slate-950">{{ completed_pips or 0 }}</p></div>
         <div class="border-l border-slate-200 pl-4"><p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">Activity</p><p class="mt-2 text-2xl font-extrabold text-slate-950">{{ activity_count or 0 }}</p></div>
       </div>
@@ -94,7 +94,7 @@
       {% if draft %}
       <div id="draftResumeBanner" class="rounded-[1.75rem] border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
         <p class="text-sm font-extrabold text-emerald-950">Draft available</p>
-        <p class="mt-1 text-xs font-semibold leading-5 text-emerald-800">Resume your in-progress PIP{% if draft.updated_at %}. Last updated {{ draft.updated_at.strftime('%d %b %Y %H:%M') }} UTC{% endif %}.</p>
+        <p class="mt-1 text-xs font-semibold leading-5 text-emerald-800">Resume your in-progress Performance Improvement Plan{% if draft.updated_at %}. Last updated {{ draft.updated_at.strftime('%d %b %Y %H:%M') }} UTC{% endif %}.</p>
         <div class="mt-4 flex flex-wrap gap-2"><a href="{{ url_for('pip_wizard_resume') }}" class="rounded-xl bg-emerald-700 px-3 py-2 text-xs font-extrabold text-white">Resume</a><button id="dismissDraftBtn" type="button" class="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-extrabold text-emerald-800">Dismiss</button></div>
       </div>
       {% endif %}
@@ -102,7 +102,7 @@
   </section>
 
   <section class="grid grid-cols-2 gap-4 md:grid-cols-4">
-    {{ tile('Active PIPs', active_pips or 0, url_for('pip_list'), 'bg-gradient-to-r from-orange-400 to-rose-400', 'Live cases') }}
+    {{ tile('Active Plans', active_pips or 0, url_for('pip_list'), 'bg-gradient-to-r from-orange-400 to-rose-400', 'Live cases') }}
     {{ tile('Reviews Due', upcoming_count or 0, url_for('pip_list'), 'bg-gradient-to-r from-blue-600 to-cyan-500', 'Next 7 days') }}
     {{ tile('Completed', completed_pips or 0, url_for('pip_list'), 'bg-gradient-to-r from-emerald-400 to-teal-400', 'Closed records') }}
     {{ tile('Overdue', overdue_reviews or 0, url_for('pip_list'), 'bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-900', 'Needs action') }}
@@ -116,15 +116,15 @@
       </section>
 
       <section class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><h2 class="text-lg font-extrabold text-slate-950">Open PIPs</h2><p class="mt-1 text-sm font-semibold text-slate-500">Active case records.</p></div>{{ badge((open_count|string) ~ ' open', 'purple') }}</div>
-        <div class="mt-5 space-y-3">{% if open_pips %}{% for p in open_pips[:8] %}{{ pip_row(p) }}{% endfor %}{% if open_pips|length > 8 %}<a href="{{ url_for('pip_list') }}" class="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:bg-slate-100">View all open PIPs</a>{% endif %}{% else %}<div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center"><p class="font-extrabold text-slate-900">No open PIPs</p><p class="mt-1 text-sm text-slate-500">New performance improvement cases will appear here.</p></div>{% endif %}</div>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><h2 class="text-lg font-extrabold text-slate-950">Open Performance Improvement Plans</h2><p class="mt-1 text-sm font-semibold text-slate-500">Active case records.</p></div>{{ badge((open_count|string) ~ ' open', 'purple') }}</div>
+        <div class="mt-5 space-y-3">{% if open_pips %}{% for p in open_pips[:8] %}{{ pip_row(p) }}{% endfor %}{% if open_pips|length > 8 %}<a href="{{ url_for('pip_list') }}" class="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:bg-slate-100">View all open Performance Improvement Plans</a>{% endif %}{% else %}<div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center"><p class="font-extrabold text-slate-900">No open Performance Improvement Plans</p><p class="mt-1 text-sm text-slate-500">New performance improvement cases will appear here.</p></div>{% endif %}</div>
       </section>
     </div>
 
     <aside class="space-y-6">
       <section class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
         <h2 class="text-sm font-extrabold text-slate-950">Quick actions</h2><p class="mt-1 text-xs font-semibold text-slate-500">Daily shortcuts.</p>
-        <div class="mt-5 grid gap-2"><a href="{{ url_for('create_pip_wizard') }}" class="rounded-xl bg-[#563184] px-4 py-3 text-sm font-extrabold text-white transition hover:bg-[#40245F]">Create new PIP</a><a href="{{ url_for('employee_list') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:bg-slate-50">Find employee</a><a href="{{ url_for('pip_list') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:bg-slate-50">Open PIP records</a>{% if current_user.is_superuser() %}<a href="{{ url_for('export_data') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:bg-slate-50">Export data</a>{% endif %}</div>
+        <div class="mt-5 grid gap-2"><a href="{{ url_for('create_pip_wizard') }}" class="rounded-xl bg-[#563184] px-4 py-3 text-sm font-extrabold text-white transition hover:bg-[#40245F]">Create new Performance Improvement Plan</a><a href="{{ url_for('employee_list') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:bg-slate-50">Find employee</a><a href="{{ url_for('pip_list') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:bg-slate-50">Open Performance Improvement Plan records</a>{% if current_user.is_superuser() %}<a href="{{ url_for('export_data') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:bg-slate-50">Export data</a>{% endif %}</div>
       </section>
 
       <section class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
