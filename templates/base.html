@@ -84,7 +84,7 @@
         <summary class="rh-nav-link cursor-pointer list-none select-none {% if active_module in ['PIP', 'Probation', 'Sickness', 'Supervision', 'Employee Relations'] %}is-active{% endif %}">Modules <span class="text-xs opacity-60">▾</span></summary>
         <div class="rh-dropdown-panel left-0">
           <div class="rh-dropdown-heading">Case modules</div>
-          {% if enabled_modules.get('pip', True) %}<a href="{{ url_for('dashboard') }}" class="rh-dropdown-link {% if active_module == 'PIP' %}is-active{% endif %}">PIP</a>{% endif %}
+          {% if enabled_modules.get('pip', True) %}<a href="{{ url_for('dashboard') }}" class="rh-dropdown-link {% if active_module == 'PIP' %}is-active{% endif %}">Performance Improvement Plan</a>{% endif %}
           {% if enabled_modules.get('probation', True) %}<a href="{{ url_for('probation_dashboard') }}" class="rh-dropdown-link {% if active_module == 'Probation' %}is-active{% endif %}">Probation</a>{% endif %}
           {% if enabled_modules.get('sickness', True) %}<a href="{{ url_for('sickness_dashboard') }}" class="rh-dropdown-link {% if active_module == 'Sickness' %}is-active{% endif %}">Sickness</a>{% endif %}
           {% if enabled_modules.get('supervision', True) %}<a href="{{ url_for('supervision.dashboard') }}" class="rh-dropdown-link {% if active_module == 'Supervision' %}is-active{% endif %}">Supervision</a>{% endif %}
@@ -93,8 +93,8 @@
       </details>
 
       {% if active_module == 'PIP' and enabled_modules.get('pip', True) %}
-        <a href="{{ url_for('pip_list') }}" class="rh-nav-link {% if current_endpoint in ['pip_list', 'pip.pip_list'] %}is-active{% endif %}">PIP Records</a>
-        <a href="{{ url_for('create_pip_wizard') }}" class="rh-nav-link {% if 'create_pip_wizard' in current_endpoint %}is-active{% endif %}">Create PIP</a>
+        <a href="{{ url_for('pip_list') }}" class="rh-nav-link {% if current_endpoint in ['pip_list', 'pip.pip_list'] %}is-active{% endif %}">Performance Improvement Plan Records</a>
+        <a href="{{ url_for('create_pip_wizard') }}" class="rh-nav-link {% if 'create_pip_wizard' in current_endpoint %}is-active{% endif %}">Create Plan</a>
       {% elif active_module == 'Probation' and enabled_modules.get('probation', True) %}
         <a href="{{ url_for('probation_employee_list') }}" class="rh-nav-link {% if current_endpoint in ['probation_employee_list', 'probation.probation_employee_list'] %}is-active{% endif %}">Probation Records</a>
         <a href="{{ url_for('probation_create_wizard') }}" class="rh-nav-link {% if 'probation_create_wizard' in current_endpoint %}is-active{% endif %}">Create</a>
@@ -178,7 +178,7 @@
     {% if is_logged_in and not fullscreen %}
       <div class="rh-page-header">
         <div>
-          <p class="rh-kicker">{% if active_module %}{{ active_module }}{% else %}ResolvHR{% endif %}</p>
+          <p class="rh-kicker">{% if active_module == 'PIP' %}Performance Improvement Plan{% elif active_module %}{{ active_module }}{% else %}ResolvHR{% endif %}</p>
           <h1 class="rh-page-title">{% block page_title %}HR case management{% endblock %}</h1>
         </div>
       </div>
