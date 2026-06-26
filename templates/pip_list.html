@@ -1,13 +1,13 @@
 {% extends 'base.html' %}
-{% block title %}All PIPs - Ellipse HR{% endblock %}
-{% block page_title %}📋 View All PIPs{% endblock %}
+{% block title %}All Performance Improvement Plans - ResolvHR{% endblock %}
+{% block page_title %}View All Performance Improvement Plans{% endblock %}
 
 {% block content %}
 <div class="max-w-6xl mx-auto px-4 sm:px-6 space-y-6">
 
   <div>
     <h2 class="text-xl sm:text-2xl font-bold text-ellipse-teal mb-1">Performance Improvement Plans</h2>
-    <p class="text-sm text-gray-600">Search and filter active and historical PIPs across the system.</p>
+    <p class="text-sm text-gray-600">Search and filter active and historical Performance Improvement Plans across the system.</p>
   </div>
 
   <!-- Filters -->
@@ -109,7 +109,7 @@
   <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
     <p class="text-sm text-gray-600">
       Showing <span class="font-semibold text-gray-900">{{ pips|length }}</span>
-      PIP record{{ pips|length != 1 and 's' or '' }}
+      Performance Improvement Plan record{{ pips|length != 1 and 's' or '' }}
     </p>
   </div>
 
@@ -194,7 +194,7 @@
               <td class="px-2 sm:px-4 py-3 whitespace-nowrap">
                 <a href="{{ url_for('pip.pip_detail', id=pip.id) }}"
                    class="text-xs sm:text-sm font-medium text-ellipse-teal hover:underline"
-                   aria-label="View PIP for {{ pip.employee.first_name }} {{ pip.employee.last_name }}">
+                   aria-label="View Performance Improvement Plan for {{ pip.employee.first_name }} {{ pip.employee.last_name }}">
                   View
                 </a>
               </td>
@@ -205,7 +205,7 @@
     </div>
   {% else %}
     <div class="bg-[#e6f3f3] p-6 rounded-xl shadow border border-gray-200 text-center">
-      <p class="text-gray-600">No PIPs matched your current filters.</p>
+      <p class="text-gray-600">No Performance Improvement Plans matched your current filters.</p>
     </div>
   {% endif %}
 </div>

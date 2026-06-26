@@ -1,290 +1,160 @@
 {% extends "base.html" %}
+{% block title %}Performance Improvement Plan Dashboard | ResolvHR{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
 {% block content %}
+{% set today = today_local() %}
+{% set upcoming_count = due_soon_count if due_soon_count is defined else ((upcoming_pips|length) if upcoming_pips else 0) %}
+{% set open_count = (open_pips|length) if open_pips else 0 %}
+{% set activity_count = (recent_activity|length) if recent_activity else 0 %}
 
-<div class="max-w-7xl mx-auto px-4 py-8 space-y-8">
+<div class="mx-auto max-w-7xl space-y-6 pb-10">
 
-  {% macro collapse_section(section_id, title, subtitle='', default_open=false) %}
-    <section class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <button
-        type="button"
-        class="dashboard-collapse-toggle flex w-full items-center justify-between px-5 py-4 text-left hover:bg-slate-50"
-        data-target="{{ section_id }}"
-        aria-expanded="{{ 'true' if default_open else 'false' }}">
-        <div>
-          <div class="text-lg font-semibold text-slate-900">{{ title }}</div>
-          {% if subtitle %}
-          <div class="mt-0.5 text-xs text-slate-500">{{ subtitle }}</div>
-          {% endif %}
-        </div>
-        <svg class="dashboard-collapse-icon h-5 w-5 text-slate-500 transition-transform duration-200 {{ 'rotate-180' if default_open else '' }}"
-             data-icon-for="{{ section_id }}"
-             xmlns="http://www.w3.org/2000/svg"
-             fill="none"
-             viewBox="0 0 24 24"
-             stroke-width="2"
-             stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25 12 15.75 4.5 8.25" />
-        </svg>
-      </button>
-      <div id="{{ section_id }}" class="{% if not default_open %}hidden{% endif %} border-t border-slate-200 px-5 py-5">
-        {{ caller() }}
-      </div>
-    </section>
+  {% macro badge(label, tone='slate') %}
+    <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-extrabold
+      {% if tone == 'red' %}bg-red-50 text-red-700
+      {% elif tone == 'amber' %}bg-amber-50 text-amber-800
+      {% elif tone == 'emerald' %}bg-emerald-50 text-emerald-700
+      {% elif tone == 'purple' %}bg-purple-50 text-purple-700
+      {% elif tone == 'blue' %}bg-blue-50 text-blue-700
+      {% else %}bg-slate-100 text-slate-600{% endif %}">{{ label }}</span>
   {% endmacro %}
 
-  <!-- Hero / Welcome -->
-  <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#0f6b6a] to-[#0a4d4c] text-white p-6 shadow-lg">
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-semibold tracking-tight">
-          Welcome back{% if current_user and current_user.username %}, {{ current_user.username|title }}{% endif %} 👋
-        </h1>
-        <p class="text-white/90 mt-1">Here’s a snapshot of your Performance Improvement work.</p>
-      </div>
-      <div class="flex flex-wrap items-center gap-3">
-        <a href="{{ url_for('create_pip_wizard') }}"
-           class="inline-flex items-center gap-2 rounded-lg bg-white/95 text-[#0f6b6a] hover:bg-white px-4 py-2 font-medium shadow">
-          ➕ Start New PIP
-        </a>
-        <a href="{{ url_for('pip_list') }}"
-           class="inline-flex items-center gap-2 rounded-lg border border-white/40 text-white hover:bg-white/10 px-4 py-2">
-          📄 View All PIPs
-        </a>
-      </div>
-    </div>
-
-    <!-- Quick stats -->
-    <div class="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
-      <div class="rounded-xl bg-white/10 backdrop-blur p-4">
-        <div class="text-sm text-white/80">Employees</div>
-        <div class="text-2xl font-semibold">{{ total_employees or 0 }}</div>
-      </div>
-      <div class="rounded-xl bg-white/10 backdrop-blur p-4">
-        <div class="text-sm text-white/80">Active PIPs</div>
-        <div class="text-2xl font-semibold">{{ active_pips or 0 }}</div>
-      </div>
-      <div class="rounded-xl bg-white/10 backdrop-blur p-4">
-        <div class="text-sm text-white/80">Completed</div>
-        <div class="text-2xl font-semibold">{{ completed_pips or 0 }}</div>
-      </div>
-      <div class="rounded-xl bg-white/10 backdrop-blur p-4">
-        <div class="text-sm text-white/80">Overdue Reviews</div>
-        <div class="text-2xl font-semibold">{{ overdue_reviews or 0 }}</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Draft resume banner -->
-  {% if draft %}
-  <div class="rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-900 p-4 flex items-start gap-4">
-    <div class="text-xl">📄</div>
-    <div class="flex-1">
-      <div class="font-semibold">Draft available</div>
-      <div class="text-sm">
-        You have an unsent PIP draft{% if draft.updated_at %} (last updated {{ draft.updated_at.strftime('%d %b %Y %H:%M') }} UTC){% endif %}.
-      </div>
-      <div class="mt-3 flex items-center gap-2">
-        <a href="{{ url_for('pip_wizard_resume') }}"
-           class="inline-flex items-center gap-2 rounded-md bg-[#0f6b6a] text-white px-3 py-1.5 hover:bg-[#0c5858]">
-          ▶ Resume draft
-        </a>
-        <button id="dismissDraftBtn"
-                class="inline-flex items-center gap-2 rounded-md border border-emerald-300 px-3 py-1.5 hover:bg-white">
-          Dismiss
-        </button>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Highlights -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-    <div class="rounded-xl border border-red-200 bg-red-50 p-4">
-      <div class="text-sm text-red-800/80">Overdue reviews</div>
-      <div class="mt-1 text-2xl font-semibold text-red-900">{{ overdue_reviews or 0 }}</div>
-      <p class="text-xs text-red-800/70 mt-1">Reviews with a date before today and still open.</p>
-    </div>
-    <div class="rounded-xl border border-amber-200 bg-amber-50 p-4">
-      <div class="text-sm text-amber-900/80">Due in next 7 days</div>
-      <div class="mt-1 text-2xl font-semibold text-amber-900">
-        {{ (upcoming_pips|selectattr('review_date','defined')|selectattr('review_date','ne',None)|list|length) or 0 }}
-      </div>
-      <p class="text-xs text-amber-900/70 mt-1">Upcoming review deadlines.</p>
-    </div>
-    <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <div class="text-sm text-slate-700/80">Recent activity entries</div>
-      <div class="mt-1 text-2xl font-semibold text-slate-900">{{ recent_activity|length if recent_activity else 0 }}</div>
-      <p class="text-xs text-slate-700/70 mt-1">Latest timeline updates across PIPs.</p>
-    </div>
-  </div>
-
-  {% call collapse_section('needs-attention', 'Needs Attention', 'Priority items that should be reviewed first.', true) %}
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div class="rounded-xl border border-red-200 bg-red-50 p-4">
-        <div class="text-sm font-medium text-red-800">Overdue Reviews</div>
-        <div class="mt-1 text-2xl font-semibold text-red-900">{{ overdue_reviews or 0 }}</div>
-        <div class="mt-3 text-xs text-red-800/80">Open PIPs with review dates before today.</div>
-      </div>
-
-      <div class="rounded-xl border border-amber-200 bg-amber-50 p-4">
-        <div class="text-sm font-medium text-amber-900">Due Soon</div>
-        <div class="mt-1 text-2xl font-semibold text-amber-900">
-          {{ (upcoming_pips|selectattr('review_date','defined')|selectattr('review_date','ne',None)|list|length) or 0 }}
+  {% macro tile(label, value, href, gradient, helper='') %}
+    <a href="{{ href }}" class="group relative overflow-hidden rounded-2xl px-5 py-4 text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl {{ gradient }}">
+      <div class="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-white/20"></div>
+      <div class="relative flex items-start justify-between gap-4">
+        <div>
+          <p class="text-sm font-extrabold">{{ label }}</p>
+          {% if helper %}<p class="mt-1 text-xs font-semibold opacity-80">{{ helper }}</p>{% endif %}
         </div>
-        <div class="mt-3 text-xs text-amber-900/80">Reviews due in the next 7 days.</div>
+        <p class="text-3xl font-extrabold tracking-tight">{{ value }}</p>
       </div>
+    </a>
+  {% endmacro %}
 
-      <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-        <div class="text-sm font-medium text-slate-700">Open PIPs</div>
-        <div class="mt-1 text-2xl font-semibold text-slate-900">{{ (open_pips|length) or 0 }}</div>
-        <div class="mt-3 text-xs text-slate-600">Current open records assigned to you.</div>
-      </div>
-    </div>
-  {% endcall %}
-
-  {% call collapse_section('upcoming-reviews', 'Upcoming Reviews', 'Next 1–2 weeks', true) %}
-    {% set items = upcoming_pips or [] %}
-    {% if items %}
-      <div class="overflow-x-auto">
-        <div class="relative flex items-center gap-6 py-2 px-1 min-w-full">
-          {% for p in items %}
-            <div class="flex flex-col items-start min-w-[220px] rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <div class="flex items-center gap-2">
-                <span class="inline-block h-2.5 w-2.5 rounded-full
-                  {% if p.severity == 'High' %}bg-red-500
-                  {% elif p.severity == 'Moderate' %}bg-amber-500
-                  {% else %}bg-emerald-500{% endif %}"></span>
-                <span class="text-sm font-medium text-slate-800">
-                  {{ p.employee.first_name }} {{ p.employee.last_name }}
-                </span>
-              </div>
-              <div class="text-xs text-slate-500 mt-1">
-                {{ p.review_date.strftime('%d %b %Y') if p.review_date else 'No date' }}
-                · {{ p.concern_category or 'Uncategorised' }}
-              </div>
-              <a href="{{ url_for('pip_detail', id=p.id) }}"
-                 class="mt-3 inline-flex items-center text-xs text-[#0f6b6a] hover:underline">
-                View PIP →
-              </a>
-            </div>
-          {% endfor %}
-        </div>
-      </div>
-    {% else %}
-      <div class="text-sm text-slate-500">No upcoming reviews in the next week.</div>
-    {% endif %}
-  {% endcall %}
-
-  {% call collapse_section('open-pips', 'Open PIPs', 'Current active PIPs assigned to you.', true) %}
-    {% if open_pips and open_pips|length > 0 %}
-    <div class="overflow-x-auto">
-      <table class="min-w-full text-sm">
-        <thead>
-          <tr class="bg-slate-50 text-slate-600">
-            <th class="text-left px-4 py-3">Employee</th>
-            <th class="text-left px-4 py-3">Category</th>
-            <th class="text-left px-4 py-3">Severity</th>
-            <th class="text-left px-4 py-3">Review Date</th>
-            <th class="text-left px-4 py-3">Status</th>
-            <th class="px-4 py-3"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for p in open_pips %}
-          <tr class="border-b border-slate-100 hover:bg-slate-50">
-            <td class="px-4 py-3 font-medium text-slate-900">
-              {{ p.employee.first_name }} {{ p.employee.last_name }}
-            </td>
-            <td class="px-4 py-3">{{ p.concern_category or '—' }}</td>
-            <td class="px-4 py-3">
-              <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs
-                {% if p.severity == 'High' %}bg-red-100 text-red-800
-                {% elif p.severity == 'Moderate' %}bg-amber-100 text-amber-800
-                {% else %}bg-emerald-100 text-emerald-800{% endif %}">
-                ● {{ p.severity or 'Unknown' }}
-              </span>
-            </td>
-            <td class="px-4 py-3">{{ p.review_date.strftime('%d %b %Y') if p.review_date else '—' }}</td>
-            <td class="px-4 py-3">{{ p.status or 'Open' }}</td>
-            <td class="px-4 py-3 text-right">
-              <a href="{{ url_for('pip_detail', id=p.id) }}"
-                 class="rounded-md border border-slate-300 px-2 py-1 hover:bg-slate-50">Open</a>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-      <div class="text-center text-slate-500 text-sm">No open PIPs assigned to you.</div>
-    {% endif %}
-  {% endcall %}
-
-  {% call collapse_section('recent-activity', 'Recent Activity', 'Latest timeline updates across PIPs.') %}
-    <div class="divide-y divide-slate-100 -mx-5">
-      {% for ev in (recent_activity or []) %}
-      <div class="px-5 py-4 flex items-start gap-3">
-        <div class="mt-1">🕑</div>
-        <div class="flex-1">
-          <div class="text-sm text-slate-900">
-            <span class="font-semibold">{{ ev.event_type }}</span>
-            {% if ev.updated_by %}<span class="text-slate-500"> · {{ ev.updated_by }}</span>{% endif %}
+  {% macro pip_row(p, compact=false) %}
+    {% set employee_name = ((p.employee.first_name ~ ' ' ~ p.employee.last_name) if p.employee else 'Unknown employee') %}
+    {% set is_overdue = p.review_date and p.review_date < today %}
+    {% set is_due_soon = p.review_date and p.review_date >= today %}
+    <a href="{{ url_for('pip_detail', id=p.id) }}" class="block rounded-2xl border border-slate-200 bg-white px-4 py-3 transition hover:border-purple-200 hover:shadow-md">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <p class="truncate text-sm font-extrabold text-slate-950">{{ employee_name }}</p>
+            {% if is_overdue %}{{ badge('Overdue', 'red') }}{% elif is_due_soon %}{{ badge('Review due', 'amber') }}{% else %}{{ badge(p.status or 'Open', 'purple') }}{% endif %}
+            {% if p.severity == 'High' %}{{ badge('High severity', 'red') }}{% elif p.severity == 'Moderate' %}{{ badge('Moderate', 'amber') }}{% elif p.severity %}{{ badge(p.severity, 'emerald') }}{% endif %}
           </div>
-          {% if ev.notes %}<div class="text-sm text-slate-700 mt-1">{{ ev.notes }}</div>{% endif %}
-          {% if ev.timestamp %}<div class="text-xs text-slate-500 mt-1">{{ ev.timestamp.strftime('%d %b %Y %H:%M') }} UTC</div>{% endif %}
+          <div class="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-slate-500">
+            <span>{{ p.concern_category or 'Uncategorised' }}</span>
+            <span>{{ p.review_date.strftime('%d %b %Y') if p.review_date else 'No review date' }}</span>
+            {% if p.frequency %}<span>{{ p.frequency }}</span>{% endif %}
+          </div>
+          {% if not compact and p.concerns %}<p class="mt-2 line-clamp-1 text-sm leading-6 text-slate-600">{{ p.concerns }}</p>{% endif %}
+        </div>
+        <span class="text-xs font-extrabold text-[#563184]">Open</span>
+      </div>
+    </a>
+  {% endmacro %}
+
+  <section class="grid gap-6 xl:grid-cols-[1fr_300px]">
+    <div class="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+        <div class="flex items-center gap-5">
+          <div class="flex h-20 w-20 items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-purple-100 to-teal-50 text-3xl font-extrabold text-[#563184] shadow-inner">
+            {{ current_user.username[:1]|upper if current_user and current_user.username else 'R' }}
+          </div>
+          <div>
+            <p class="text-xs font-extrabold uppercase tracking-[0.18em] text-[#563184]">Performance Improvement Plan information</p>
+            <h1 class="mt-2 text-3xl font-extrabold tracking-tight text-slate-950">Welcome back, {{ current_user.username|title if current_user and current_user.username else 'User' }}</h1>
+            <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Monitor review deadlines, open case work and recent updates.</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <a href="{{ url_for('create_pip_wizard') }}" class="rounded-xl bg-[#563184] px-4 py-2 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#40245F]">Start new Performance Improvement Plan</a>
+          <a href="{{ url_for('pip_list') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-700 transition hover:bg-slate-50">View records</a>
         </div>
       </div>
-      {% else %}
-      <div class="px-5 py-6 text-center text-slate-500 text-sm">No recent activity for your assigned cases.</div>
-      {% endfor %}
+      <div class="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div class="border-l border-slate-200 pl-4"><p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">Employees</p><p class="mt-2 text-2xl font-extrabold text-slate-950">{{ total_employees or 0 }}</p></div>
+        <div class="border-l border-slate-200 pl-4"><p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">Active Plans</p><p class="mt-2 text-2xl font-extrabold text-slate-950">{{ active_pips or 0 }}</p></div>
+        <div class="border-l border-slate-200 pl-4"><p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">Completed</p><p class="mt-2 text-2xl font-extrabold text-slate-950">{{ completed_pips or 0 }}</p></div>
+        <div class="border-l border-slate-200 pl-4"><p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">Activity</p><p class="mt-2 text-2xl font-extrabold text-slate-950">{{ activity_count or 0 }}</p></div>
+      </div>
     </div>
-  {% endcall %}
 
-  {% call collapse_section('quick-actions', 'Quick Actions', 'Common shortcuts for daily use.') %}
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <a href="{{ url_for('create_pip_wizard') }}"
-         class="rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition">
-        <div class="text-lg">✨ Create a new PIP</div>
-        <div class="text-sm text-slate-600">Kick off the guided wizard.</div>
-      </a>
-      <a href="{{ url_for('employee_list') }}"
-         class="rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition">
-        <div class="text-lg">👥 Employees</div>
-        <div class="text-sm text-slate-600">Browse and manage employees.</div>
-      </a>
-      <a href="{{ url_for('export_data') }}"
-         class="rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition">
-        <div class="text-lg">⬇ Export data</div>
-        <div class="text-sm text-slate-600">Download a zip of current records.</div>
-      </a>
+    <aside class="space-y-4">
+      <div class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex items-center justify-between gap-4"><div><h2 class="text-sm font-extrabold text-slate-950">Needs attention</h2><p class="mt-1 text-xs font-semibold text-slate-500">Current case signals.</p></div>{% if overdue_reviews and overdue_reviews > 0 %}{{ badge('Action', 'red') }}{% else %}{{ badge('Stable', 'emerald') }}{% endif %}</div>
+        <div class="mt-4 grid grid-cols-2 gap-3">
+          <a href="{{ url_for('pip_list') }}" class="rounded-2xl bg-blue-500 px-4 py-3 text-white shadow-sm"><p class="text-xs font-bold text-white/75">Open</p><p class="mt-1 text-2xl font-extrabold">{{ open_count or 0 }}</p></a>
+          <a href="{{ url_for('pip_list') }}" class="rounded-2xl bg-yellow-400 px-4 py-3 text-slate-950 shadow-sm"><p class="text-xs font-bold text-slate-700">Due</p><p class="mt-1 text-2xl font-extrabold">{{ upcoming_count or 0 }}</p></a>
+        </div>
+      </div>
+      {% if draft %}
+      <div id="draftResumeBanner" class="rounded-[1.75rem] border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+        <p class="text-sm font-extrabold text-emerald-950">Draft available</p>
+        <p class="mt-1 text-xs font-semibold leading-5 text-emerald-800">Resume your in-progress Performance Improvement Plan{% if draft.updated_at %}. Last updated {{ draft.updated_at.strftime('%d %b %Y %H:%M') }} UTC{% endif %}.</p>
+        <div class="mt-4 flex flex-wrap gap-2"><a href="{{ url_for('pip_wizard_resume') }}" class="rounded-xl bg-emerald-700 px-3 py-2 text-xs font-extrabold text-white">Resume</a><button id="dismissDraftBtn" type="button" class="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-extrabold text-emerald-800">Dismiss</button></div>
+      </div>
+      {% endif %}
+    </aside>
+  </section>
+
+  <section class="grid grid-cols-2 gap-4 md:grid-cols-4">
+    {{ tile('Active Plans', active_pips or 0, url_for('pip_list'), 'bg-gradient-to-r from-orange-400 to-rose-400', 'Live cases') }}
+    {{ tile('Reviews Due', upcoming_count or 0, url_for('pip_list'), 'bg-gradient-to-r from-blue-600 to-cyan-500', 'Next 7 days') }}
+    {{ tile('Completed', completed_pips or 0, url_for('pip_list'), 'bg-gradient-to-r from-emerald-400 to-teal-400', 'Closed records') }}
+    {{ tile('Overdue', overdue_reviews or 0, url_for('pip_list'), 'bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-900', 'Needs action') }}
+  </section>
+
+  <section class="grid gap-6 xl:grid-cols-[1fr_320px]">
+    <div class="space-y-6">
+      <section class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><h2 class="text-lg font-extrabold text-slate-950">Upcoming reviews</h2><p class="mt-1 text-sm font-semibold text-slate-500">Reviews due in the next 7 days.</p></div>{{ badge((upcoming_count|string) ~ ' due soon', 'amber') }}</div>
+        <div class="mt-5 space-y-3">{% if upcoming_pips %}{% for p in upcoming_pips[:6] %}{{ pip_row(p, true) }}{% endfor %}{% else %}<div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center"><p class="font-extrabold text-slate-900">No reviews due this week</p><p class="mt-1 text-sm text-slate-500">The immediate review queue is clear.</p></div>{% endif %}</div>
+      </section>
+
+      <section class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><h2 class="text-lg font-extrabold text-slate-950">Open Performance Improvement Plans</h2><p class="mt-1 text-sm font-semibold text-slate-500">Active case records.</p></div>{{ badge((open_count|string) ~ ' open', 'purple') }}</div>
+        <div class="mt-5 space-y-3">{% if open_pips %}{% for p in open_pips[:8] %}{{ pip_row(p) }}{% endfor %}{% if open_pips|length > 8 %}<a href="{{ url_for('pip_list') }}" class="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:bg-slate-100">View all open Performance Improvement Plans</a>{% endif %}{% else %}<div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center"><p class="font-extrabold text-slate-900">No open Performance Improvement Plans</p><p class="mt-1 text-sm text-slate-500">New performance improvement cases will appear here.</p></div>{% endif %}</div>
+      </section>
     </div>
-  {% endcall %}
 
+    <aside class="space-y-6">
+      <section class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-sm font-extrabold text-slate-950">Quick actions</h2><p class="mt-1 text-xs font-semibold text-slate-500">Daily shortcuts.</p>
+        <div class="mt-5 grid gap-2"><a href="{{ url_for('create_pip_wizard') }}" class="rounded-xl bg-[#563184] px-4 py-3 text-sm font-extrabold text-white transition hover:bg-[#40245F]">Create new Performance Improvement Plan</a><a href="{{ url_for('employee_list') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:bg-slate-50">Find employee</a><a href="{{ url_for('pip_list') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:bg-slate-50">Open Performance Improvement Plan records</a>{% if current_user.is_superuser() %}<a href="{{ url_for('export_data') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:bg-slate-50">Export data</a>{% endif %}</div>
+      </section>
+
+      <section class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex items-start justify-between gap-4"><div><h2 class="text-sm font-extrabold text-slate-950">Recent activity</h2><p class="mt-1 text-xs font-semibold text-slate-500">Latest timeline movement.</p></div>{{ badge((activity_count|string) ~ ' updates') }}</div>
+        <div class="mt-5 space-y-4">{% for ev in (recent_activity or [])[:8] %}<div class="border-l border-slate-200 pl-4"><p class="text-sm font-extrabold text-slate-950">{{ ev.event_type }}</p>{% if ev.notes %}<p class="mt-1 line-clamp-2 text-sm leading-6 text-slate-600">{{ ev.notes }}</p>{% endif %}<p class="mt-1 text-xs font-semibold text-slate-400">{% if ev.updated_by %}{{ ev.updated_by }} · {% endif %}{{ ev.timestamp.strftime('%d %b %Y %H:%M') if ev.timestamp else 'No timestamp' }}{% if ev.timestamp %} UTC{% endif %}</p></div>{% else %}<div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm font-semibold text-slate-500">No recent activity yet.</div>{% endfor %}</div>
+      </section>
+    </aside>
+  </section>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
   document.addEventListener("DOMContentLoaded", function () {
-    const toggles = document.querySelectorAll(".dashboard-collapse-toggle");
-
-    toggles.forEach((toggle) => {
-      toggle.addEventListener("click", function () {
-        const targetId = this.dataset.target;
-        const content = document.getElementById(targetId);
-        const icon = document.querySelector(`[data-icon-for="${targetId}"]`);
-        const isExpanded = this.getAttribute("aria-expanded") === "true";
-
-        if (isExpanded) {
-          content.classList.add("hidden");
-          this.setAttribute("aria-expanded", "false");
-          if (icon) icon.classList.remove("rotate-180");
-        } else {
-          content.classList.remove("hidden");
-          this.setAttribute("aria-expanded", "true");
-          if (icon) icon.classList.add("rotate-180");
-        }
-      });
+    const dismissButton = document.getElementById("dismissDraftBtn");
+    const banner = document.getElementById("draftResumeBanner");
+    if (!dismissButton || !banner) return;
+    dismissButton.addEventListener("click", async function () {
+      dismissButton.disabled = true;
+      dismissButton.classList.add("opacity-60", "cursor-not-allowed");
+      try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
+        const response = await fetch("{{ url_for('dismiss_draft') }}", { method: "POST", headers: { "Content-Type": "application/json", ...(csrfToken ? { "X-CSRFToken": csrfToken } : {}) }, body: JSON.stringify({ dismissed: true }) });
+        if (!response.ok) throw new Error("Dismiss failed");
+        banner.classList.add("opacity-0", "transition-opacity", "duration-300");
+        setTimeout(() => banner.remove(), 320);
+      } catch (error) {
+        dismissButton.disabled = false;
+        dismissButton.classList.remove("opacity-60", "cursor-not-allowed");
+      }
     });
   });
 </script>
