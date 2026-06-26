@@ -51,6 +51,7 @@
 {% set is_logged_in = current_user.is_authenticated if current_user is defined else False %}
 {% set current_endpoint = request.endpoint or '' %}
 {% set active_module = (active_module|default(None)) or session.get('active_module') %}
+{% set active_module_label = 'Performance Improvement Plan' if active_module == 'PIP' else active_module %}
 {% set enabled_modules = enabled_modules|default({}) %}
 {% set advisor_queue_counts = advisor_queue_counts|default({'open': 0, 'unassigned': 0}) %}
 {% set layout = (layout|default('')) %}
@@ -60,7 +61,7 @@
 <header class="rh-topbar">
   <div class="mx-auto flex min-h-20 max-w-7xl flex-col gap-3 px-4 py-3 lg:px-6 xl:flex-row xl:items-center xl:justify-between">
     <div class="flex min-w-0 items-center justify-between gap-4">
-      <a href="{{ url_for('main.home') }}" class="rh-brand-lockup" aria-label="ResolvHR home">
+      <a href="{{ url_for('main.home') }}" class="rh-brand-lockup" aria-label="ResolvHR main workspace">
         <span class="rh-brand-mark">
           <img src="{{ url_for('static', filename='images/logo.avif') }}" alt="" class="h-9 w-9 rounded-xl object-cover">
         </span>
@@ -77,61 +78,114 @@
     </div>
 
     <nav class="rh-primary-nav" aria-label="Primary navigation">
-      <a href="{{ url_for('main.home') }}" class="rh-nav-link {% if current_endpoint == 'main.home' %}is-active{% endif %}">Home</a>
-      <a href="{{ url_for('employee_list') }}" class="rh-nav-link {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}is-active{% endif %}">Employees</a>
+      <a href="{{ url_for('main.home') }}"
+         class="rh-nav-link rh-nav-link-home {% if current_endpoint == 'main.home' %}is-active{% endif %}">
+        Main Workspace
+      </a>
+
+      <a href="{{ url_for('employee_list') }}"
+         class="rh-nav-link {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}is-active{% endif %}">
+        Employees
+      </a>
 
       <details class="rh-nav-dropdown group">
-        <summary class="rh-nav-link cursor-pointer list-none select-none {% if active_module in ['PIP', 'Probation', 'Sickness', 'Supervision', 'Employee Relations'] %}is-active{% endif %}">Modules <span class="text-xs opacity-60">▾</span></summary>
+        <summary class="rh-nav-link rh-module-switcher cursor-pointer list-none select-none {% if active_module in ['PIP', 'Probation', 'Sickness', 'Supervision', 'Employee Relations'] %}is-active{% endif %}">
+          <span class="text-[10px] font-black uppercase tracking-wide opacity-70">Module:</span>
+          <span>{{ active_module_label or 'Switch module' }}</span>
+          <span class="text-xs opacity-60">▾</span>
+        </summary>
+
         <div class="rh-dropdown-panel left-0">
-          <div class="rh-dropdown-heading">Case modules</div>
-          {% if enabled_modules.get('pip', True) %}<a href="{{ url_for('dashboard') }}" class="rh-dropdown-link {% if active_module == 'PIP' %}is-active{% endif %}">Performance Improvement Plan</a>{% endif %}
-          {% if enabled_modules.get('probation', True) %}<a href="{{ url_for('probation_dashboard') }}" class="rh-dropdown-link {% if active_module == 'Probation' %}is-active{% endif %}">Probation</a>{% endif %}
-          {% if enabled_modules.get('sickness', True) %}<a href="{{ url_for('sickness_dashboard') }}" class="rh-dropdown-link {% if active_module == 'Sickness' %}is-active{% endif %}">Sickness</a>{% endif %}
-          {% if enabled_modules.get('supervision', True) %}<a href="{{ url_for('supervision.dashboard') }}" class="rh-dropdown-link {% if active_module == 'Supervision' %}is-active{% endif %}">Supervision</a>{% endif %}
-          {% if current_user.is_superuser() and enabled_modules.get('employee_relations', True) %}<a href="{{ url_for('employee_relations.dashboard') }}" class="rh-dropdown-link {% if active_module == 'Employee Relations' %}is-active{% endif %}">Employee Relations</a>{% endif %}
+          <div class="rh-dropdown-heading">Switch module</div>
+
+          {% if enabled_modules.get('pip', True) %}
+            <a href="{{ url_for('dashboard') }}"
+               class="rh-dropdown-link {% if active_module == 'PIP' %}is-active{% endif %}">
+              Performance Improvement Plan
+            </a>
+          {% endif %}
+
+          {% if enabled_modules.get('probation', True) %}
+            <a href="{{ url_for('probation_dashboard') }}"
+               class="rh-dropdown-link {% if active_module == 'Probation' %}is-active{% endif %}">
+              Probation
+            </a>
+          {% endif %}
+
+          {% if enabled_modules.get('sickness', True) %}
+            <a href="{{ url_for('sickness_dashboard') }}"
+               class="rh-dropdown-link {% if active_module == 'Sickness' %}is-active{% endif %}">
+              Sickness
+            </a>
+          {% endif %}
+
+          {% if enabled_modules.get('supervision', True) %}
+            <a href="{{ url_for('supervision.dashboard') }}"
+               class="rh-dropdown-link {% if active_module == 'Supervision' %}is-active{% endif %}">
+              Supervision
+            </a>
+          {% endif %}
+
+          {% if current_user.is_superuser() and enabled_modules.get('employee_relations', True) %}
+            <a href="{{ url_for('employee_relations.dashboard') }}"
+               class="rh-dropdown-link {% if active_module == 'Employee Relations' %}is-active{% endif %}">
+              Employee Relations
+            </a>
+          {% endif %}
         </div>
       </details>
 
-      {% if active_module == 'PIP' and enabled_modules.get('pip', True) %}
-        <a href="{{ url_for('pip_list') }}" class="rh-nav-link {% if current_endpoint in ['pip_list', 'pip.pip_list'] %}is-active{% endif %}">Performance Improvement Plan Records</a>
-        <a href="{{ url_for('create_pip_wizard') }}" class="rh-nav-link {% if 'create_pip_wizard' in current_endpoint %}is-active{% endif %}">Create Plan</a>
-      {% elif active_module == 'Probation' and enabled_modules.get('probation', True) %}
-        <a href="{{ url_for('probation_employee_list') }}" class="rh-nav-link {% if current_endpoint in ['probation_employee_list', 'probation.probation_employee_list'] %}is-active{% endif %}">Probation Records</a>
-        <a href="{{ url_for('probation_create_wizard') }}" class="rh-nav-link {% if 'probation_create_wizard' in current_endpoint %}is-active{% endif %}">Create</a>
-      {% elif active_module == 'Sickness' and enabled_modules.get('sickness', True) %}
-        <a href="{{ url_for('sickness_list') }}" class="rh-nav-link {% if current_endpoint in ['sickness_list', 'sickness.sickness_list'] %}is-active{% endif %}">Sickness Cases</a>
-      {% elif active_module == 'Supervision' and enabled_modules.get('supervision', True) %}
-        <a href="{{ url_for('supervision.list_supervisions') }}" class="rh-nav-link {% if current_endpoint == 'supervision.list_supervisions' %}is-active{% endif %}">Supervisions</a>
-        {% if current_user.is_admin() %}<a href="{{ url_for('supervision.templates') }}" class="rh-nav-link {% if current_endpoint in ['supervision.templates', 'supervision.create_template', 'supervision.edit_template'] %}is-active{% endif %}">Templates</a>{% endif %}
-      {% elif active_module == 'Employee Relations' and current_user.is_superuser() and enabled_modules.get('employee_relations', True) %}
-        <a href="{{ url_for('employee_relations.case_list') }}" class="rh-nav-link {% if current_endpoint == 'employee_relations.case_list' %}is-active{% endif %}">ER Cases</a>
-        <a href="{{ url_for('employee_relations.create_case') }}" class="rh-nav-link {% if current_endpoint == 'employee_relations.create_case' %}is-active{% endif %}">Create ER Case</a>
-      {% endif %}
-
-      <a href="{{ url_for('manage_employee.index') }}" class="rh-nav-link {% if current_endpoint.startswith('manage_employee.') %}is-active{% endif %}">Lifecycle</a>
+      <a href="{{ url_for('manage_employee.index') }}"
+         class="rh-nav-link {% if current_endpoint.startswith('manage_employee.') %}is-active{% endif %}">
+        Lifecycle
+      </a>
 
       {% if current_user.is_admin() %}
-        <a href="{{ url_for('admin.advisor_escalation_queue') }}" class="rh-nav-link {% if current_endpoint == 'admin.advisor_escalation_queue' %}is-active{% endif %}">Advisor Queue{% if advisor_queue_counts.open %}<span class="rh-count-badge">{{ advisor_queue_counts.open }}</span>{% endif %}</a>
+        <a href="{{ url_for('admin.advisor_escalation_queue') }}"
+           class="rh-nav-link {% if current_endpoint == 'admin.advisor_escalation_queue' %}is-active{% endif %}">
+          Advisor Queue
+          {% if advisor_queue_counts.open %}
+            <span class="rh-count-badge">{{ advisor_queue_counts.open }}</span>
+          {% endif %}
+        </a>
       {% endif %}
 
       {% if current_user.is_superuser() %}
-      <details class="rh-nav-dropdown group">
-        <summary class="rh-nav-link cursor-pointer list-none select-none {% if current_endpoint in ['admin_dashboard', 'admin.admin_dashboard'] or current_endpoint.startswith('admin.') %}is-active{% endif %}">Admin <span class="text-xs opacity-60">▾</span></summary>
-        <div class="rh-dropdown-panel right-0">
-          <div class="rh-dropdown-heading">Admin tools</div>
-          <a href="{{ url_for('admin_dashboard') }}" class="rh-dropdown-link {% if current_endpoint in ['admin_dashboard', 'admin.admin_dashboard'] %}is-active{% endif %}">Admin dashboard</a>
-          <a href="{{ url_for('admin.admin_module_settings') }}" class="rh-dropdown-link {% if current_endpoint == 'admin.admin_module_settings' %}is-active{% endif %}">Module settings</a>
-          <a href="{{ url_for('employee_import') }}" class="rh-dropdown-link {% if current_endpoint in ['employee_import', 'employees.employee_import'] %}is-active{% endif %}">Employee import</a>
-        </div>
-      </details>
+        <details class="rh-nav-dropdown group">
+          <summary class="rh-nav-link cursor-pointer list-none select-none {% if current_endpoint in ['admin_dashboard', 'admin.admin_dashboard'] or current_endpoint.startswith('admin.') %}is-active{% endif %}">
+            Admin <span class="text-xs opacity-60">▾</span>
+          </summary>
+
+          <div class="rh-dropdown-panel right-0">
+            <div class="rh-dropdown-heading">Admin tools</div>
+
+            <a href="{{ url_for('admin_dashboard') }}"
+               class="rh-dropdown-link {% if current_endpoint in ['admin_dashboard', 'admin.admin_dashboard'] %}is-active{% endif %}">
+              Admin dashboard
+            </a>
+
+            <a href="{{ url_for('admin.admin_module_settings') }}"
+               class="rh-dropdown-link {% if current_endpoint == 'admin.admin_module_settings' %}is-active{% endif %}">
+              Module settings
+            </a>
+
+            <a href="{{ url_for('employee_import') }}"
+               class="rh-dropdown-link {% if current_endpoint in ['employee_import', 'employees.employee_import'] %}is-active{% endif %}">
+              Employee import
+            </a>
+          </div>
+        </details>
       {% endif %}
     </nav>
 
     <div class="hidden items-center gap-3 xl:flex">
       <div class="text-right">
         <p class="text-xs font-extrabold text-[#0F2A44]">{{ current_user.username }}</p>
-        <p class="text-[10px] font-bold uppercase tracking-wide text-[#0084BD]">{% if current_user.is_superuser() %}Admin{% elif current_user.is_admin() %}Manager{% else %}User{% endif %}</p>
+        <p class="text-[10px] font-bold uppercase tracking-wide text-[#0084BD]">
+          {% if current_user.is_superuser() %}Admin{% elif current_user.is_admin() %}Manager{% else %}User{% endif %}
+        </p>
       </div>
+
       <form action="{{ url_for('auth.logout') }}" method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="rh-btn-secondary rh-btn-sm">Logout</button>
@@ -145,27 +199,82 @@
   <div class="mx-auto max-w-7xl px-4 lg:px-6">
     <div class="rh-subnav">
       {% if active_module == 'PIP' %}
-        <a href="{{ url_for('dashboard') }}" class="rh-subnav-link {% if current_endpoint == 'dashboard' %}is-active{% endif %}">Overview</a>
-        <a href="{{ url_for('employee_list') }}" class="rh-subnav-link {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}is-active{% endif %}">Employees</a>
-        <a href="{{ url_for('pip_list') }}" class="rh-subnav-link {% if current_endpoint in ['pip_list', 'pip.pip_list'] %}is-active{% endif %}">Records</a>
-        <a href="{{ url_for('create_pip_wizard') }}" class="rh-subnav-link {% if 'create_pip_wizard' in current_endpoint %}is-active{% endif %}">Create</a>
+        <a href="{{ url_for('dashboard') }}"
+           class="rh-subnav-link {% if current_endpoint == 'dashboard' %}is-active{% endif %}">
+          Overview
+        </a>
+        <a href="{{ url_for('employee_list') }}"
+           class="rh-subnav-link {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}is-active{% endif %}">
+          Employees
+        </a>
+        <a href="{{ url_for('pip_list') }}"
+           class="rh-subnav-link {% if current_endpoint in ['pip_list', 'pip.pip_list'] %}is-active{% endif %}">
+          Records
+        </a>
+        <a href="{{ url_for('create_pip_wizard') }}"
+           class="rh-subnav-link {% if 'create_pip_wizard' in current_endpoint %}is-active{% endif %}">
+          Create
+        </a>
+
       {% elif active_module == 'Probation' %}
-        <a href="{{ url_for('probation_dashboard') }}" class="rh-subnav-link {% if current_endpoint in ['probation_dashboard', 'probation.probation_dashboard'] %}is-active{% endif %}">Overview</a>
-        <a href="{{ url_for('employee_list') }}" class="rh-subnav-link {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}is-active{% endif %}">Employees</a>
-        <a href="{{ url_for('probation_employee_list') }}" class="rh-subnav-link {% if current_endpoint in ['probation_employee_list', 'probation.probation_employee_list'] %}is-active{% endif %}">Records</a>
-        <a href="{{ url_for('probation_create_wizard') }}" class="rh-subnav-link {% if 'probation_create_wizard' in current_endpoint %}is-active{% endif %}">Create</a>
+        <a href="{{ url_for('probation_dashboard') }}"
+           class="rh-subnav-link {% if current_endpoint in ['probation_dashboard', 'probation.probation_dashboard'] %}is-active{% endif %}">
+          Overview
+        </a>
+        <a href="{{ url_for('employee_list') }}"
+           class="rh-subnav-link {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}is-active{% endif %}">
+          Employees
+        </a>
+        <a href="{{ url_for('probation_employee_list') }}"
+           class="rh-subnav-link {% if current_endpoint in ['probation_employee_list', 'probation.probation_employee_list'] %}is-active{% endif %}">
+          Records
+        </a>
+        <a href="{{ url_for('probation_create_wizard') }}"
+           class="rh-subnav-link {% if 'probation_create_wizard' in current_endpoint %}is-active{% endif %}">
+          Create
+        </a>
+
       {% elif active_module == 'Sickness' %}
-        <a href="{{ url_for('sickness_dashboard') }}" class="rh-subnav-link {% if current_endpoint in ['sickness_dashboard', 'sickness.sickness_dashboard'] %}is-active{% endif %}">Overview</a>
-        <a href="{{ url_for('employee_list') }}" class="rh-subnav-link {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}is-active{% endif %}">Employees</a>
-        <a href="{{ url_for('sickness_list') }}" class="rh-subnav-link {% if current_endpoint in ['sickness_list', 'sickness.sickness_list'] %}is-active{% endif %}">Cases</a>
+        <a href="{{ url_for('sickness_dashboard') }}"
+           class="rh-subnav-link {% if current_endpoint in ['sickness_dashboard', 'sickness.sickness_dashboard'] %}is-active{% endif %}">
+          Overview
+        </a>
+        <a href="{{ url_for('employee_list') }}"
+           class="rh-subnav-link {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}is-active{% endif %}">
+          Employees
+        </a>
+        <a href="{{ url_for('sickness_list') }}"
+           class="rh-subnav-link {% if current_endpoint in ['sickness_list', 'sickness.sickness_list'] %}is-active{% endif %}">
+          Cases
+        </a>
+
       {% elif active_module == 'Supervision' %}
-        <a href="{{ url_for('supervision.dashboard') }}" class="rh-subnav-link {% if current_endpoint == 'supervision.dashboard' %}is-active{% endif %}">Overview</a>
-        <a href="{{ url_for('supervision.list_supervisions') }}" class="rh-subnav-link {% if current_endpoint == 'supervision.list_supervisions' %}is-active{% endif %}">Records</a>
-        <a href="{{ url_for('employee_list') }}" class="rh-subnav-link {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}is-active{% endif %}">Employees</a>
+        <a href="{{ url_for('supervision.dashboard') }}"
+           class="rh-subnav-link {% if current_endpoint == 'supervision.dashboard' %}is-active{% endif %}">
+          Overview
+        </a>
+        <a href="{{ url_for('supervision.list_supervisions') }}"
+           class="rh-subnav-link {% if current_endpoint == 'supervision.list_supervisions' %}is-active{% endif %}">
+          Records
+        </a>
+        <a href="{{ url_for('employee_list') }}"
+           class="rh-subnav-link {% if current_endpoint in ['employee_list', 'employees.employee_list'] %}is-active{% endif %}">
+          Employees
+        </a>
+
       {% elif active_module == 'Employee Relations' and current_user.is_superuser() %}
-        <a href="{{ url_for('employee_relations.dashboard') }}" class="rh-subnav-link {% if current_endpoint == 'employee_relations.dashboard' %}is-active{% endif %}">Overview</a>
-        <a href="{{ url_for('employee_relations.case_list') }}" class="rh-subnav-link {% if current_endpoint == 'employee_relations.case_list' %}is-active{% endif %}">Cases</a>
-        <a href="{{ url_for('employee_relations.create_case') }}" class="rh-subnav-link {% if current_endpoint == 'employee_relations.create_case' %}is-active{% endif %}">Create</a>
+        <a href="{{ url_for('employee_relations.dashboard') }}"
+           class="rh-subnav-link {% if current_endpoint == 'employee_relations.dashboard' %}is-active{% endif %}">
+          Overview
+        </a>
+        <a href="{{ url_for('employee_relations.case_list') }}"
+           class="rh-subnav-link {% if current_endpoint == 'employee_relations.case_list' %}is-active{% endif %}">
+          Cases
+        </a>
+        <a href="{{ url_for('employee_relations.create_case') }}"
+           class="rh-subnav-link {% if current_endpoint == 'employee_relations.create_case' %}is-active{% endif %}">
+          Create
+        </a>
       {% endif %}
     </div>
   </div>
@@ -178,7 +287,18 @@
     {% if is_logged_in and not fullscreen %}
       <div class="rh-page-header">
         <div>
-          <p class="rh-kicker">{% if active_module == 'PIP' %}Performance Improvement Plan{% elif active_module %}{{ active_module }}{% else %}ResolvHR{% endif %}</p>
+          <nav class="rh-breadcrumb" aria-label="Breadcrumb">
+            <a href="{{ url_for('main.home') }}">Main Workspace</a>
+            {% if active_module_label %}
+              <span aria-hidden="true">/</span>
+              <span>{{ active_module_label }}</span>
+            {% endif %}
+          </nav>
+
+          <p class="rh-kicker">
+            {% if active_module_label %}{{ active_module_label }}{% else %}ResolvHR{% endif %}
+          </p>
+
           <h1 class="rh-page-title">{% block page_title %}HR case management{% endblock %}</h1>
         </div>
       </div>
@@ -188,7 +308,9 @@
       {% if messages %}
         <div class="mb-5 space-y-2" aria-live="polite">
           {% for category, msg in messages %}
-            <div class="flash-auto-dismiss rh-flash {% if category == 'success' %}rh-flash-success{% elif category == 'error' or category == 'danger' %}rh-flash-error{% elif category == 'warning' %}rh-flash-warning{% else %}rh-flash-info{% endif %}">{{ msg }}</div>
+            <div class="flash-auto-dismiss rh-flash {% if category == 'success' %}rh-flash-success{% elif category == 'error' or category == 'danger' %}rh-flash-error{% elif category == 'warning' %}rh-flash-warning{% else %}rh-flash-info{% endif %}">
+              {{ msg }}
+            </div>
           {% endfor %}
         </div>
       {% endif %}
@@ -203,6 +325,7 @@
 <script>
   document.addEventListener('DOMContentLoaded', function () {
     const flashes = document.querySelectorAll('.flash-auto-dismiss');
+
     if (flashes.length) {
       setTimeout(() => {
         flashes.forEach(el => {
