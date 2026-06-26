@@ -6,7 +6,8 @@
 {% set today = today_local() %}
 {% set upcoming_count = due_soon_count if due_soon_count is defined else ((upcoming_pips|length) if upcoming_pips else 0) %}
 {% set open_count = (open_pips|length) if open_pips else 0 %}
-{% set activity_count = (recent_activity|length) if recent_activity else 0 %}
+{% set high_severity_count = (open_pips|selectattr('severity', 'equalto', 'High')|list|length) if open_pips else 0 %}
+{% set priority_count = (overdue_reviews or 0) + (upcoming_count or 0) + high_severity_count + (1 if draft else 0) %}
 
 <div class="mx-auto max-w-7xl space-y-6 pb-10">
 
@@ -57,6 +58,23 @@
     </a>
   {% endmacro %}
 
+  {% macro priority_row(label, value, helper, tone='blue', href=None) %}
+    {% set row_classes = 'border-slate-200 bg-white text-slate-700' %}
+    {% if tone == 'red' %}{% set row_classes = 'border-red-100 bg-red-50 text-red-800' %}{% endif %}
+    {% if tone == 'amber' %}{% set row_classes = 'border-amber-100 bg-amber-50 text-amber-900' %}{% endif %}
+    {% if tone == 'emerald' %}{% set row_classes = 'border-emerald-100 bg-emerald-50 text-emerald-800' %}{% endif %}
+    {% if tone == 'blue' %}{% set row_classes = 'border-blue-100 bg-blue-50 text-blue-800' %}{% endif %}
+    {% if href %}<a href="{{ href }}" class="block rounded-2xl border px-4 py-3 transition hover:-translate-y-0.5 hover:shadow-sm {{ row_classes }}">{% else %}<div class="rounded-2xl border px-4 py-3 {{ row_classes }}">{% endif %}
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-sm font-extrabold">{{ label }}</p>
+          <p class="mt-1 text-xs font-semibold opacity-75">{{ helper }}</p>
+        </div>
+        <span class="text-2xl font-black leading-none">{{ value }}</span>
+      </div>
+    {% if href %}</a>{% else %}</div>{% endif %}
+  {% endmacro %}
+
   <section class="grid gap-6 xl:grid-cols-[1fr_300px]">
     <div class="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
       <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
@@ -67,7 +85,7 @@
           <div>
             <p class="text-xs font-extrabold uppercase tracking-[0.18em] text-[#563184]">Performance Improvement Plan information</p>
             <h1 class="mt-2 text-3xl font-extrabold tracking-tight text-slate-950">Welcome back, {{ current_user.username|title if current_user and current_user.username else 'User' }}</h1>
-            <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Monitor review deadlines, open case work and recent updates.</p>
+            <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Monitor review deadlines, open case work and priority actions.</p>
           </div>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -79,7 +97,7 @@
         <div class="border-l border-slate-200 pl-4"><p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">Employees</p><p class="mt-2 text-2xl font-extrabold text-slate-950">{{ total_employees or 0 }}</p></div>
         <div class="border-l border-slate-200 pl-4"><p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">Active Plans</p><p class="mt-2 text-2xl font-extrabold text-slate-950">{{ active_pips or 0 }}</p></div>
         <div class="border-l border-slate-200 pl-4"><p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">Completed</p><p class="mt-2 text-2xl font-extrabold text-slate-950">{{ completed_pips or 0 }}</p></div>
-        <div class="border-l border-slate-200 pl-4"><p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">Activity</p><p class="mt-2 text-2xl font-extrabold text-slate-950">{{ activity_count or 0 }}</p></div>
+        <div class="border-l border-slate-200 pl-4"><p class="text-xs font-extrabold uppercase tracking-wide text-slate-400">Priority Items</p><p class="mt-2 text-2xl font-extrabold text-slate-950">{{ priority_count or 0 }}</p></div>
       </div>
     </div>
 
@@ -128,8 +146,20 @@
       </section>
 
       <section class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
-        <div class="flex items-start justify-between gap-4"><div><h2 class="text-sm font-extrabold text-slate-950">Recent activity</h2><p class="mt-1 text-xs font-semibold text-slate-500">Latest timeline movement.</p></div>{{ badge((activity_count|string) ~ ' updates') }}</div>
-        <div class="mt-5 space-y-4">{% for ev in (recent_activity or [])[:8] %}<div class="border-l border-slate-200 pl-4"><p class="text-sm font-extrabold text-slate-950">{{ ev.event_type }}</p>{% if ev.notes %}<p class="mt-1 line-clamp-2 text-sm leading-6 text-slate-600">{{ ev.notes }}</p>{% endif %}<p class="mt-1 text-xs font-semibold text-slate-400">{% if ev.updated_by %}{{ ev.updated_by }} · {% endif %}{{ ev.timestamp.strftime('%d %b %Y %H:%M') if ev.timestamp else 'No timestamp' }}{% if ev.timestamp %} UTC{% endif %}</p></div>{% else %}<div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm font-semibold text-slate-500">No recent activity yet.</div>{% endfor %}</div>
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h2 class="text-sm font-extrabold text-slate-950">Priority actions</h2>
+            <p class="mt-1 text-xs font-semibold text-slate-500">Work that may need attention next.</p>
+          </div>
+          {% if priority_count > 0 %}{{ badge((priority_count|string) ~ ' items', 'amber') }}{% else %}{{ badge('Clear', 'emerald') }}{% endif %}
+        </div>
+        <div class="mt-5 space-y-3">
+          {{ priority_row('Overdue reviews', overdue_reviews or 0, 'Reviews past their scheduled date.', 'red' if overdue_reviews else 'emerald', url_for('pip_list')) }}
+          {{ priority_row('Due in next 7 days', upcoming_count or 0, 'Upcoming reviews to prepare for.', 'amber' if upcoming_count else 'emerald', url_for('pip_list')) }}
+          {{ priority_row('High severity open', high_severity_count or 0, 'Open cases marked as high severity.', 'red' if high_severity_count else 'blue', url_for('pip_list')) }}
+          {{ priority_row('Draft to resume', 1 if draft else 0, 'Continue an unfinished Performance Improvement Plan.', 'amber' if draft else 'emerald', url_for('pip_wizard_resume') if draft else None) }}
+        </div>
+        <p class="mt-4 text-xs leading-5 text-slate-500">Recent activity is still retained on individual case records where it provides useful audit context.</p>
       </section>
     </aside>
   </section>
